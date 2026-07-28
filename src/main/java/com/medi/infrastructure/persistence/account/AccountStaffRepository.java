@@ -12,6 +12,11 @@ public interface AccountStaffRepository extends JpaRepository<AccountStaff, Long
 	@EntityGraph(attributePaths = {"roles", "roles.permissions"})
 	Optional<AccountStaff> findByEmailAndDeletedAtIsNull(String email);
 
+	@EntityGraph(attributePaths = {"roles", "roles.permissions"})
+	Optional<AccountStaff> findByEmail(String email);
+
+	boolean existsByNickname(String nickname);
+
 	Optional<AccountStaff> findByIdAndDeletedAtIsNull(Long id);
 
 	@EntityGraph(attributePaths = {"roles", "roles.permissions"})

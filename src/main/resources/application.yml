@@ -28,3 +28,11 @@ app:
       issuer: ${AUTH_JWT_ISSUER:medi_backend}
       secret: ${AUTH_JWT_SECRET:local-medi-auth-secret-change-before-production}
       access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:7200}
+  bootstrap:
+    staff:
+      enabled: ${STAFF_BOOTSTRAP_ENABLED:false}
+      email: ${STAFF_BOOTSTRAP_EMAIL:}
+      password: ${STAFF_BOOTSTRAP_PASSWORD:}
+      name: ${STAFF_BOOTSTRAP_NAME:Medi Admin}
+      nickname: ${STAFF_BOOTSTRAP_NICKNAME:admin}
+      role: ${STAFF_BOOTSTRAP_ROLE:platform.super_admin}

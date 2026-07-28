@@ -15,6 +15,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -70,6 +71,22 @@ public class AccountStaff extends BaseTimeEntity {
 	protected AccountStaff() {
 	}
 
+	public static AccountStaff create(
+		String name,
+		String nickname,
+		String email,
+		String encodedPassword
+	) {
+		AccountStaff staff = new AccountStaff();
+		staff.name = Objects.requireNonNull(name);
+		staff.nickname = Objects.requireNonNull(nickname);
+		staff.email = Objects.requireNonNull(email);
+		staff.password = Objects.requireNonNull(encodedPassword);
+		staff.emailVerifiedAt = LocalDateTime.now();
+		staff.status = AccountStaffStatus.ACTIVE;
+		return staff;
+	}
+
 	public Long id() {
 		return id;
 	}
@@ -107,6 +124,10 @@ public class AccountStaff extends BaseTimeEntity {
 			.flatMap(role -> role.permissions().stream())
 			.map(StaffPermission::code)
 			.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
+	public void assignRole(StaffRole role) {
+		roles.add(Objects.requireNonNull(role));
 	}
 
 	public void markLoggedIn() {

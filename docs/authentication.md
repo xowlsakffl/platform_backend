@@ -144,7 +144,27 @@ common/security
 
 Request DTO는 HTTP 입력 모델이므로 adapter 계층에 둔다. 로그인 로직은 application 계층의 `AuthenticationService`가 담당한다.
 
-## 8. 후속 작업
+## 8. 최초 Staff 관리자 생성
+
+Staff 역할과 권한의 기준 데이터는 Flyway migration이 관리한다. 비밀번호가 필요한 최초 관리자 계정은 환경변수 기반 bootstrap runner가 생성한다.
+
+```bash
+STAFF_BOOTSTRAP_ENABLED=true \
+STAFF_BOOTSTRAP_EMAIL=admin@medi.local \
+STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
+./gradlew bootRun
+```
+
+처리 기준:
+
+- 비밀번호는 BCrypt로 암호화한 뒤 저장한다.
+- 기본 역할은 `platform.super_admin`이다.
+- 계정 생성과 `account_staff_roles` 연결을 하나의 트랜잭션으로 처리한다.
+- 동일한 활성 이메일이 있으면 계정을 중복 생성하지 않고 역할 연결만 보장한다.
+- 기존 계정의 비밀번호는 자동으로 변경하지 않는다.
+- bootstrap 설정이 꺼져 있으면 runner 자체가 실행되지 않는다.
+
+## 9. 후속 작업
 
 - refresh token
 - token blacklist 기반 logout

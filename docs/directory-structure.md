@@ -45,6 +45,9 @@ src/main/java/com/medi/
         user/
   application/
     account/
+    auth/
+      command/
+      result/
     hospital/
       command/
       query/
@@ -89,6 +92,8 @@ src/main/java/com/medi/
 | `domain` | Entity, enum, 도메인 규칙 |
 | `infrastructure` | Repository, Redis, storage, messaging, scheduler 구현 |
 | `common` | 공통 설정, 응답, 예외, 보안, request trace |
+
+최초 운영자 계정처럼 환경 설정으로 실행되는 초기화 진입점은 `common.config`에 두고, 실제 생성 유스케이스는 `application.auth`가 담당한다.
 
 ## 4. Actor별 Controller 배치
 

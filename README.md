@@ -71,6 +71,21 @@ Redis  localhost:6379 / password=myStrongRedisPassword
 ./gradlew bootRun
 ```
 
+## 최초 관리자 계정 생성
+
+관리자 계정은 고정 비밀번호를 migration에 저장하지 않는다. 최초 한 번만 환경변수를 전달해 애플리케이션을 실행한다.
+
+```bash
+STAFF_BOOTSTRAP_ENABLED=true \
+STAFF_BOOTSTRAP_EMAIL=admin@medi.local \
+STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
+./gradlew bootRun
+```
+
+기본 이름은 `Medi Admin`, 닉네임은 `admin`, 역할은 `platform.super_admin`이다. 필요하면 `STAFF_BOOTSTRAP_NAME`, `STAFF_BOOTSTRAP_NICKNAME`, `STAFF_BOOTSTRAP_ROLE`로 변경한다.
+
+같은 이메일의 활성 계정이 이미 있으면 새 계정을 만들거나 비밀번호를 덮어쓰지 않고 역할 연결만 확인한다. 생성이 끝나면 다음 실행부터 `STAFF_BOOTSTRAP_ENABLED`를 제거하거나 `false`로 둔다.
+
 현재 단계에서는 테스트 코드를 추가하지 않는다. 기능 검증은 컴파일, 애플리케이션 기동, 필요한 경우 수동 API 호출로 한다.
 
 ## API namespace
