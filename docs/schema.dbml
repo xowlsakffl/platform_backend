@@ -1,0 +1,1301 @@
+Project beaulab_backend {
+  database_type: "MySQL"
+  Note: '''
+  Laravel migration과 모델 관계를 기준으로 생성한 Beaulab 백엔드 ERD입니다.
+  Ref 라인은 실제 DB FK 또는 명시한 논리 FK입니다.
+  polymorphic 관계는 MySQL FK로 강제할 수 없어 주석과 테이블 Note로 설명합니다.
+  '''
+}
+
+// Polymorphic conventions
+// media.model_type/model_id -> 파일 소유 모델: hospitals, doctors, reviews, evaluations, events, chats, notices, faqs 등
+// category_assignments.categorizable_type/id -> 카테고리 소유 모델: hospitals, doctors, talks, reviews, evaluations, events, faqs 등
+// operation_histories.target_type/id, admin_notes.target_type/id -> 운영 대상 모델
+// content_reports.target_type/id, content_report_states.target_type/id -> 신고 대상 모델
+// activity_log.subject_type/id, causer_type/id -> Spatie activitylog polymorphic 참조
+
+Table account_beauties {
+  id bigint [pk, increment, note: '뷰티 관리자 고유 ID']
+  beauty_id bigint [note: '소속 뷰티 ID']
+  name varchar [note: '뷰티 관리자 실명']
+  nickname varchar [unique, note: '뷰티 관리자 로그인 아이디']
+  email varchar [unique, note: '뷰티 관리자 이메일']
+  email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
+  password varchar [note: '암호화된 비밀번호']
+  status varchar [default: `'SUSPENDED'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED)']
+  last_login_at timestamp [null, note: '마지막 로그인 시각']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '뷰티 관리자 비활성/삭제 시각']
+  Note: '뷰티 파트너 계정입니다. 현재 정책은 뷰티 업체 1개당 계정 1개입니다.'
+}
+
+Table account_hospitals {
+  id bigint [pk, increment, note: '병원 관리자 고유 ID']
+  hospital_id bigint [note: '소속 병원 ID']
+  name varchar [note: '병원 관리자 실명']
+  nickname varchar [unique, note: '병원 관리자 로그인 아이디']
+  email varchar [unique, note: '병원 관리자 이메일']
+  email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
+  password varchar [note: '암호화된 비밀번호']
+  status varchar [default: `'SUSPENDED'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED, WITHDRAWN)']
+  last_login_at timestamp [null, note: '마지막 로그인 시각']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '병원 관리자 비활성/삭제 시각']
+  Note: '병의원 파트너 계정입니다. 현재 정책은 병원 1개당 계정 1개입니다.'
+}
+
+Table account_staffs {
+  id bigint [pk, increment, note: '뷰랩 관리자 고유 ID']
+  name varchar [note: '뷰랩 관리자 실명']
+  nickname varchar [unique, note: '뷰랩 관리자 로그인 아이디']
+  email varchar [unique, note: '뷰랩 관리자 이메일']
+  email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
+  password varchar [note: '암호화된 비밀번호']
+  department varchar [null, note: '부서']
+  job_title varchar [null, note: '직함/직무']
+  status varchar [default: `'ACTIVE'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED)']
+  last_login_at timestamp [null, note: '마지막 로그인 시각']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '뷰랩 관리자 비활성/삭제 시각']
+  Note: '내부 운영자 계정과 직원 상태를 관리합니다.'
+}
+
+Table account_user_access_logs {
+  id bigint [pk, increment, note: '사용자 접속 기록 ID']
+  account_user_id bigint [note: '일반 사용자 account_users ID']
+  ip varchar(45) [null, note: '접속 IP']
+  user_agent varchar(500) [null, note: '접속 User-Agent']
+  platform varchar(30) [null, note: '접속 플랫폼(app, web 등)']
+  accessed_at timestamp [note: 'foreground 접속 기록 시각']
+  created_at timestamp
+  updated_at timestamp
+  Note: '일반 사용자의 접속 IP, 기기, 접속 시각을 기록합니다.'
+}
+
+Table account_user_blocks {
+  id bigint [pk, increment, note: '사용자 차단 ID']
+  blocker_user_id bigint [note: '차단한 사용자 account_users ID']
+  blocked_user_id bigint [note: '차단된 사용자 account_users ID']
+  blocked_at timestamp [note: '차단 시각']
+  created_at timestamp
+  updated_at timestamp
+  Note: '사용자 간 채팅/상호작용 차단 관계를 저장합니다.'
+}
+
+Table account_users {
+  id bigint [pk, increment, note: '사용자 고유 ID']
+  name varchar [note: '사용자 실명']
+  nickname varchar [unique, note: '사용자 닉네임']
+  email varchar [unique, note: '로그인 이메일']
+  phone varchar(30) [null, note: '사용자 연락처']
+  signup_channel varchar(30) [default: `'EMAIL'`, note: '가입 경로(EMAIL, KAKAO, NAVER, APPLE, FACEBOOK, EMAIL_NO_CONTACT, UNKNOWN)']
+  email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
+  password varchar [note: '암호화된 비밀번호']
+  status varchar [default: `'ACTIVE'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED, WITHDRAWN)']
+  warning_count int [default: `0`, note: '신고 처리 경고 누적 횟수']
+  blocked_at timestamp [null, note: '차단 처리 시각']
+  withdrawal_reason varchar(500) [null, note: '탈퇴 사유']
+  comment_notification_enabled boolean [default: `true`, note: '댓글 알림 동의 여부']
+  note_notification_enabled boolean [default: `true`, note: '쪽지 알림 동의 여부']
+  marketing_sms_agreed boolean [default: `false`, note: '마케팅 SMS 수신 동의 여부']
+  marketing_email_agreed boolean [default: `false`, note: '마케팅 이메일 수신 동의 여부']
+  marketing_push_agreed boolean [default: `false`, note: '마케팅 푸시 수신 동의 여부']
+  marketing_night_push_agreed boolean [default: `false`, note: '마케팅 야간푸시 수신 동의 여부']
+  last_login_at timestamp [null, note: '마지막 로그인 시각']
+  last_accessed_at timestamp [null, note: '마지막 foreground 접속 기록 시각']
+  last_access_ip varchar(45) [null, note: '마지막 foreground 접속 IP']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '탈퇴 처리 시각']
+  Note: '일반 사용자 계정과 회원 상태, 알림 동의, 차단/탈퇴 정보를 관리합니다.'
+}
+
+Table activity_log {
+  id bigint [pk, increment, note: '활동 로그 ID']
+  log_name varchar [null, note: '로그 채널명']
+  description text [note: '로그 설명']
+  subject_type varchar [null, note: '대상 모델 타입']
+  subject_id bigint [null, note: '대상 모델 ID']
+  causer_type varchar [null, note: '행위자 모델 타입']
+  causer_id bigint [null, note: '행위자 모델 ID']
+  event varchar [null, note: '이벤트명']
+  properties json [null, note: '변경 속성']
+  batch_uuid uuid [null, note: '배치 UUID']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Spatie activitylog 기반 감사 로그 테이블입니다.'
+}
+
+Table admin_notes {
+  id bigint [pk, increment, note: '관리자 메모 ID']
+  target_type varchar(255) [note: '대상 타입(post, comment, user 등)']
+  target_id bigint [note: '대상 ID']
+  note text [note: '관리자 메모 내용']
+  is_internal boolean [default: `true`, note: '내부 메모 여부']
+  creator_type varchar(255) [null, note: '메모 작성자 actor 타입']
+  creator_id bigint [null, note: '메모 작성자 actor ID']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '관리자 메모 polymorphic 테이블입니다.'
+}
+
+Table beauties {
+  id bigint [pk, increment, note: '뷰티업체 고유 ID']
+  name varchar [unique, note: '뷰티업체명']
+  description text [null, note: '뷰티업체 소개']
+  address varchar [null, note: '뷰티업체 주소']
+  address_detail varchar [null, note: '뷰티업체 상세 주소']
+  latitude varchar [null, note: '위도']
+  longitude varchar [null, note: '경도']
+  tel varchar [null, note: '대표 번호']
+  email varchar [null, note: '대표 이메일']
+  consulting_hours text [null, note: '운영 시간']
+  direction text [null, note: '오시는 길']
+  view_count bigint [default: `0`, note: '조회수']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
+  status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 정지, 탈퇴)']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '뷰티업체 비활성/삭제 시각']
+  Note: '뷰티 업체 기본 정보와 운영/검수 상태를 관리합니다.'
+}
+
+Table beauty_business_registrations {
+  id bigint [pk, increment, note: '사업자 등록증 고유 ID']
+  beauty_id bigint [note: '소속 뷰티 ID']
+  business_number varchar(20) [unique, note: '사업자 등록번호']
+  company_name varchar(255) [note: '상호명']
+  ceo_name varchar(100) [note: '대표자명']
+  business_type varchar(100) [null, note: '업태']
+  business_item varchar(100) [null, note: '종목']
+  business_address varchar(255) [null, note: '사업장 주소']
+  business_address_detail varchar(255) [null, note: '사업장 상세 주소']
+  issued_at date [null, note: '사업자 등록일']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(ACTIVE, EXPIRED, REVOKED)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '뷰티 업체 사업자등록 정보를 관리합니다.'
+}
+
+Table beauty_experts {
+  id bigint [pk, increment, note: '뷰티전문가 고유 ID']
+  beauty_id bigint [note: '소속 뷰티 ID']
+  sort_order int [default: `0`, note: '뷰티전문가 노출 순서']
+  name varchar [note: '뷰티전문가 이름']
+  gender varchar(20) [null, note: '뷰티전문가 성별']
+  position varchar(50) [null, note: '뷰티전문가 직책(대표원장, 원장, 기타)']
+  career_started_at date [null, note: '총 경력 시작일(누적 산정)']
+  educations json [null, note: '학력사항 목록']
+  careers json [null, note: '경력사항 목록']
+  etc_contents json [null, note: '기타사항 목록']
+  status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 정지, 비활성)']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '뷰티전문가 비활성/삭제 시각']
+  Note: '뷰티 업체 소속 전문가 정보를 관리합니다.'
+}
+
+Table cache {
+  key varchar [pk, note: '캐시 키']
+  value mediumtext [note: '직렬화된 캐시 값']
+  expiration int [note: '만료 시간(Unix Timestamp)']
+  Note: 'Laravel DB cache 저장 테이블입니다. 현재 표준 런타임은 Redis cache이며 DB cache는 fallback/로컬용입니다.'
+}
+
+Table cache_locks {
+  key varchar [pk, note: '락 키']
+  owner varchar [note: '락 소유자 식별자']
+  expiration int [note: '락 만료 시간(Unix Timestamp)']
+  Note: 'Laravel DB cache lock 저장 테이블입니다. 현재 표준 분산 락은 Redis 기준으로 운영합니다.'
+}
+
+Table categories {
+  id bigint [pk, increment, note: '카테고리 고유 ID']
+  domain varchar(40) [note: '카테고리 도메인(HOSPITAL_MEDICAL, HOSPITAL_EVALUATION, TALK, BEAUTY, FAQ)']
+  parent_id bigint [null, note: '상위 카테고리 ID(대분류는 null)']
+  depth tinyint [note: '카테고리 깊이(1:대분류, 2:중분류, 3:소분류, 4:상세분류)']
+  name varchar(120) [note: '카테고리명']
+  code varchar(80) [null, note: '카테고리 운영 코드']
+  full_path varchar(255) [null, note: '카테고리 전체 경로(예: 눈 > 쌍꺼풀 > 자연유착)']
+  sort_order int [default: `0`, note: '노출 순서']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(ACTIVE, INACTIVE)']
+  is_menu_visible boolean [default: `true`, note: '앱 메뉴 노출 여부']
+  created_at timestamp
+  updated_at timestamp
+  Note: '도메인별 카테고리 트리와 노출 상태를 관리합니다.'
+}
+
+Table category_assignments {
+  id bigint [pk, increment, note: '카테고리 연결 고유 ID']
+  categorizable_type varchar(191) [note: '연결 대상 모델 타입']
+  categorizable_id bigint [note: '연결 대상 모델 ID']
+  category_id bigint [note: '카테고리 ID']
+  is_primary boolean [default: `false`, note: '대표 카테고리 여부']
+  created_at timestamp
+  updated_at timestamp
+  Note: '카테고리를 여러 도메인 모델에 연결하는 polymorphic 매핑 테이블입니다.'
+}
+
+Table category_usages {
+  id bigint [pk, increment, note: '카테고리 사용처 고유 ID']
+  usage varchar(60) [note: '카테고리 사용처 코드']
+  category_id bigint [note: '카테고리 ID']
+  sort_order int [default: `0`, note: '사용처 내 노출 순서']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(ACTIVE, INACTIVE)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '같은 카테고리 중 특정 화면/기능에서 사용할 항목을 지정합니다.'
+}
+
+Table chat_messages {
+  id bigint [pk, increment, note: '메시지 ID']
+  chat_id bigint [note: '채팅방 ID']
+  sender_user_id bigint [note: '발신 사용자 account_users ID']
+  client_message_id varchar(64) [null, note: '클라이언트 생성 멱등 키']
+  message_type varchar(20) [default: `'TEXT'`, note: '메시지 유형(TEXT, IMAGE, FILE)']
+  body text [null, note: '메시지 본문. 첨부만 있는 경우 null 가능']
+  reply_to_message_id bigint [null, note: '답장 대상 메시지 ID']
+  metadata json [null, note: '미리보기, 클라이언트 정보 등 메시지 메타데이터']
+  edited_at timestamp [null, note: '수정 시각']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '채팅 메시지 본문과 답장 관계를 저장합니다.'
+}
+
+Table chat_participants {
+  id bigint [pk, increment, note: '참여자 행 ID']
+  chat_id bigint [note: '채팅방 ID']
+  account_user_id bigint [note: '참여 사용자 account_users ID']
+  last_read_message_id bigint [null, note: '마지막 읽은 메시지 ID']
+  last_read_at timestamp [null, note: '마지막 읽음 시각']
+  deleted_until_message_id bigint [null, note: '사용자별 채팅 삭제 기준 메시지 ID. 이 ID 이하 메시지는 해당 사용자에게 숨김']
+  deleted_at timestamp [null, note: '사용자별 채팅 삭제 시각. 참여자 행 삭제가 아니라 내 목록/이전 내용 삭제 기준']
+  notifications_enabled boolean [default: `true`, note: '이 채팅방 알림 수신 여부']
+  created_at timestamp
+  updated_at timestamp
+  Note: '채팅방 참여자별 읽음/삭제/알림 상태입니다.'
+}
+
+Table chats {
+  id bigint [pk, increment, note: '채팅방 ID']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(ACTIVE, SUSPENDED, CLOSED)']
+  match_key varchar(191) [note: '정렬된 두 사용자 ID 기반 1:1 채팅 매칭 키']
+  created_by_user_id bigint [null, note: '생성 사용자 account_users ID']
+  last_message_id bigint [null, note: '마지막 메시지 ID(역정규화)']
+  last_message_at timestamp [null, note: '마지막 메시지 시각']
+  metadata json [null, note: '채팅방 메타데이터']
+  closed_at timestamp [null, note: '채팅 종료 시각']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '사용자 1:1 채팅방입니다.'
+}
+
+Table content_report_items {
+  id bigint [pk, increment, note: '신고 대상 항목 ID']
+  content_report_id bigint [note: '콘텐츠 신고 ID']
+  reporter_user_id bigint [null, note: '신고자 account_users ID']
+  target_type varchar(160) [note: '실제 신고 대상 모델 클래스']
+  target_id bigint [note: '실제 신고 대상 ID']
+  target_author_id bigint [null, note: '실제 신고 대상 작성자 account_users ID']
+  content_snapshot text [null, note: '신고 당시 항목 내용 스냅샷']
+  created_at timestamp
+  updated_at timestamp
+  Note: '신고 대상 메시지/콘텐츠 단위의 상세 항목입니다.'
+}
+
+Table content_report_states {
+  id bigint [pk, increment, note: '신고 대상 상태 ID']
+  target_type varchar(160) [note: '신고 대상 모델 클래스']
+  target_id bigint [note: '신고 대상 ID']
+  report_status varchar(30) [default: `'NONE'`, note: '신고 처리 상태(NONE, REPORTED, AUTO_BLOCKED, ADMIN_HIDDEN, NORMAL_VISIBLE, REEXPOSED, VALID, INVALID)']
+  report_count int [default: `0`, note: '누적 신고 수']
+  recent_hour_report_count int [default: `0`, note: '정상노출 처리 이후 최근 1시간 신고 수']
+  normal_visible_count int [default: `0`, note: '관리자 정상노출 처리 횟수']
+  first_reported_at timestamp [null, note: '최초 신고 시각']
+  last_reported_at timestamp [null, note: '마지막 신고 시각']
+  auto_blocked_at timestamp [null, note: '자동차단 시각']
+  admin_hidden_at timestamp [null, note: '관리자 노출중지 시각']
+  normal_visible_at timestamp [null, note: '정상노출 처리 시각']
+  processed_by bigint [null, note: '마지막 처리 관리자 account_staffs ID']
+  process_reason varchar(500) [null, note: '마지막 처리 사유']
+  warning_status varchar(20) [default: `'NONE'`, note: '신고 경고 처리 상태(NONE, WARNED, IGNORED)']
+  warning_processed_at timestamp [null, note: '경고/무시 처리 시각']
+  warning_processed_by bigint [null, note: '경고/무시 처리 관리자 account_staffs ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: '신고 대상 콘텐츠의 현재 신고 상태와 경고 처리 상태를 denormalize합니다.'
+}
+
+Table content_reports {
+  id bigint [pk, increment, note: '신고 ID']
+  reporter_user_id bigint [null, note: '신고자 account_users ID']
+  target_type varchar(160) [note: '신고 대상 모델 클래스']
+  target_id bigint [note: '신고 대상 ID']
+  target_author_id bigint [null, note: '신고 대상 작성자 account_users ID']
+  reason varchar(40) [note: '신고 사유']
+  reason_text varchar(500) [null, note: '기타 신고 사유 직접 입력']
+  content_snapshot text [null, note: '신고 당시 대상 내용 스냅샷']
+  reporter_ip varchar(45) [null, note: '신고자 IP']
+  created_at timestamp
+  updated_at timestamp
+  Note: '사용자 신고의 대표 접수 레코드입니다.'
+}
+
+Table failed_jobs {
+  id bigint [pk, increment, note: '실패 작업 ID']
+  uuid varchar [unique, note: '실패 작업 UUID']
+  connection text [note: '큐 커넥션 정보']
+  queue text [note: '큐 이름']
+  payload longtext [note: '작업 데이터']
+  exception longtext [note: '예외 메시지']
+  failed_at timestamp [default: `CURRENT_TIMESTAMP`, note: '실패 시간']
+  Note: '실패한 Queue Job 기록입니다. Redis/Horizon 런타임에서도 실패 이력은 DB에 저장합니다.'
+}
+
+Table faqs {
+  id bigint [pk, increment, note: '자주 묻는 질문 ID']
+  channel varchar(20) [default: `'ALL'`, note: 'FAQ 채널(ALL, APP_WEB, HOSPITAL, BEAUTY, INTERNAL)']
+  question varchar(255) [note: '질문']
+  content text [note: '에디터 HTML 답변 본문']
+  status varchar(20) [default: `'ACTIVE'`, note: 'FAQ 상태(ACTIVE, INACTIVE)']
+  view_count bigint [default: `0`, note: '조회수']
+  created_by_staff_id bigint [null, note: '등록한 관리자 ID']
+  updated_by_staff_id bigint [null, note: '수정한 관리자 ID']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 일시']
+  Note: 'FAQ 콘텐츠입니다.'
+}
+
+Table hashtaggables {
+  id bigint [pk, increment, note: '해시태그 매핑 고유 ID']
+  hashtag_id bigint [note: '해시태그 ID']
+  hashtaggable_type varchar(191) [note: '매핑 모델 타입(App\\\\Domains\\\\Video\\\\Models\\\\Video 등)']
+  hashtaggable_id bigint [note: '매핑 모델 고유 ID']
+  sort_order int [default: `0`, note: '컨텐츠 내 해시태그 정렬 순서']
+  created_at timestamp
+  updated_at timestamp
+  Note: '해시태그를 여러 도메인 모델에 연결하는 polymorphic 매핑 테이블입니다.'
+}
+
+Table hashtags {
+  id bigint [pk, increment, note: '해시태그 고유 ID']
+  name varchar(20) [note: '대표 표시용 해시태그명']
+  normalized_name varchar(20) [unique, note: '소문자 정규화 해시태그명(중복 방지용)']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영상태(ACTIVE/INACTIVE)']
+  usage_count bigint [default: `0`, note: '사용 횟수 캐시(자동완성/인기순용)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '해시태그 마스터 정보와 사용량을 관리합니다.'
+}
+
+Table hospital_business_registrations {
+  id bigint [pk, increment, note: '사업자 등록증 고유 ID']
+  hospital_id bigint [note: '소속 병원 ID']
+  business_number varchar(20) [unique, note: '사업자 등록번호']
+  company_name varchar(255) [note: '상호명']
+  ceo_name varchar(100) [note: '대표자명']
+  business_type varchar(100) [null, note: '업태']
+  business_item varchar(100) [null, note: '종목']
+  business_address varchar(255) [null, note: '사업장 주소']
+  business_address_detail varchar(255) [null, note: '사업장 상세 주소']
+  settlement_bank_name varchar(50) [null, note: '정산 은행명']
+  settlement_account_number varchar(50) [null, note: '정산 계좌번호']
+  settlement_account_holder varchar(100) [null, note: '정산 예금주명']
+  tax_invoice_email varchar [null, note: '세금계산서 이메일']
+  issued_at date [null, note: '사업자 등록일']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(ACTIVE, EXPIRED, REVOKED)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '병의원 사업자등록증, 정산 계좌, 세금계산서 정보를 관리합니다.'
+}
+
+Table hospital_doctors {
+  id bigint [pk, increment, note: '의사 고유 ID']
+  hospital_id bigint [note: '소속 병원 ID']
+  sort_order int [default: `0`, note: '의사 노출 순서']
+  name varchar [note: '의사 이름']
+  gender varchar(20) [null, note: '의사 성별(남, 여)']
+  position varchar(50) [null, note: '의사 직책(대표원장, 원장, 기타)']
+  career_started_at date [null, note: '총 경력 시작일(누적 산정)']
+  license_number varchar(100) [null, note: '의사 면허증 번호']
+  specialist_field varchar(80) [default: `'NONE'`, note: '전문의 분류(NONE, PLASTIC_SURGERY 등)']
+  educations json [null, note: '학력사항 목록']
+  careers json [null, note: '경력사항 목록']
+  etc_contents json [null, note: '기타사항 목록']
+  status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 정지, 비활성)']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  view_count bigint [default: `0`, note: '의사 조회수']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '의사 비활성/삭제 시각']
+  Note: '병의원 소속 의료진 정보와 검수 상태를 관리합니다.'
+}
+
+Table hospital_evaluations {
+  id bigint [pk, increment, note: '병의원 평가 ID']
+  author_id bigint [null, note: '작성자 account_users ID']
+  hospital_id bigint [note: '병의원 ID']
+  doctor_id bigint [null, note: '의료진 hospital_doctors ID']
+  content text [note: '평가 내용']
+  phone varchar(30) [null, note: '유저 연락처']
+  author_ip varchar(45) [null, note: '작성 IP']
+  cost int [default: `0`, note: '시술/수술 비용(만원 단위)']
+  rating_staff_kindness tinyint [note: '직원친절도 평점(1~5)']
+  rating_surgery_satisfaction tinyint [note: '수술만족도 평점(1~5)']
+  rating_facility tinyint [note: '병원시설 평점(1~5)']
+  rating_aftercare tinyint [note: '사후관리 평점(1~5)']
+  rating_cost tinyint [note: '비용 평점(1~5)']
+  average_rating decimal [default: `0`, note: '5개 평점 항목 평균']
+  has_overtreatment boolean [note: '과잉진료 여부(false=없음, true=있음)']
+  is_waiting_time_long boolean [note: '대기시간 평가(false=짧았음, true=길었음)']
+  has_doctor_consultation boolean [note: '지정의사 상담 여부(false=상담안함, true=상담함)']
+  is_recommended boolean [note: '지인 추천 여부(false=비추천, true=추천)']
+  status varchar(20) [default: `'ACTIVE'`, note: '노출상태(ACTIVE, INACTIVE)']
+  post_status varchar(30) [default: `'POST_NORMAL'`, note: '게시상태(POST_NORMAL, POST_AUTO_BLIND, POST_USER_DELETE, POST_ADMIN_STOP)']
+  view_count bigint [default: `0`, note: '조회수']
+  receipt_status varchar(30) [default: `'NONE'`, note: '영수증 상태(NONE, UPLOADED, VERIFIED, REJECTED)']
+  receipt_rejection_reason varchar(80) [null, note: '영수증 부적합 사유(IMAGE_MISMATCH, BUSINESS_NAME_MISMATCH, BUSINESS_NUMBER_MISMATCH, TRANSACTION_DATE_MISMATCH, SURGERY_COST_MISMATCH, OTHER)']
+  receipt_rejection_reason_text text [null, note: '영수증 부적합 기타 직접입력 사유']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병의원 평가 게시글입니다.'
+}
+
+Table hospital_entries {
+  id bigint [pk, increment, note: '병의원 입점신청 ID']
+  hospital_name varchar(100) [note: '병의원명']
+  hospital_phone varchar(30) [note: '병의원 전화번호']
+  address varchar(255) [note: '주소']
+  address_detail varchar(255) [null, note: '상세주소']
+  business_number varchar(30) [note: '사업자등록번호']
+  ceo_name varchar(50) [note: '대표자명']
+  license_number varchar(50) [null, note: '의사면허번호']
+  applicant_name varchar(50) [note: '신청자 이름']
+  applicant_position varchar(50) [null, note: '신청자 직책']
+  applicant_phone varchar(30) [null, note: '신청자 전화번호']
+  applicant_email varchar(255) [null, note: '신청자 이메일주소']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병의원 신규 입점신청 정보입니다. 사업자등록증/의사면허증 파일은 media polymorphic collection으로 관리합니다.'
+}
+
+Table hospital_event_dbs {
+  id bigint [pk, increment, note: '병의원 이벤트 DB ID']
+  account_user_id bigint [note: '신청 일반회원 account_users ID']
+  hospital_id bigint [note: '병의원 ID']
+  hospital_event_id bigint [note: '병의원 이벤트 ID']
+  hospital_doctor_id bigint [null, note: '선택 의료진 ID']
+  name varchar(50) [note: '신청자 이름']
+  phone varchar(30) [note: '신청자 전화번호']
+  phone_normalized varchar(30) [note: '검색/중복판정용 정규화 전화번호']
+  contact_method varchar(20) [note: '연락수단(KAKAO, PHONE, SMS)']
+  preferred_time varchar(20) [note: '선호시간(MORNING, AFTERNOON, ANYTIME)']
+  event_price bigint [default: `0`, note: '신청 시점 이벤트 가격(원)']
+  consultation_price bigint [default: `0`, note: '신청 시점 소진 단가(원)']
+  status varchar(20) [default: `'NEW'`, note: '상담 여부 상태(NEW, CONFIRMED, DUPLICATE)']
+  allow_status varchar(30) [default: `'NORMAL_CONFIRMED'`, note: '검증 상태(UNVERIFIED_REPORTED, UNVERIFIED_CONFIRMED, NORMAL_CONFIRMED)']
+  contacted_at timestamp [null, note: '연락 처리 시각']
+  confirmed_at timestamp [null, note: '상담 확인 처리 시각']
+  duplicated_at timestamp [null, note: '중복 처리 시각']
+  author_ip varchar(45) [null, note: '신청 IP(v4/v6)']
+  user_agent varchar(500) [null, note: '신청 User-Agent']
+  privacy_agreed_at timestamp [null, note: '개인정보 수집/이용 동의 시각']
+  marketing_agreed_at timestamp [null, note: '마케팅 수신 동의 시각']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '사용자의 이벤트 상담 신청 DB입니다.'
+}
+
+Table hospital_event_doctor_assignments {
+  id bigint [pk, increment, note: '병의원 이벤트 의료진 연결 ID']
+  hospital_event_id bigint [note: '병의원 이벤트 ID']
+  hospital_doctor_id bigint [note: '의료진 ID']
+  sort_order tinyint [default: `0`, note: '노출 순서']
+  is_career_visible boolean [default: `true`, note: '경력사항 노출 여부']
+  is_activity_visible boolean [default: `false`, note: '활동사항 노출 여부']
+  created_at timestamp
+  updated_at timestamp
+  Note: '이벤트에 노출할 의료진과 경력/활동 노출 옵션을 저장합니다.'
+}
+
+Table hospital_event_options {
+  id bigint [pk, increment, note: '병의원 이벤트 옵션 ID']
+  hospital_event_id bigint [note: '병의원 이벤트 ID']
+  sort_order int [default: `0`, note: '옵션 노출 순서']
+  name varchar(40) [note: '옵션명']
+  session_count smallint [default: `1`, note: '회차']
+  normal_price bigint [default: `0`, note: '옵션 정가(원)']
+  event_price bigint [default: `0`, note: '옵션 할인가(원)']
+  discount_rate tinyint [default: `0`, note: '옵션 할인율(%, 정수)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '쁘띠/시술 이벤트의 옵션 가격 행을 저장합니다.'
+}
+
+Table hospital_event_real_model_dbs {
+  id bigint [pk, increment, note: '병의원 이벤트 리얼모델 신청 ID']
+  account_user_id bigint [note: '신청 일반회원 account_users ID']
+  hospital_id bigint [note: '병의원 ID']
+  hospital_event_id bigint [note: '병의원 이벤트 ID']
+  name varchar(50) [note: '신청자 이름']
+  gender varchar(10) [note: '성별(MALE, FEMALE)']
+  birth_date date [note: '생년월일']
+  phone varchar(30) [note: '신청자 전화번호']
+  phone_normalized varchar(30) [note: '검색용 정규화 전화번호']
+  height_cm smallint [note: '키(cm)']
+  weight_kg smallint [note: '몸무게(kg)']
+  surgery_period varchar(50) [note: '수술시기']
+  support_part varchar(100) [note: '지원부위']
+  instagram_url varchar(255) [null, note: '인스타그램 주소']
+  blog_url varchar(255) [null, note: '블로그 주소']
+  special_notes json [null, note: '회원 특이사항 코드 목록']
+  application_reason text [note: '리얼모델 지원이유']
+  inquiry text [null, note: '문의사항']
+  status varchar(20) [default: `'RECEIVED'`, note: '승인여부(RECEIVED, APPROVED, REJECTED)']
+  author_ip varchar(45) [null, note: '신청 IP(v4/v6)']
+  user_agent varchar(500) [null, note: '신청 User-Agent']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '사용자의 리얼모델 지원 DB입니다.'
+}
+
+Table hospital_event_ads {
+  id bigint [pk, increment, note: '병의원 이벤트 광고 ID']
+  hospital_id bigint [note: '병의원 ID']
+  hospital_event_id bigint [note: '이벤트 ID']
+  manager_staff_id bigint [null, note: '담당자 staff ID']
+  placement varchar(50) [note: '광고 위치']
+  cost bigint [default: `0`, note: '광고 비용(P)']
+  start_at timestamp [note: '광고 시작 일시']
+  end_at timestamp [note: '광고 종료 일시']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병의원 이벤트 광고 신청/검수/노출 기간 정보입니다. 광고 이미지는 media polymorphic collection으로 관리하고, 카테고리별 배너 카테고리는 category_assignments로 연결합니다.'
+}
+
+Table hospital_events {
+  id bigint [pk, increment, note: '병의원 이벤트 ID']
+  hospital_id bigint [note: '소속 병의원 ID']
+  event_type varchar(20) [note: '이벤트 유형(TEXT, IMAGE)']
+  is_male_targeted boolean [default: `false`, note: '남자성형 이벤트 여부']
+  name varchar(20) [note: '이벤트명']
+  description varchar(40) [note: '이벤트 설명']
+  is_event_period_unlimited boolean [default: `true`, note: '이벤트 기간 무제한 여부']
+  event_start_at timestamp [null, note: '이벤트 시작 일시']
+  event_end_at timestamp [null, note: '이벤트 종료 일시']
+  normal_price bigint [default: `0`, note: '정상 가격(원)']
+  event_price bigint [default: `0`, note: '이벤트 가격(원)']
+  is_vat_included boolean [default: `true`, note: 'VAT 포함 여부']
+  discount_rate tinyint [default: `0`, note: '할인율(%, 정수)']
+  base_consultation_price bigint [default: `0`, note: '이벤트 가격 기준 상담 신청 기준 단가(원)']
+  consultation_price bigint [default: `0`, note: '상담 신청 단가(원)']
+  has_options boolean [default: `false`, note: '이벤트 옵션 사용 여부']
+  procedure_targets json [null, note: '텍스트형 시술 대상 목록']
+  procedure_benefits json [null, note: '텍스트형 시술 장점 목록']
+  side_effect_notice varchar(90) [null, note: '부작용 안내']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  status varchar(20) [default: `'INACTIVE'`, note: '노출 상태(ACTIVE, INACTIVE)']
+  view_count bigint [default: `0`, note: '조회수']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병의원 이벤트 상품과 가격, 검수, 노출 상태를 관리합니다.'
+}
+
+Table hospital_feature_assignments {
+  id bigint [pk, increment, note: '병원 특징 연결 고유 ID']
+  hospital_id bigint [note: '병원 ID']
+  hospital_feature_id bigint [note: '병원 특징 ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: '병의원과 병의원 정보 항목의 매핑 테이블입니다.'
+}
+
+Table hospital_features {
+  id bigint [pk, increment, note: '병원 정보 고유 ID']
+  code varchar(100) [unique, note: '병원 정보 코드']
+  name varchar(100) [note: '병원 정보명']
+  sort_order int [default: `0`, note: '정렬 순서']
+  status varchar(20) [default: `'ACTIVE'`, note: '병원 정보 상태']
+  created_at timestamp
+  updated_at timestamp
+  Note: '병의원 정보 체크박스 항목을 정의합니다.'
+}
+
+Table hospital_review_comment_mentions {
+  id bigint [pk, increment, note: '병의원 후기 댓글 멘션 ID']
+  hospital_review_comment_id bigint [note: '병의원 후기 댓글 ID']
+  mentioned_user_id bigint [note: '멘션 대상 사용자 account_users ID']
+  mentioned_by_user_id bigint [null, note: '멘션 작성자 account_users ID']
+  mention_text varchar(120) [null, note: '멘션 표시 텍스트(닉네임)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '병의원 후기 댓글 멘션 정보를 저장합니다.'
+}
+
+Table hospital_review_comments {
+  id bigint [pk, increment, note: '병의원후기 댓글 ID']
+  hospital_review_id bigint [note: '병의원후기 댓글 게시글 ID']
+  parent_id bigint [null, note: '부모 댓글 ID(대댓글용, 최상위 댓글만 허용)']
+  author_id bigint [null, note: '작성자(사용자) ID']
+  content text [note: '댓글 내용']
+  status varchar(20) [default: `'ACTIVE'`, note: '노출상태(ACTIVE=노출, INACTIVE=미노출)']
+  author_ip varchar(45) [null, note: '작성자 IP(v4/v6)']
+  like_count int [default: `0`, note: '좋아요 수']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병의원 후기 댓글과 대댓글입니다.'
+}
+
+Table hospital_reviews {
+  id bigint [pk, increment, note: '병의원 후기 ID']
+  author_id bigint [null, note: '작성자 account_users ID']
+  hospital_id bigint [note: '병의원 ID']
+  doctor_id bigint [null, note: '의료진 hospital_doctors ID']
+  category_domain varchar(40) [note: '후기 게시판 구분(HOSPITAL_REVIEW_SURGERY, HOSPITAL_REVIEW_TREATMENT)']
+  title varchar(255) [note: '후기 제목']
+  content text [note: '후기 내용']
+  author_ip varchar(45) [null, note: '작성자 IP(v4/v6)']
+  cost int [default: `0`, note: '시술/수술 비용(만원 단위)']
+  rating tinyint [note: '평점(1~5)']
+  status varchar(20) [default: `'ACTIVE'`, note: '노출상태(ACTIVE, INACTIVE)']
+  is_main_featured boolean [default: `false`, note: '후기 전체 상단 노출 여부']
+  is_sub_featured boolean [default: `false`, note: '후기 카테고리 상단 노출 여부']
+  view_count bigint [default: `0`, note: '조회수']
+  comment_count int [default: `0`, note: '댓글수']
+  like_count int [default: `0`, note: '좋아요수']
+  save_count int [default: `0`, note: '저장수']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '성형/시술 후기 게시글입니다.'
+}
+
+Table hospital_videos {
+  id bigint [pk, increment, note: '동영상 고유 ID']
+  hospital_id bigint [null, note: '병원 ID']
+  doctor_id bigint [null, note: '의사 ID']
+  submitted_by_account_id bigint [null, note: '요청 병원 계정 ID']
+  title varchar [note: '동영상 제목']
+  description text [null, note: '동영상 설명']
+  is_usage_consented boolean [default: `false`, note: '영상 사용 동의 여부']
+  distribution_channel varchar(20) [default: `'YOUTUBE_APP'`, note: '배포 채널']
+  external_video_id varchar(191) [null, note: '외부 채널 영상 ID']
+  external_video_url varchar(1024) [null, note: '외부 채널 영상 URL']
+  duration_seconds int [default: `0`, note: '재생 시간(초)']
+  status varchar(20) [default: `'INACTIVE'`, note: '동영상 상태']
+  view_count bigint [default: `0`, note: '조회수']
+  like_count bigint [default: `0`, note: '좋아요 수']
+  publish_start_at timestamp [null, note: '게시 시작 시각']
+  publish_end_at timestamp [null, note: '게시 종료 시각']
+  is_publish_period_unlimited boolean [default: `false`, note: '무기한 게시 여부']
+  allow_status varchar(20) [default: `'SUBMITTED'`, note: '검수 상태']
+  allowed_by_staff_id bigint [null, note: '검수 처리 스태프 계정 ID']
+  allowed_at timestamp [null, note: '검수 처리 시각']
+  reject_reason varchar(100) [null, note: '반려 사유']
+  reject_reason_detail text [null, note: '반려 사유 상세']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병의원 동영상 콘텐츠와 검수, 노출 상태를 관리합니다.'
+}
+
+Table hospitals {
+  id bigint [pk, increment, note: '병원 고유 ID']
+  name varchar [unique, note: '병원명']
+  department varchar(30) [default: `'OTHER'`, note: '분과(성형외과, 피부과, 의원, 치과, 안과, 한의원, 기타)']
+  description text [null, note: '병원 소개']
+  address varchar [null, note: '병원 주소']
+  address_detail varchar [null, note: '병원 상세 주소']
+  latitude varchar [null, note: '위도']
+  longitude varchar [null, note: '경도']
+  tel varchar [null, note: '대표 번호']
+  ad_reception_phone_1 varchar(50) [null, note: '광고 수신 접수 전화번호 1']
+  ad_reception_phone_2 varchar(50) [null, note: '광고 수신 접수 전화번호 2']
+  ad_reception_phone_3 varchar(50) [null, note: '광고 수신 접수 전화번호 3']
+  email varchar [null, note: '대표 이메일']
+  consulting_hours text [null, note: '진료 시간']
+  operation_hours json [null, note: '요일별 진료 시간']
+  direction text [null, note: '오시는 길']
+  view_count bigint [default: `0`, note: '조회수']
+  evaluation_count int [default: `0`, note: '노출 병의원 평가 수']
+  evaluation_average_rating decimal [default: `0`, note: '노출 병의원 평가 평균 평점']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 운영중지, 탈퇴)']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '병원 비활성/삭제 시각']
+  Note: '병의원 기본 정보, 운영 상태, 검수 상태, 통계 값을 관리합니다.'
+}
+
+Table job_batches {
+  id varchar [pk, note: '배치 작업 ID']
+  name varchar [note: '배치 작업 이름']
+  total_jobs int [note: '전체 작업 수']
+  pending_jobs int [note: '대기 중인 작업 수']
+  failed_jobs int [note: '실패한 작업 수']
+  failed_job_ids longtext [note: '실패한 작업 ID 목록']
+  options mediumtext [null, note: '배치 옵션']
+  cancelled_at int [null, note: '배치 취소 시간']
+  created_at int [note: '배치 생성 시간']
+  finished_at int [null, note: '배치 완료 시간']
+  Note: 'Laravel batch job 메타데이터입니다. Queue backend가 Redis여도 batch 상태는 DB에 저장합니다.'
+}
+
+Table jobs {
+  id bigint [pk, increment, note: '작업 ID']
+  queue varchar [note: '큐 이름']
+  payload longtext [note: '직렬화된 작업 데이터']
+  attempts tinyint [note: '실행 시도 횟수(unsigned)']
+  reserved_at int [null, note: '작업 예약 시간']
+  available_at int [note: '작업 실행 가능 시간']
+  created_at int [note: '작업 생성 시간']
+  Note: 'Laravel database queue 대기 작업입니다. 현재 표준 운영은 Redis + Horizon이라 주 사용 대상은 아닙니다.'
+
+  Indexes {
+    queue [name: 'jobs_queue_index']
+  }
+}
+
+Table likes {
+  id bigint [pk, increment, note: '공용 좋아요 ID']
+  likeable_type varchar(255) [note: '좋아요 대상 타입(모델 클래스)']
+  likeable_id bigint [note: '좋아요 대상 ID']
+  account_user_id bigint [note: '좋아요 사용자 ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: '여러 콘텐츠에 대한 사용자 좋아요 polymorphic 테이블입니다.'
+}
+
+Table media {
+  id bigint [pk, increment, note: '미디어(파일) 고유 ID']
+  model_type varchar(191) [note: '연결 모델 타입(App\\\\Domains\\\\Hospital\\\\Models\\\\Hospital 등)']
+  model_id bigint [note: '연결 모델 고유 ID']
+  collection varchar(50) [note: '파일 용도(logo, thumbnail, gallery, business_registration_file 등)']
+  disk varchar(32) [default: `'public'`, note: '저장 디스크(public, s3 등)']
+  path varchar(1024) [note: '파일 저장 경로 또는 키']
+  mime_type varchar(127) [null, note: 'MIME 타입(image/jpeg, image/png 등)']
+  size bigint [null, note: '파일 크기(bytes)']
+  width int [null, note: '이미지 가로(px)']
+  height int [null, note: '이미지 세로(px)']
+  sort_order smallint [default: `0`, note: '정렬 순서(내부 이미지용)']
+  is_primary boolean [default: `false`, note: '대표 이미지 여부']
+  metadata json [null, note: '추가 메타데이터(리사이즈, alt, crop 정보 등)']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '파일/이미지 polymorphic 저장 메타데이터입니다.'
+}
+
+Table model_has_permissions {
+  permission_id bigint [note: '권한 ID']
+  model_type varchar [note: '권한 대상 모델 타입']
+  model_id bigint [note: '권한 대상 모델 ID']
+  Note: '모델별 직접 권한 매핑 테이블입니다.'
+}
+
+Table model_has_roles {
+  role_id bigint [note: '역할 ID']
+  model_type varchar [note: '역할 대상 모델 타입']
+  model_id bigint [note: '역할 대상 모델 ID']
+  Note: '모델별 역할 매핑 테이블입니다.'
+}
+
+Table monitored_scheduled_task_log_items {
+  id bigint [pk, increment, note: '스케줄 작업 로그 ID']
+  monitored_scheduled_task_id bigint [note: '스케줄 작업 ID']
+  type varchar [note: '이벤트 타입(started, finished, failed, skipped)']
+  meta json [null, note: '이벤트 부가 정보(JSON)']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Spatie Schedule Monitor 스케줄 실행 로그입니다.'
+}
+
+Table monitored_scheduled_tasks {
+  id bigint [pk, increment, note: '스케줄 작업 고유 ID']
+  name varchar [note: '스케줄 작업 이름']
+  type varchar [null, note: '스케줄 작업 타입(분류용)']
+  cron_expression varchar [note: '크론 실행 표현식']
+  timezone varchar [null, note: '실행 타임존']
+  ping_url varchar [null, note: '외부 모니터링 ping URL']
+  last_started_at datetime [null, note: '마지막 실행 시작 시각']
+  last_finished_at datetime [null, note: '마지막 정상 종료 시각']
+  last_failed_at datetime [null, note: '마지막 실패 시각']
+  last_skipped_at datetime [null, note: '마지막 스킵 시각']
+  registered_on_oh_dear_at datetime [null, note: 'Oh Dear 등록 시각']
+  last_pinged_at datetime [null, note: '마지막 ping 시각']
+  grace_time_in_minutes int [note: '허용 지연 시간(분)']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Spatie Schedule Monitor 모니터링 대상 작업입니다.'
+}
+
+Table notices {
+  id bigint [pk, increment, note: '공지사항 ID']
+  channel varchar(20) [default: `'ALL'`, note: '공지 채널(ALL, APP_WEB, HOSPITAL, BEAUTY)']
+  title varchar(255) [note: '공지 제목']
+  content text [note: '에디터 HTML 본문']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(ACTIVE, INACTIVE)']
+  is_pinned boolean [default: `false`, note: '상단 공지 여부']
+  is_publish_period_unlimited boolean [default: `true`, note: '게시기간 무제한 여부']
+  publish_start_at timestamp [null, note: '게시 시작 일시']
+  publish_end_at timestamp [null, note: '게시 종료 일시']
+  is_important boolean [default: `false`, note: '관리자 메인 팝업 여부']
+  view_count bigint [default: `0`, note: '조회수']
+  created_by_staff_id bigint [null, note: '등록한 관리자 ID']
+  updated_by_staff_id bigint [null, note: '수정한 관리자 ID']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 일시']
+  Note: '공지사항 게시글입니다.'
+}
+
+Table notification_deliveries {
+  id bigint [pk, increment, note: '알림 발송 이력 ID']
+  notification_inbox_id bigint [note: '알림함 ID']
+  channel varchar(20) [note: '발송 채널(IN_APP, PUSH, EMAIL, WEB)']
+  status varchar(20) [default: `'PENDING'`, note: '발송 상태(PENDING, SENT, FAILED)']
+  provider varchar(50) [null, note: '발송 제공자(FCM, APNS, MAIL, REVERB)']
+  provider_message_id varchar(191) [null, note: '외부 제공자 메시지 ID']
+  attempted_at timestamp [null, note: '발송 시도 시각']
+  delivered_at timestamp [null, note: '발송 완료 시각']
+  failed_at timestamp [null, note: '발송 실패 시각']
+  error_message text [null, note: '마지막 실패 사유']
+  created_at timestamp
+  updated_at timestamp
+  Note: '알림 채널별 발송 이력을 저장합니다.'
+}
+
+Table notification_devices {
+  id bigint [pk, increment, note: '알림 디바이스 ID']
+  owner_type varchar(32) [note: '소유 대상 유형']
+  owner_id bigint [note: '소유 대상 ID']
+  platform varchar(20) [note: '플랫폼(IOS, ANDROID, WEB)']
+  device_uuid varchar(100) [null, note: '클라이언트 디바이스 식별자']
+  push_token text [note: '푸시 또는 브라우저 토큰']
+  push_token_hash varchar(64) [note: '푸시 토큰 SHA-256 해시']
+  app_version varchar(32) [null, note: '앱 버전']
+  last_seen_at timestamp [null, note: '마지막 활성 시각']
+  revoked_at timestamp [null, note: '토큰 폐기 시각']
+  metadata json [null, note: '디바이스 메타데이터']
+  created_at timestamp
+  updated_at timestamp
+  Note: '푸시 알림용 사용자 기기 토큰입니다.'
+}
+
+Table notification_inboxes {
+  id bigint [pk, increment, note: '알림 ID']
+  recipient_type varchar(32) [note: '수신 대상 유형']
+  recipient_id bigint [note: '수신 대상 ID']
+  actor_type varchar(32) [null, note: '알림 발생 주체 유형']
+  actor_id bigint [null, note: '알림 발생 주체 ID']
+  event_type varchar(100) [note: '도메인 이벤트 타입']
+  title varchar(255) [null, note: '알림 제목']
+  body text [null, note: '알림 본문']
+  aggregation_key varchar(191) [null, note: '같은 알림을 묶는 집계 키']
+  open_aggregation_key varchar(191) [null, note: '미읽음 집계 유니크 잠금 키']
+  event_count int [default: `1`, note: '집계된 이벤트 수']
+  target_type varchar(100) [null, note: '알림 대상 엔티티 유형']
+  target_id bigint [null, note: '알림 대상 엔티티 ID']
+  payload json [null, note: '알림 payload']
+  read_at timestamp [null, note: '읽음 시각']
+  created_at timestamp
+  updated_at timestamp
+  Note: '알림 인박스 마스터 테이블입니다.'
+}
+
+Table notification_preferences {
+  id bigint [pk, increment, note: '알림 수신 설정 ID']
+  owner_type varchar(32) [note: '소유 대상 유형']
+  owner_id bigint [note: '소유 대상 ID']
+  event_type varchar(100) [note: '알림 이벤트 타입']
+  in_app boolean [default: `true`, note: '인앱 수신 여부']
+  push boolean [default: `true`, note: '푸시 수신 여부']
+  email boolean [default: `false`, note: '이메일 수신 여부']
+  metadata json [null, note: '설정 메타데이터']
+  created_at timestamp
+  updated_at timestamp
+  Note: '사용자/계정별 알림 수신 설정입니다.'
+}
+
+Table operation_histories {
+  id bigint [pk, increment, note: '운영 히스토리 ID']
+  target_type varchar(255) [note: '대상 타입']
+  target_id bigint [note: '대상 ID']
+  actor_type varchar(255) [null, note: '수행자 actor 타입']
+  actor_id bigint [null, note: '수행자 actor ID']
+  actor_kind varchar(40) [note: '수행 주체 구분(STAFF, SYSTEM 등)']
+  action varchar(80) [note: '수행 액션']
+  batch_uuid uuid [null, note: '일괄 처리 묶음 UUID']
+  reason text [null, note: '운영 처리 사유']
+  metadata json [null, note: '추가 메타데이터']
+  created_at timestamp
+  updated_at timestamp
+  Note: '운영자가 수행한 생성, 수정, 상태 변경 이력을 기록합니다.'
+}
+
+Table operation_history_changes {
+  id bigint [pk, increment, note: '운영 히스토리 변경 상세 ID']
+  operation_history_id bigint [note: '운영 히스토리 ID']
+  field_key varchar(120) [note: '변경 필드 키']
+  field_label varchar(120) [note: '변경 필드 표시명']
+  before_value json [null, note: '변경 전 원본 값']
+  after_value json [null, note: '변경 후 원본 값']
+  before_display text [null, note: '변경 전 표시값']
+  after_display text [null, note: '변경 후 표시값']
+  sort_order smallint [default: `0`, note: '표시 순서']
+  created_at timestamp
+  updated_at timestamp
+  Note: '운영 이력의 필드별 변경 전/후 값을 기록합니다.'
+}
+
+Table password_reset_tokens {
+  actor varchar [note: '계정 주체(user|hospital|beauty|staff)']
+  email varchar [note: '비밀번호 재설정 대상 이메일']
+  token varchar [note: '해시된 재설정 토큰']
+  created_at timestamp [null]
+  Note: '계정 비밀번호 재설정 토큰 저장소입니다. actor + email 복합 PK를 사용합니다.'
+
+  Indexes {
+    (actor, email) [pk]
+    email [name: 'password_reset_tokens_email_index']
+  }
+}
+
+Table permissions {
+  id bigint [pk, increment, note: '권한 ID']
+  name varchar [note: '권한명']
+  guard_name varchar [note: '인증 guard']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Spatie Permission 권한 정의 테이블입니다.'
+}
+
+Table personal_access_tokens {
+  id bigint [pk, increment, note: '개인 액세스 토큰 ID']
+  tokenable_type varchar
+  tokenable_id bigint
+  name varchar [note: '토큰 이름 (용도 식별용)']
+  token varchar(64) [unique, note: '해시된 개인 액세스 토큰']
+  abilities text [null, note: '토큰 권한 범위(JSON 형식)']
+  last_used_at timestamp [null, note: '마지막 토큰 사용 시각']
+  expires_at timestamp [null, note: '토큰 만료 시각']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Sanctum API 토큰 저장소입니다.'
+}
+
+Table role_has_permissions {
+  permission_id bigint [note: '권한 ID']
+  role_id bigint [note: '역할 ID']
+  Note: '역할과 권한의 매핑 테이블입니다.'
+}
+
+Table roles {
+  id bigint [pk, increment, note: '역할 ID']
+  name varchar [note: '역할명']
+  guard_name varchar [note: '인증 guard']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Spatie Permission 역할 정의 테이블입니다.'
+}
+
+Table sessions {
+  id varchar [note: '세션 ID']
+  user_id bigint [null, note: '사용자 ID']
+  ip_address varchar(45) [null, note: '요청 IP']
+  user_agent text [null, note: '클라이언트 User-Agent']
+  payload text [note: '세션 데이터']
+  last_activity int [note: '마지막 활동 시각(Unix timestamp)']
+  Note: '웹 세션 저장 테이블입니다.'
+}
+
+Table talk_comment_mentions {
+  id bigint [pk, increment, note: '토크 댓글 멘션 ID']
+  talk_comment_id bigint [note: '토크 댓글 ID']
+  mentioned_user_id bigint [note: '멘션 대상 사용자 account_users ID']
+  mentioned_by_user_id bigint [null, note: '멘션 작성자 account_users ID']
+  mention_text varchar(120) [null, note: '멘션 표시 텍스트(닉네임)']
+  created_at timestamp
+  updated_at timestamp
+  Note: '토크 댓글 멘션 정보를 저장합니다.'
+}
+
+Table talk_comments {
+  id bigint [pk, increment, note: '토크 댓글 ID']
+  talk_id bigint [note: '토크 게시글 ID']
+  parent_id bigint [null, note: '부모 댓글 ID(대댓글용, 최상위 댓글만 허용)']
+  author_id bigint [null, note: '작성자(사용자) ID']
+  content text [note: '댓글 내용']
+  status varchar(20) [default: `'ACTIVE'`, note: '노출상태(ACTIVE=노출, INACTIVE=미노출)']
+  author_ip varchar(45) [null, note: '작성자 IP(v4/v6)']
+  like_count int [default: `0`, note: '좋아요 수']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '토크 댓글과 대댓글입니다.'
+}
+
+Table talk_poll_options {
+  id bigint [pk, increment, note: '토크 투표 항목 ID']
+  talk_poll_id bigint [note: '토크 투표 ID']
+  content varchar(100) [note: '투표 항목 내용']
+  sort_order tinyint [default: `0`, note: '투표 항목 정렬 순서']
+  vote_count int [default: `0`, note: '투표 수']
+  created_at timestamp
+  updated_at timestamp
+  Note: '토크 투표 선택지입니다.'
+}
+
+Table talk_poll_votes {
+  id bigint [pk, increment, note: '토크 투표 선택 ID']
+  talk_poll_id bigint [note: '토크 투표 ID']
+  talk_poll_option_id bigint [note: '토크 투표 항목 ID']
+  user_id bigint [note: '투표자 account_users ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: '사용자의 토크 투표 참여 내역입니다.'
+}
+
+Table talk_polls {
+  id bigint [pk, increment, note: '토크 투표 ID']
+  talk_id bigint [note: '토크 ID']
+  allow_multiple boolean [default: `false`, note: '복수 선택 허용 여부']
+  created_at timestamp
+  updated_at timestamp
+  Note: '토크 게시글의 투표 설정입니다.'
+}
+
+Table talk_saves {
+  id bigint [pk, increment, note: '토크 저장 ID']
+  talk_id bigint [note: '토크 게시글 ID']
+  account_user_id bigint [note: '저장 사용자 ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: '사용자의 토크 저장 내역입니다.'
+}
+
+Table talks {
+  id bigint [pk, increment, note: '토크 게시글 ID']
+  author_id bigint [null, note: '작성자 account_users ID']
+  title varchar(255) [note: '게시글 제목']
+  content text [note: '게시글 내용']
+  status varchar(20) [default: `'ACTIVE'`, note: '노출상태(ACTIVE=노출, INACTIVE=미노출)']
+  author_ip varchar(45) [null, note: '작성자 IP(v4/v6)']
+  is_pinned boolean [default: `false`, note: '상단 고정 여부']
+  pinned_order int [default: `0`, note: '상단 고정 정렬 순서']
+  view_count bigint [default: `0`, note: '조회수']
+  comment_count int [default: `0`, note: '댓글수']
+  like_count int [default: `0`, note: '좋아요수']
+  save_count int [default: `0`, note: '저장수']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '사용자 토크 게시글입니다.'
+}
+
+TableGroup "Accounts & Auth" {
+  account_users
+  account_user_access_logs
+  account_user_blocks
+  account_staffs
+  account_hospitals
+  account_beauties
+  personal_access_tokens
+  password_reset_tokens
+  sessions
+  permissions
+  roles
+  model_has_permissions
+  model_has_roles
+  role_has_permissions
+}
+
+TableGroup "Hospital Core" {
+  hospitals
+  hospital_business_registrations
+  hospital_entries
+  hospital_doctors
+  hospital_features
+  hospital_feature_assignments
+  hospital_videos
+}
+
+TableGroup "Beauty Core" {
+  beauties
+  beauty_business_registrations
+  beauty_experts
+}
+
+TableGroup "Category & Taxonomy" {
+  categories
+  category_usages
+  category_assignments
+  hashtags
+  hashtaggables
+}
+
+TableGroup "Content Boards" {
+  talks
+  talk_comments
+  talk_comment_mentions
+  talk_saves
+  talk_polls
+  talk_poll_options
+  talk_poll_votes
+  hospital_reviews
+  hospital_review_comments
+  hospital_review_comment_mentions
+  hospital_evaluations
+  likes
+  notices
+  faqs
+}
+
+TableGroup "Hospital Events & Customer DB" {
+  hospital_events
+  hospital_event_ads
+  hospital_event_doctor_assignments
+  hospital_event_options
+  hospital_event_dbs
+  hospital_event_real_model_dbs
+}
+
+TableGroup "Reports & Operations" {
+  content_reports
+  content_report_items
+  content_report_states
+  operation_histories
+  operation_history_changes
+  admin_notes
+  activity_log
+  media
+}
+
+TableGroup "Chat & Notifications" {
+  chats
+  chat_participants
+  chat_messages
+  notification_inboxes
+  notification_deliveries
+  notification_devices
+  notification_preferences
+}
+
+TableGroup "Runtime Infrastructure" {
+  cache
+  cache_locks
+  jobs
+  job_batches
+  failed_jobs
+  monitored_scheduled_tasks
+  monitored_scheduled_task_log_items
+}
+
+// Hard database foreign keys
+Ref: account_user_access_logs.account_user_id > account_users.id
+Ref: account_hospitals.hospital_id > hospitals.id
+Ref: account_beauties.beauty_id > beauties.id
+Ref: beauty_business_registrations.beauty_id > beauties.id
+Ref: hospital_business_registrations.hospital_id > hospitals.id
+Ref: hospital_doctors.hospital_id > hospitals.id
+Ref: beauty_experts.beauty_id > beauties.id
+Ref: hospital_videos.hospital_id > hospitals.id
+Ref: hospital_videos.doctor_id > hospital_doctors.id
+Ref: hospital_videos.submitted_by_account_id > account_hospitals.id
+Ref: hospital_videos.allowed_by_staff_id > account_staffs.id
+Ref: hashtaggables.hashtag_id > hashtags.id
+Ref: categories.parent_id > categories.id
+Ref: category_assignments.category_id > categories.id
+Ref: category_usages.category_id > categories.id
+Ref: talks.author_id > account_users.id
+Ref: talk_comments.talk_id > talks.id
+Ref: talk_comments.parent_id > talk_comments.id
+Ref: talk_comments.author_id > account_users.id
+Ref: talk_comment_mentions.talk_comment_id > talk_comments.id
+Ref: talk_comment_mentions.mentioned_user_id > account_users.id
+Ref: talk_comment_mentions.mentioned_by_user_id > account_users.id
+Ref: likes.account_user_id > account_users.id
+Ref: notices.created_by_staff_id > account_staffs.id
+Ref: notices.updated_by_staff_id > account_staffs.id
+Ref: faqs.created_by_staff_id > account_staffs.id
+Ref: faqs.updated_by_staff_id > account_staffs.id
+Ref: hospital_feature_assignments.hospital_id > hospitals.id
+Ref: hospital_feature_assignments.hospital_feature_id > hospital_features.id
+Ref: chats.created_by_user_id > account_users.id
+Ref: chat_participants.chat_id > chats.id
+Ref: chat_participants.account_user_id > account_users.id
+Ref: chat_messages.chat_id > chats.id
+Ref: chat_messages.sender_user_id > account_users.id
+Ref: chat_messages.reply_to_message_id > chat_messages.id
+Ref: notification_deliveries.notification_inbox_id > notification_inboxes.id
+Ref: monitored_scheduled_task_log_items.monitored_scheduled_task_id > monitored_scheduled_tasks.id
+Ref: account_user_blocks.blocker_user_id > account_users.id
+Ref: account_user_blocks.blocked_user_id > account_users.id
+Ref: talk_saves.talk_id > talks.id
+Ref: talk_saves.account_user_id > account_users.id
+Ref: operation_history_changes.operation_history_id > operation_histories.id
+Ref: talk_polls.talk_id > talks.id
+Ref: talk_poll_options.talk_poll_id > talk_polls.id
+Ref: talk_poll_votes.talk_poll_id > talk_polls.id
+Ref: talk_poll_votes.talk_poll_option_id > talk_poll_options.id
+Ref: talk_poll_votes.user_id > account_users.id
+Ref: hospital_reviews.author_id > account_users.id
+Ref: hospital_reviews.hospital_id > hospitals.id
+Ref: hospital_reviews.doctor_id > hospital_doctors.id
+Ref: hospital_review_comments.hospital_review_id > hospital_reviews.id
+Ref: hospital_review_comments.parent_id > hospital_review_comments.id
+Ref: hospital_review_comments.author_id > account_users.id
+Ref: hospital_review_comment_mentions.hospital_review_comment_id > hospital_review_comments.id
+Ref: hospital_review_comment_mentions.mentioned_user_id > account_users.id
+Ref: hospital_review_comment_mentions.mentioned_by_user_id > account_users.id
+Ref: hospital_evaluations.author_id > account_users.id
+Ref: hospital_evaluations.hospital_id > hospitals.id
+Ref: hospital_evaluations.doctor_id > hospital_doctors.id
+Ref: content_reports.reporter_user_id > account_users.id
+Ref: content_reports.target_author_id > account_users.id
+Ref: content_report_items.content_report_id > content_reports.id
+Ref: content_report_items.reporter_user_id > account_users.id
+Ref: content_report_items.target_author_id > account_users.id
+Ref: content_report_states.processed_by > account_staffs.id
+Ref: content_report_states.warning_processed_by > account_staffs.id
+Ref: hospital_events.hospital_id > hospitals.id
+Ref: hospital_event_ads.hospital_id > hospitals.id
+Ref: hospital_event_ads.hospital_event_id > hospital_events.id
+Ref: hospital_event_ads.manager_staff_id > account_staffs.id
+Ref: hospital_event_doctor_assignments.hospital_event_id > hospital_events.id
+Ref: hospital_event_doctor_assignments.hospital_doctor_id > hospital_doctors.id
+Ref: hospital_event_options.hospital_event_id > hospital_events.id
+Ref: hospital_event_dbs.account_user_id > account_users.id
+Ref: hospital_event_dbs.hospital_id > hospitals.id
+Ref: hospital_event_dbs.hospital_event_id > hospital_events.id
+Ref: hospital_event_dbs.hospital_doctor_id > hospital_doctors.id
+Ref: hospital_event_real_model_dbs.account_user_id > account_users.id
+Ref: hospital_event_real_model_dbs.hospital_id > hospitals.id
+Ref: hospital_event_real_model_dbs.hospital_event_id > hospital_events.id
+Ref: model_has_permissions.permission_id > permissions.id
+Ref: model_has_roles.role_id > roles.id
+Ref: role_has_permissions.permission_id > permissions.id
+Ref: role_has_permissions.role_id > roles.id
+
+// Nullable logical FK/index references not always declared as database constraints
+Ref: sessions.user_id > account_users.id
+Ref: chat_participants.last_read_message_id > chat_messages.id
+Ref: chat_participants.deleted_until_message_id > chat_messages.id
+Ref: chats.last_message_id > chat_messages.id
