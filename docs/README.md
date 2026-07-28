@@ -2,16 +2,18 @@
 
 작성 기준: 2026-07-28
 
-이 폴더는 Medi 백엔드의 구조, 권한, 도메인 규칙, 운영 기준을 관리한다. 기존 Beaulab 문서는 별도 참고 폴더에 두지 않고 `docs/`의 활성 문서로 승격한다.
+이 폴더는 Medi 백엔드의 구조, 권한, 도메인 규칙, 운영 기준을 관리한다.
 
-단, 세부 문서에 남아 있는 Laravel 경로, 클래스명, 패키지명은 기존 구현 맥락이다. Medi 구현 시에는 같은 비즈니스 규칙을 Spring Boot 구조로 옮기고, 실제 코드와 달라지는 부분은 해당 문서를 바로 수정한다.
+세부 문서는 실제 Spring Boot 구현 기준과 맞아야 한다. 오래된 기술 스택, 경로, 클래스명이 보이면 구현 전에 문서를 먼저 교정한다.
 
 ## 문서 목록
 
 - [아키텍처 & 흐름](./architecture.md)
-- [Beaulab에서 Medi로 이관할 때의 기준](./migration-from-beaulab.md)
+- [디렉토리 구조](./directory-structure.md)
+- [백엔드 구현 원칙](./implementation-principles.md)
 - [API 응답 / 페이지네이션 규칙](./api-response.md)
 - [에러 / 예외 처리](./error-handling.md)
+- [인증 설계](./authentication.md)
 - [권한 / 메뉴 설계 (Staff / Hospital / Beauty / User)](./authorization.md)
 - [내부도구 허브 운영 가이드](./internal-tools.md)
 - [로깅 전략 (감사로그 / 운영로그)](./logging.md)
@@ -29,7 +31,7 @@
 ## 현재 기술 기준
 
 - 백엔드는 Java 21, Spring Boot, Gradle 단일 애플리케이션으로 시작한다.
-- DB는 PostgreSQL, 마이그레이션은 Flyway를 기준으로 한다.
+- DB는 MySQL, 마이그레이션은 Flyway를 기준으로 한다.
 - 캐시와 비동기 처리 기반은 Redis를 기준으로 둔다.
 - API namespace는 `/api/v1/public`, `/api/v1/user`, `/api/v1/staff`, `/api/v1/hospital`, `/api/v1/beauty`를 사용한다.
 - 패키지는 Actor가 아니라 도메인 기준으로 나눈다. Actor는 URL, 인증 주체, 권한 정책의 구분값이다.
@@ -44,7 +46,7 @@
 - 공지사항/FAQ 도메인은 Staff API 기준으로 CRUD와 에디터 이미지를 지원한다.
 - FAQ 카테고리는 전용 테이블이 아니라 공통 `Category` 도메인의 `FAQ` 분류를 사용한다.
 - 병원/의료진/후기/영상 의료 카테고리는 `HOSPITAL_MEDICAL` 트리를 공유하고, 성형/쁘띠 구분은 `categories.group_code`, 화면별 노출 목록은 `category_usages`로 분리한다.
-- 병원/의료진/이벤트의 `allow_status`는 `PENDING`/`REVIEWING`/`APPROVED`/`REJECTED`를 저장하고, 관리자 화면 표기는 `신청`/`검수`/`승인`/`반려`를 사용한다.
+- 병원/의료진/이벤트의 `allow_status`는 `PENDING`/`APPROVED`/`REJECTED`를 저장하고, 관리자 화면 표기는 `신청`/`승인`/`반려`를 사용한다.
 - 입점신청은 Staff 목록/상세/summary/승인상태 변경 API를 제공하며, 승인상태 변경은 `OperationHistory`에 기록한다.
 - 토크/병의원 후기/병의원 평가는 Staff 운영 API와 User 작성 API를 Actor 기준으로 분리한다.
 - 병의원 후기는 `HospitalReview`, 댓글은 `HospitalReviewComment`, 병의원 평가는 `HospitalEvaluation` 도메인이 소유한다.

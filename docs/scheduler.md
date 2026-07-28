@@ -1,165 +1,89 @@
 # Scheduler 운영 가이드
 
-작성 기준: 2026-07-27
+작성 기준: 2026-07-28
 
-이 문서는 Beaulab 프로젝트의 스케줄 실행 구조를 정리한다.
+이 문서는 Medi 백엔드의 시간 기반 작업 실행 기준을 정리한다.
 
-큐/Horizon 상세는 [queue.md](./queue.md)에서 관리한다.
+## 1. 기본 원칙
 
-## 1) 실행 구조
+스케줄러는 시간 기반 트리거만 담당한다. 오래 걸리는 작업, 외부 API 반복 호출, 대량 데이터 처리는 worker 또는 비동기 작업으로 넘긴다.
 
-운영 스케줄은 세 단계로 실행된다.
+Spring Boot에서는 `@Scheduled`와 전용 service를 기준으로 시작한다.
 
-1. OS `crontab`이 매분 `php artisan schedule:run` 실행
-2. Laravel Scheduler가 `routes/console.php`에 등록된 작업 중 due 상태인 작업 실행
-3. Spatie Schedule Monitor가 실행 결과를 DB에 기록
+## 2. 실행 기준
 
-역할 구분:
+- 서버 timezone은 `Asia/Seoul` 기준으로 맞춘다.
+- 스케줄 주기는 코드와 문서에 같이 남긴다.
+- 중복 실행되면 안 되는 작업은 lock을 사용한다.
+- 다중 서버 배포 전에는 한 서버에서만 실행되도록 lock 전략을 먼저 확정한다.
+- 실패와 소요 시간을 로그/metric으로 남긴다.
 
-| 구성 | 역할 |
-|---|---|
-| OS crontab | Laravel Scheduler를 매분 깨우는 트리거 |
-| Laravel Scheduler | 실행할 명령과 주기 정의 |
-| Schedule Monitor | 스케줄 등록/실행/실패/누락 감시 |
-| Horizon | 스케줄러가 발행한 Queue Job 실행 |
+## 3. 현재 후보 작업
 
-스케줄러는 시간 기반 트리거만 담당한다. 오래 걸리는 작업이나 외부 API 반복 호출은 Scheduler에서 직접 오래 실행하지 말고 Queue Job으로 넘기는 구조를 우선한다.
+| 작업 | 주기 | 목적 |
+| --- | --- | --- |
+| 임시 에디터 이미지 정리 | 매시간 | 오래된 임시 업로드 제거 |
+| pending Push 재처리 | 5분마다 | 누락된 알림 발송 재시도 |
+| 이미지 variant 생성 | 필요 시 | 썸네일/medium 이미지 백필 |
+| 병원 평가 집계 보정 | 매일 새벽 | 평가 수/평균 평점 재계산 |
+| 오래된 실패 작업 정리 | 매일 새벽 | 운영 테이블 크기 관리 |
 
-## 2) 현재 등록 스케줄
+후보 작업은 실제 구현 시 command/service 이름, lock key, timeout, metric 이름을 문서에 추가한다.
 
-`routes/console.php` 기준:
+## 4. 구현 형태
 
-| 명령 | 주기 | 목적 |
-|---|---|---|
-| `schedule-monitor:sync` | 매일 02:50 | Schedule Monitor 대상 동기화 |
-| `notice:cleanup-temp-editor-images --hours=24` | 매시간 | 공지 에디터 임시 이미지 정리 |
-| `horizon:snapshot` | 5분마다 | Horizon 메트릭 스냅샷 수집 |
-| `queue:prune-batches --hours=72 --unfinished=72 --cancelled=168` | 매일 03:10 | 오래된 job batch 메타 정리 |
-| `queue:prune-failed --hours=168` | 매일 03:20 | 오래된 failed job 정리 |
-| `hospital-evaluations:refresh-hospital-ratings` | 매일 03:30 | 병원별 평가 수/평균 평점 집계 보정 |
+권장 구조:
 
-## 3) 수동 실행 Artisan 명령
+```text
+domain/{domain}/application
+  -> 실제 비즈니스 처리
 
-`routes/console.php`에는 스케줄 등록 외에도 수동 실행용 명령이 있다.
-
-| 명령 | 용도 | 스케줄 등록 |
-|---|---|---:|
-| `notice:cleanup-temp-editor-images {--hours=24}` | 오래된 공지 에디터 임시 이미지 정리 | 예 |
-| `notifications:send-pending-push {--limit=100}` | 누락된 pending Push delivery 재큐잉 | 아니오 |
-| `media:generate-variants {--force} {--limit=500}` | 기존 이미지 thumb/medium variant 백필 | 아니오 |
-| `hospital-evaluations:refresh-hospital-ratings {--hospital-id=*}` | 병원 평가 평균/집계 보정 | 예 |
-
-수동 명령을 스케줄에 새로 올릴 때는 이 문서의 체크리스트를 따른다.
-
-## 4) Schedule Monitor
-
-패키지:
-
-- `spatie/laravel-schedule-monitor`
-
-현재 프로젝트는 별도 `config/schedule-monitor.php` 파일을 두지 않고 패키지 기본 설정과 마이그레이션 테이블을 사용한다.
-
-테이블:
-
-| 테이블 | 역할 |
-|---|---|
-| `monitored_scheduled_tasks` | 모니터링 대상 스케줄 레지스트리 |
-| `monitored_scheduled_task_log_items` | 실행 이벤트 로그 |
-
-스케줄을 추가/수정/삭제한 뒤에는 반드시 동기화한다.
-
-```bash
-php artisan schedule-monitor:sync
+infrastructure/scheduler
+  -> @Scheduled trigger
+  -> lock 획득
+  -> application service 호출
 ```
 
-확인 명령:
+스케줄러 클래스에 비즈니스 로직을 직접 넣지 않는다.
 
-```bash
-php artisan schedule:list
-php artisan schedule-monitor:list
+## 5. Lock 기준
+
+중복 실행 위험이 있는 작업은 아래 중 하나를 사용한다.
+
+- DB lock 테이블
+- Redis lock
+- ShedLock 같은 scheduler lock 라이브러리
+
+lock key는 작업 목적이 드러나게 정한다.
+
+```text
+scheduler:hospital-evaluation-rating-refresh
+scheduler:notification-pending-push-retry
 ```
 
-## 5) 서버 운영 기준
+## 6. 배포 체크리스트
 
-운영 서버 crontab 예시:
+1. 스케줄 주기와 timezone 확인
+2. lock 적용 여부 확인
+3. 작업 timeout과 batch size 확인
+4. 실패 로그와 metric 확인
+5. 운영 재실행 방법 문서화
+6. 관련 비동기 작업 queue 영향 확인
 
-```cron
-* * * * * cd /root/beaulab && php artisan schedule:run >> /dev/null 2>&1
-```
+## 7. 장애 대응
 
-로컬 개발 중에는 아래 중 하나를 쓴다.
+### 스케줄이 실행되지 않음
 
-```bash
-php artisan schedule:work
-```
+1. 애플리케이션 프로필과 scheduler 활성 설정 확인
+2. 서버 timezone 확인
+3. 로그에서 scheduler trigger 확인
+4. lock이 풀리지 않았는지 확인
+5. 수동 실행 가능한 service 또는 운영 명령으로 단건 확인
 
-또는 단발 확인:
+### 특정 작업만 실패
 
-```bash
-php artisan schedule:run
-```
-
-WSL/로컬 환경에서 systemd가 없는 경우에도 Laravel Scheduler 자체는 `schedule:work` 또는 수동 `schedule:run`으로 확인할 수 있다.
-
-## 6) 배포 체크리스트
-
-1. 코드 배포
-2. `php artisan migrate --force`
-3. 스케줄 변경이 있으면 `php artisan schedule-monitor:sync`
-4. `php artisan schedule:list` 확인
-5. `php artisan schedule-monitor:list` 확인
-6. Horizon 관련 스케줄/큐 변경이 있으면 `php artisan horizon:terminate`
-
-스케줄 변경이 없더라도 신규 배포 후 한 번은 `schedule:list`로 등록 상태를 확인한다.
-
-## 7) 신규 스케줄 작성 규칙
-
-1. 등록 위치는 `routes/console.php`로 통일한다.
-2. 스케줄 이름/목적을 주석으로 남긴다.
-3. 장시간 실행 가능성이 있으면 Queue Job으로 분리한다.
-4. 중복 실행되면 안 되는 작업은 `withoutOverlapping()` 적용을 검토한다.
-5. 다중 서버 운영 시 한 서버에서만 실행해야 하는 작업은 `onOneServer()` 적용을 검토한다.
-6. 스케줄 추가 후 `schedule-monitor:sync`를 실행한다.
-7. `./scheduler.md`와 메인 `README.md`의 요약 표를 갱신한다.
-
-현재 단일 서버 기준이라 `onOneServer()`는 필수는 아니다. 다중 서버로 확장하면 정산, 집계, 정리 작업부터 우선 적용한다.
-
-## 8) 장애 대응
-
-### 스케줄이 전혀 실행되지 않음
-
-1. crontab 등록 여부 확인
-2. crontab의 프로젝트 경로 확인
-3. PHP binary와 `.env` 로딩 확인
-4. `php artisan schedule:run -v` 단독 실행
-5. 서버 시간대와 `APP_TIMEZONE` 확인
-
-### 특정 작업만 누락
-
-1. `php artisan schedule:list`에서 Next Due 확인
-2. `php artisan schedule-monitor:list`에서 상태 확인
-3. 해당 명령을 단독 실행해 예외 확인
-4. Queue를 발행하는 명령이면 Horizon 상태 확인
-
-### 병원 평가 평균 집계가 맞지 않음
-
-단일 병원 보정:
-
-```bash
-php artisan hospital-evaluations:refresh-hospital-ratings --hospital-id=1
-```
-
-전체 병원 보정:
-
-```bash
-php artisan hospital-evaluations:refresh-hospital-ratings
-```
-
-이 명령은 평가별 `average_rating`을 먼저 재계산한 뒤 병원별 `evaluation_count`, `evaluation_average_rating`을 다시 집계한다.
-
-### Horizon 그래프가 비어 있음
-
-1. `horizon:snapshot` 스케줄 등록 확인
-2. `php artisan horizon:snapshot` 단독 실행
-3. Horizon Redis 연결 확인
-4. `config/horizon.php`의 `metrics.trim_snapshots` 확인
+1. 실패 stack trace와 입력 범위 확인
+2. 외부 API 장애인지 DB 데이터 문제인지 분리
+3. 재실행 가능 여부 확인
+4. batch size를 줄여 재처리
+5. 반복 실패면 상태 테이블에 실패 사유를 남긴다.

@@ -1,5 +1,8 @@
-package com.medi.common.web;
+package com.medi.adapter.in.web.publicapi;
 
+import com.medi.common.web.ApiResponse;
+import com.medi.common.web.RequestTrace;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,8 +24,8 @@ class PublicAppConfigController {
 	}
 
 	@GetMapping("/app-config")
-	AppConfigResponse getAppConfig() {
-		return new AppConfigResponse(brandName, serviceName);
+	ApiResponse.Success<AppConfigResponse> getAppConfig(HttpServletRequest request) {
+		return ApiResponse.success(new AppConfigResponse(brandName, serviceName), RequestTrace.traceId(request));
 	}
 
 	record AppConfigResponse(String brandName, String serviceName) {

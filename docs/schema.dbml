@@ -1,7 +1,7 @@
-Project beaulab_backend {
+Project medi_backend {
   database_type: "MySQL"
   Note: '''
-  Laravel migration과 모델 관계를 기준으로 생성한 Beaulab 백엔드 ERD입니다.
+  Flyway migration과 도메인 모델 관계를 기준으로 관리할 Medi 백엔드 ERD 초안입니다.
   Ref 라인은 실제 DB FK 또는 명시한 논리 FK입니다.
   polymorphic 관계는 MySQL FK로 강제할 수 없어 주석과 테이블 Note로 설명합니다.
   '''
@@ -12,7 +12,7 @@ Project beaulab_backend {
 // category_assignments.categorizable_type/id -> 카테고리 소유 모델: hospitals, doctors, talks, reviews, evaluations, events, faqs 등
 // operation_histories.target_type/id, admin_notes.target_type/id -> 운영 대상 모델
 // content_reports.target_type/id, content_report_states.target_type/id -> 신고 대상 모델
-// activity_log.subject_type/id, causer_type/id -> Spatie activitylog polymorphic 참조
+// activity_log.subject_type/id, causer_type/id -> 감사 로그 polymorphic 참조
 
 Table account_beauties {
   id bigint [pk, increment, note: '뷰티 관리자 고유 ID']
@@ -20,9 +20,10 @@ Table account_beauties {
   name varchar [note: '뷰티 관리자 실명']
   nickname varchar [unique, note: '뷰티 관리자 로그인 아이디']
   email varchar [unique, note: '뷰티 관리자 이메일']
+  phone varchar(50) [null, note: '뷰티 관리자 전화번호']
   email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
   password varchar [note: '암호화된 비밀번호']
-  status varchar [default: `'SUSPENDED'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED)']
+  status varchar [default: `'SUSPENDED'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED, WITHDRAWN)']
   last_login_at timestamp [null, note: '마지막 로그인 시각']
   created_at timestamp
   updated_at timestamp
@@ -36,6 +37,7 @@ Table account_hospitals {
   name varchar [note: '병원 관리자 실명']
   nickname varchar [unique, note: '병원 관리자 로그인 아이디']
   email varchar [unique, note: '병원 관리자 이메일']
+  phone varchar(50) [null, note: '병원 관리자 전화번호']
   email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
   password varchar [note: '암호화된 비밀번호']
   status varchar [default: `'SUSPENDED'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED, WITHDRAWN)']
@@ -44,23 +46,66 @@ Table account_hospitals {
   updated_at timestamp
   deleted_at timestamp [null, note: '병원 관리자 비활성/삭제 시각']
   Note: '병의원 파트너 계정입니다. 현재 정책은 병원 1개당 계정 1개입니다.'
+
+  Indexes {
+    hospital_id [unique, name: 'account_hospitals_hospital_id_unique']
+    status [name: 'account_hospitals_status_index']
+    (last_login_at, status, hospital_id) [name: 'account_hospitals_login_status_hospital_idx']
+  }
 }
 
 Table account_staffs {
-  id bigint [pk, increment, note: '뷰랩 관리자 고유 ID']
-  name varchar [note: '뷰랩 관리자 실명']
-  nickname varchar [unique, note: '뷰랩 관리자 로그인 아이디']
-  email varchar [unique, note: '뷰랩 관리자 이메일']
+  id bigint [pk, increment, note: 'Medi 관리자 고유 ID']
+  name varchar [note: 'Medi 관리자 실명']
+  nickname varchar [unique, note: 'Medi 관리자 로그인 아이디']
+  email varchar [unique, note: 'Medi 관리자 이메일']
+  phone varchar(50) [null, note: 'Medi 관리자 전화번호']
   email_verified_at timestamp [null, note: '이메일 인증 완료 시각']
   password varchar [note: '암호화된 비밀번호']
   department varchar [null, note: '부서']
   job_title varchar [null, note: '직함/직무']
-  status varchar [default: `'ACTIVE'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED)']
+  status varchar [default: `'ACTIVE'`, note: '계정 상태(ACTIVE, SUSPENDED, BLOCKED, WITHDRAWN)']
   last_login_at timestamp [null, note: '마지막 로그인 시각']
   created_at timestamp
   updated_at timestamp
-  deleted_at timestamp [null, note: '뷰랩 관리자 비활성/삭제 시각']
+  deleted_at timestamp [null, note: 'Medi 관리자 비활성/삭제 시각']
   Note: '내부 운영자 계정과 직원 상태를 관리합니다.'
+}
+
+Table staff_roles {
+  id bigint [pk, increment, note: 'Staff 역할 ID']
+  name varchar(100) [unique, note: '역할 코드']
+  display_name varchar(100) [note: '역할 표시명']
+  created_at timestamp
+  updated_at timestamp
+  Note: '내부 운영자 역할입니다.'
+}
+
+Table staff_permissions {
+  id bigint [pk, increment, note: 'Staff 권한 ID']
+  code varchar(120) [unique, note: '권한 코드']
+  display_name varchar(120) [note: '권한 표시명']
+  created_at timestamp
+  updated_at timestamp
+  Note: '내부 운영자 기능 권한입니다.'
+}
+
+Table staff_role_permissions {
+  id bigint [pk, increment, note: 'Staff 역할-권한 연결 ID']
+  staff_role_id bigint [note: '역할 ID']
+  staff_permission_id bigint [note: '권한 ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: '역할이 보유한 권한 연결입니다.'
+}
+
+Table account_staff_roles {
+  id bigint [pk, increment, note: 'Staff 계정-역할 연결 ID']
+  account_staff_id bigint [note: 'Staff 계정 ID']
+  staff_role_id bigint [note: '역할 ID']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Staff 계정에 부여된 역할 연결입니다.'
 }
 
 Table account_user_access_logs {
@@ -126,7 +171,7 @@ Table activity_log {
   batch_uuid uuid [null, note: '배치 UUID']
   created_at timestamp
   updated_at timestamp
-  Note: 'Spatie activitylog 기반 감사 로그 테이블입니다.'
+  Note: '권한 모듈 activitylog 기반 감사 로그 테이블입니다.'
 }
 
 Table admin_notes {
@@ -204,14 +249,14 @@ Table cache {
   key varchar [pk, note: '캐시 키']
   value mediumtext [note: '직렬화된 캐시 값']
   expiration int [note: '만료 시간(Unix Timestamp)']
-  Note: 'Laravel DB cache 저장 테이블입니다. 현재 표준 런타임은 Redis cache이며 DB cache는 fallback/로컬용입니다.'
+  Note: 'DB cache 저장 테이블입니다. 현재 표준 캐시는 Redis이며 DB cache는 fallback/로컬용입니다.'
 }
 
 Table cache_locks {
   key varchar [pk, note: '락 키']
   owner varchar [note: '락 소유자 식별자']
   expiration int [note: '락 만료 시간(Unix Timestamp)']
-  Note: 'Laravel DB cache lock 저장 테이블입니다. 현재 표준 분산 락은 Redis 기준으로 운영합니다.'
+  Note: 'DB cache lock 저장 테이블입니다. 현재 표준 분산 락은 Redis 기준으로 운영합니다.'
 }
 
 Table categories {
@@ -356,7 +401,7 @@ Table failed_jobs {
   payload longtext [note: '작업 데이터']
   exception longtext [note: '예외 메시지']
   failed_at timestamp [default: `CURRENT_TIMESTAMP`, note: '실패 시간']
-  Note: '실패한 Queue Job 기록입니다. Redis/Horizon 런타임에서도 실패 이력은 DB에 저장합니다.'
+  Note: '실패한 Queue Job 기록입니다. Redis/비동기 작업 모니터링 런타임에서도 실패 이력은 DB에 저장합니다.'
 }
 
 Table faqs {
@@ -415,6 +460,11 @@ Table hospital_business_registrations {
   created_at timestamp
   updated_at timestamp
   Note: '병의원 사업자등록증, 정산 계좌, 세금계산서 정보를 관리합니다.'
+
+  Indexes {
+    hospital_id [name: 'hospital_business_registrations_hospital_id_index']
+    status [name: 'hospital_business_registrations_status_index']
+  }
 }
 
 Table hospital_doctors {
@@ -431,12 +481,28 @@ Table hospital_doctors {
   careers json [null, note: '경력사항 목록']
   etc_contents json [null, note: '기타사항 목록']
   status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 정지, 비활성)']
-  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
   view_count bigint [default: `0`, note: '의사 조회수']
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null, note: '의사 비활성/삭제 시각']
   Note: '병의원 소속 의료진 정보와 검수 상태를 관리합니다.'
+
+  Indexes {
+    (hospital_id, sort_order) [name: 'hospital_doctors_hospital_id_sort_order_index']
+    status [name: 'hospital_doctors_status_index']
+    allow_status [name: 'hospital_doctors_allow_status_index']
+    view_count [name: 'hospital_doctors_view_count_index']
+    specialist_field [name: 'hospital_doctors_specialist_field_index']
+    (deleted_at, id) [name: 'h_doctors_deleted_id_idx']
+    (deleted_at, created_at, id) [name: 'h_doctors_deleted_created_id_idx']
+    (deleted_at, hospital_id, id) [name: 'h_doctors_deleted_hospital_id_idx']
+    (deleted_at, hospital_id, sort_order, id) [name: 'h_doctors_deleted_hospital_sort_id_idx']
+    (deleted_at, allow_status, id) [name: 'h_doctors_deleted_allow_status_id_idx']
+    (deleted_at, position, id) [name: 'h_doctors_deleted_position_id_idx']
+    (deleted_at, specialist_field, id) [name: 'h_doctors_deleted_specialist_id_idx']
+    (deleted_at, career_started_at, id) [name: 'h_doctors_deleted_career_id_idx']
+  }
 }
 
 Table hospital_evaluations {
@@ -483,7 +549,7 @@ Table hospital_entries {
   applicant_position varchar(50) [null, note: '신청자 직책']
   applicant_phone varchar(30) [null, note: '신청자 전화번호']
   applicant_email varchar(255) [null, note: '신청자 이메일주소']
-  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null, note: '소프트 삭제 시각']
@@ -581,7 +647,7 @@ Table hospital_event_ads {
   cost bigint [default: `0`, note: '광고 비용(P)']
   start_at timestamp [note: '광고 시작 일시']
   end_at timestamp [note: '광고 종료 일시']
-  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null, note: '소프트 삭제 시각']
@@ -608,7 +674,7 @@ Table hospital_events {
   procedure_targets json [null, note: '텍스트형 시술 대상 목록']
   procedure_benefits json [null, note: '텍스트형 시술 장점 목록']
   side_effect_notice varchar(90) [null, note: '부작용 안내']
-  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
   status varchar(20) [default: `'INACTIVE'`, note: '노출 상태(ACTIVE, INACTIVE)']
   view_count bigint [default: `0`, note: '조회수']
   created_at timestamp
@@ -624,6 +690,11 @@ Table hospital_feature_assignments {
   created_at timestamp
   updated_at timestamp
   Note: '병의원과 병의원 정보 항목의 매핑 테이블입니다.'
+
+  Indexes {
+    (hospital_id, hospital_feature_id) [unique, name: 'hospital_feature_assignments_hospital_feature_unique']
+    hospital_feature_id [name: 'hospital_feature_assignments_hospital_feature_id_index']
+  }
 }
 
 Table hospital_features {
@@ -635,6 +706,10 @@ Table hospital_features {
   created_at timestamp
   updated_at timestamp
   Note: '병의원 정보 체크박스 항목을 정의합니다.'
+
+  Indexes {
+    (status, sort_order) [name: 'hospital_features_status_sort_order_index']
+  }
 }
 
 Table hospital_review_comment_mentions {
@@ -721,27 +796,59 @@ Table hospitals {
   name varchar [unique, note: '병원명']
   department varchar(30) [default: `'OTHER'`, note: '분과(성형외과, 피부과, 의원, 치과, 안과, 한의원, 기타)']
   description text [null, note: '병원 소개']
+  youtube_link varchar(500) [null, note: '유튜브 링크']
   address varchar [null, note: '병원 주소']
   address_detail varchar [null, note: '병원 상세 주소']
   latitude varchar [null, note: '위도']
   longitude varchar [null, note: '경도']
-  tel varchar [null, note: '대표 번호']
-  ad_reception_phone_1 varchar(50) [null, note: '광고 수신 접수 전화번호 1']
-  ad_reception_phone_2 varchar(50) [null, note: '광고 수신 접수 전화번호 2']
-  ad_reception_phone_3 varchar(50) [null, note: '광고 수신 접수 전화번호 3']
-  email varchar [null, note: '대표 이메일']
   consulting_hours text [null, note: '진료 시간']
   operation_hours json [null, note: '요일별 진료 시간']
   direction text [null, note: '오시는 길']
   view_count bigint [default: `0`, note: '조회수']
   evaluation_count int [default: `0`, note: '노출 병의원 평가 수']
-  evaluation_average_rating decimal [default: `0`, note: '노출 병의원 평가 평균 평점']
-  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, REVIEWING, APPROVED, REJECTED)']
-  status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 운영중지, 탈퇴)']
+  evaluation_average_rating decimal(2,1) [default: `0`, note: '노출 병의원 평가 평균 평점']
+  allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
+  status varchar(20) [default: `'ACTIVE'`, note: '운영 상태(정상, 운영중지, 탈퇴)']
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null, note: '병원 비활성/삭제 시각']
   Note: '병의원 기본 정보, 운영 상태, 검수 상태, 통계 값을 관리합니다.'
+
+  Indexes {
+    allow_status [name: 'hospitals_allow_status_index']
+    status [name: 'hospitals_status_index']
+    department [name: 'hospitals_department_index']
+    view_count [name: 'hospitals_view_count_index']
+    evaluation_count [name: 'hospitals_evaluation_count_index']
+    evaluation_average_rating [name: 'hospitals_evaluation_average_rating_index']
+    (deleted_at, id) [name: 'hospitals_deleted_id_idx']
+    (deleted_at, name, id) [name: 'hospitals_deleted_name_id_idx']
+    (deleted_at, created_at, id) [name: 'hospitals_deleted_created_id_idx']
+    (deleted_at, updated_at, id) [name: 'hospitals_deleted_updated_id_idx']
+    (deleted_at, status, id) [name: 'hospitals_deleted_status_id_idx']
+    (deleted_at, allow_status, id) [name: 'hospitals_deleted_allow_status_id_idx']
+    (deleted_at, department, id) [name: 'hospitals_deleted_department_id_idx']
+  }
+}
+
+Table hospital_contacts {
+  id bigint [pk, increment, note: '병원 연락처 고유 ID']
+  hospital_id bigint [note: '소속 병원 ID']
+  contact_type varchar(40) [note: '연락처 목적(REPRESENTATIVE_PHONE, SMS_SENDER_PHONE, CALL_RECEIVER_PHONE, CONSULTATION_RECEIVER_PHONE, EVENT_NOTICE_RECEIVER_PHONE, NOTICE_MARKETING_EMAIL)']
+  value varchar(255) [note: '전화번호 또는 이메일']
+  sort_order tinyint [default: `0`, note: '같은 목적 안의 정렬 순서']
+  is_primary boolean [default: `false`, note: '같은 목적 안의 대표 여부']
+  is_active boolean [default: `true`, note: '사용 여부']
+  verified_at timestamp [null, note: '인증 또는 확인 완료 시각']
+  memo varchar(500) [null, note: '내부 메모']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null, note: '소프트 삭제 시각']
+  Note: '병원 연락처를 목적별 row로 관리합니다. 최대 개수는 애플리케이션 서비스에서 대표 번호/SMS 발신 번호/전화 수신 번호 각 1개, 상담 수신 번호/이벤트 안내 수신 번호/공지·마케팅 수신 이메일 각 3개로 검증합니다.'
+
+  Indexes {
+    (hospital_id, contact_type, sort_order) [name: 'hospital_contacts_type_order_index']
+  }
 }
 
 Table job_batches {
@@ -755,7 +862,7 @@ Table job_batches {
   cancelled_at int [null, note: '배치 취소 시간']
   created_at int [note: '배치 생성 시간']
   finished_at int [null, note: '배치 완료 시간']
-  Note: 'Laravel batch job 메타데이터입니다. Queue backend가 Redis여도 batch 상태는 DB에 저장합니다.'
+  Note: 'Spring Boot batch job 메타데이터입니다. Queue backend가 Redis여도 batch 상태는 DB에 저장합니다.'
 }
 
 Table jobs {
@@ -766,7 +873,7 @@ Table jobs {
   reserved_at int [null, note: '작업 예약 시간']
   available_at int [note: '작업 실행 가능 시간']
   created_at int [note: '작업 생성 시간']
-  Note: 'Laravel database queue 대기 작업입니다. 현재 표준 운영은 Redis + Horizon이라 주 사용 대상은 아닙니다.'
+  Note: 'Spring Boot database queue 대기 작업입니다. 현재 표준 운영은 Redis + 비동기 작업 모니터링이라 주 사용 대상은 아닙니다.'
 
   Indexes {
     queue [name: 'jobs_queue_index']
@@ -824,7 +931,7 @@ Table monitored_scheduled_task_log_items {
   meta json [null, note: '이벤트 부가 정보(JSON)']
   created_at timestamp
   updated_at timestamp
-  Note: 'Spatie Schedule Monitor 스케줄 실행 로그입니다.'
+  Note: '권한 모듈 Schedule Monitor 스케줄 실행 로그입니다.'
 }
 
 Table monitored_scheduled_tasks {
@@ -843,7 +950,7 @@ Table monitored_scheduled_tasks {
   grace_time_in_minutes int [note: '허용 지연 시간(분)']
   created_at timestamp
   updated_at timestamp
-  Note: 'Spatie Schedule Monitor 모니터링 대상 작업입니다.'
+  Note: '권한 모듈 Schedule Monitor 모니터링 대상 작업입니다.'
 }
 
 Table notices {
@@ -984,7 +1091,7 @@ Table permissions {
   guard_name varchar [note: '인증 guard']
   created_at timestamp
   updated_at timestamp
-  Note: 'Spatie Permission 권한 정의 테이블입니다.'
+  Note: '권한 모듈 Permission 권한 정의 테이블입니다.'
 }
 
 Table personal_access_tokens {
@@ -998,7 +1105,7 @@ Table personal_access_tokens {
   expires_at timestamp [null, note: '토큰 만료 시각']
   created_at timestamp
   updated_at timestamp
-  Note: 'Sanctum API 토큰 저장소입니다.'
+  Note: '토큰 인증 API 토큰 저장소입니다.'
 }
 
 Table role_has_permissions {
@@ -1013,7 +1120,7 @@ Table roles {
   guard_name varchar [note: '인증 guard']
   created_at timestamp
   updated_at timestamp
-  Note: 'Spatie Permission 역할 정의 테이블입니다.'
+  Note: '권한 모듈 Permission 역할 정의 테이블입니다.'
 }
 
 Table sessions {
@@ -1115,20 +1222,17 @@ TableGroup "Accounts & Auth" {
   account_user_access_logs
   account_user_blocks
   account_staffs
+  staff_roles
+  staff_permissions
+  staff_role_permissions
+  account_staff_roles
   account_hospitals
   account_beauties
-  personal_access_tokens
-  password_reset_tokens
-  sessions
-  permissions
-  roles
-  model_has_permissions
-  model_has_roles
-  role_has_permissions
 }
 
 TableGroup "Hospital Core" {
   hospitals
+  hospital_contacts
   hospital_business_registrations
   hospital_entries
   hospital_doctors
@@ -1211,8 +1315,12 @@ TableGroup "Runtime Infrastructure" {
 // Hard database foreign keys
 Ref: account_user_access_logs.account_user_id > account_users.id
 Ref: account_hospitals.hospital_id > hospitals.id
-Ref: account_beauties.beauty_id > beauties.id
+Ref: account_staff_roles.account_staff_id > account_staffs.id
+Ref: account_staff_roles.staff_role_id > staff_roles.id
+Ref: staff_role_permissions.staff_role_id > staff_roles.id
+Ref: staff_role_permissions.staff_permission_id > staff_permissions.id
 Ref: beauty_business_registrations.beauty_id > beauties.id
+Ref: hospital_contacts.hospital_id > hospitals.id
 Ref: hospital_business_registrations.hospital_id > hospitals.id
 Ref: hospital_doctors.hospital_id > hospitals.id
 Ref: beauty_experts.beauty_id > beauties.id
@@ -1289,13 +1397,9 @@ Ref: hospital_event_dbs.hospital_doctor_id > hospital_doctors.id
 Ref: hospital_event_real_model_dbs.account_user_id > account_users.id
 Ref: hospital_event_real_model_dbs.hospital_id > hospitals.id
 Ref: hospital_event_real_model_dbs.hospital_event_id > hospital_events.id
-Ref: model_has_permissions.permission_id > permissions.id
-Ref: model_has_roles.role_id > roles.id
-Ref: role_has_permissions.permission_id > permissions.id
-Ref: role_has_permissions.role_id > roles.id
 
 // Nullable logical FK/index references not always declared as database constraints
-Ref: sessions.user_id > account_users.id
+Ref: account_beauties.beauty_id > beauties.id
 Ref: chat_participants.last_read_message_id > chat_messages.id
 Ref: chat_participants.deleted_until_message_id > chat_messages.id
 Ref: chats.last_message_id > chat_messages.id

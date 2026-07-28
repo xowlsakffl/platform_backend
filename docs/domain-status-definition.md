@@ -1,12 +1,12 @@
 # 도메인 상태 정의서
 
-- 작성 기준: 2026-07-27
-- 기준 코드: `app/Domains/*/Models`, `database/migrations`, 주요 Staff/User Request
+- 작성 기준: 2026-07-28
+- 기준 코드: `src/main/java/com/medi/domain`, `src/main/resources/db/migration`, 주요 Request DTO
 - 목적: 도메인별 상태 컬럼의 저장값, 화면 표시명, 의미를 현재 코드 기준으로 정리한다.
 
 ## 1. 상태 정의 원칙
 
-상태값의 기준은 모델 상수다. 프론트는 상태값을 임의로 새로 만들지 않고, 백엔드 DTO에서 내려주는 label 또는 모델의 `statusLabel()` / `allowStatusLabel()` 계열 메서드를 기준으로 표시한다.
+상태값의 기준은 Java enum과 DB 저장값이다. 프론트는 상태값을 임의로 새로 만들지 않고, 백엔드 응답에서 내려주는 label 또는 공통 상태 매핑을 기준으로 표시한다.
 
 상태 컬럼의 의미는 컬럼명별로 구분한다.
 
@@ -15,7 +15,7 @@
 | `allow_status` | 검수/승인 상태. 운영자가 신청, 검수, 승인, 반려를 판단하는 상태 |
 | `status` | 도메인별 운영/계정/노출 상태. 같은 `status`라도 도메인마다 의미가 다르므로 모델 기준으로 해석 |
 | `hospital_status` | 병의원 관리자가 직접 설정하는 공개/비공개 상태 |
-| `admin_status` | 뷰랩 Staff가 강제중지/정상 전환하는 상태 |
+| `admin_status` | Staff가 강제중지/정상 전환하는 상태 |
 | `report_status` | 신고게시물의 처리 상태. 원본 게시물 상태와 분리 |
 | `warning_status` | 신고 대상 작성자에 대한 경고/무시 처리 상태 |
 | `ad_status` | 광고 상태. DB 저장 컬럼이 아니라 `allow_status + start_at/end_at`으로 계산 |
@@ -25,7 +25,6 @@
 | 저장값 | 표시명 | 색상 기준 |
 |---|---|---|
 | `PENDING` | 신청 | 파랑 |
-| `REVIEWING` | 검수 | 주황 |
 | `APPROVED` | 승인 | 초록 |
 | `REJECTED` | 반려 | 빨강 |
 
@@ -129,13 +128,12 @@
 | 저장값 | 표시명 | 의미 |
 |---|---|---|
 | `PENDING` | 신청 | 검수 신청 접수 |
-| `REVIEWING` | 검수 | 운영자가 검수 진행 중 |
 | `APPROVED` | 승인 | 검수 통과 |
 | `REJECTED` | 반려 | 검수 반려 |
 
 ### 4.2 `Hospital`
 
-검수 상태: 공통 검수 상태 4종 사용
+검수 상태: 공통 검수 상태 3종 사용
 
 운영 상태:
 
@@ -151,6 +149,14 @@
 - `status`: `ACTIVE`
 - `department`: `OTHER`
 - `view_count`, `evaluation_count`, `evaluation_average_rating`: `0`
+
+연락처:
+
+- 병원 연락처는 `hospitals` 본문 컬럼이 아니라 `hospital_contacts`에서 목적별로 관리한다.
+- 대표 번호, SMS 발신 번호, 전화 수신 번호는 각각 최대 1개다.
+- 상담 수신 번호, 이벤트/안내 수신 번호, 공지/마케팅 수신 이메일은 각각 최대 3개다.
+- `ad_reception_phone_1`, `ad_reception_phone_2`, `ad_reception_phone_3` 같은 고정 컬럼은 사용하지 않는다.
+- type별 최대 개수 검증은 application service에서 처리한다.
 
 진료과:
 
@@ -171,7 +177,6 @@
 | 저장값 | 표시명 | 의미 |
 |---|---|---|
 | `PENDING` | 신청 | 입점 신청 접수 |
-| `REVIEWING` | 검수 | 운영자가 서류 검수 중 |
 | `APPROVED` | 승인 | 입점 승인 |
 | `REJECTED` | 반려 | 입점 반려 |
 
@@ -186,7 +191,7 @@
 
 ### 4.4 `HospitalDoctor`
 
-검수 상태: 공통 검수 상태 4종 사용
+검수 상태: 공통 검수 상태 3종 사용
 
 운영 상태:
 
@@ -246,8 +251,6 @@
 - `allow_status`: `PENDING`
 - `status`: `SUSPENDED`
 
-현재 `Beauty`는 `REVIEWING` 단계를 갖지 않는다.
-
 ### 5.2 `BeautyExpert`
 
 검수 상태:
@@ -270,8 +273,6 @@
 
 - `allow_status`: `PENDING`
 - `status`: `SUSPENDED`
-
-현재 `BeautyExpert`는 `REVIEWING` 단계를 갖지 않는다.
 
 ### 5.3 `BeautyBusinessRegistration`
 
@@ -836,8 +837,8 @@ Actor kind:
 병의원/의료진/입점신청/이벤트/광고 검수:
 
 ```text
-PENDING(신청) -> REVIEWING(검수) -> APPROVED(승인)
-                                  -> REJECTED(반려)
+PENDING(신청) -> APPROVED(승인)
+              -> REJECTED(반려)
 ```
 
 뷰티/뷰티전문가 검수:
@@ -883,10 +884,10 @@ NORMAL_VISIBLE 3회차 이상 -> REEXPOSED
 
 신규 도메인 상태를 추가할 때는 다음을 같이 처리한다.
 
-- 모델 상수 추가
-- `statuses()` 또는 `allowStatuses()` 추가
-- 화면 표시가 필요한 경우 `statusLabel()` 또는 `allowStatusLabel()` 추가
-- Request `Rule::in()` 갱신
+- Java enum 추가
+- DB 저장값과 migration 제약 확인
+- 화면 표시가 필요한 경우 Result/DTO label 필드 갱신
+- Request DTO Bean Validation 갱신
 - DTO label 필드 갱신
 - 프론트 옵션/뱃지 색상 갱신
 - 운영 히스토리 field label 갱신
@@ -894,20 +895,15 @@ NORMAL_VISIBLE 3회차 이상 -> REEXPOSED
 
 기존 코드 정리 대상:
 
-- `Beauty`, `BeautyExpert`는 병의원 계열과 달리 `allowStatusLabel()` 메서드가 없다. 뷰티 관리자 화면을 본격 구현할 때 같은 패턴으로 맞춘다.
-- `AccountStaff`, `AccountHospital`, `AccountBeauty`는 `statusLabel()` 메서드가 없다. 계정 상태 표시가 반복되면 모델 기준 라벨 메서드로 정리한다.
+- `Beauty`, `BeautyExpert`는 뷰티 관리자 화면을 본격 구현할 때 병원 계열과 같은 상태/검수 상태 응답 패턴으로 맞춘다.
+- `AccountStaff`, `AccountHospital`, `AccountBeauty`는 계정 상태 표시가 반복되면 공통 상태 label resolver로 정리한다.
 - `schema.dbml`은 일부 과거 상태값이 남아 있을 수 있으므로 DB 문서 정리 턴에서 별도로 갱신한다.
 
 ## 17. 참고 파일
 
-- `app/Domains/*/Models/*.php`
-- `database/migrations/0001_01_01_000000_create_account_users_table.php`
-- `database/migrations/0001_01_01_000003_create_account_staffs_table.php`
-- `database/migrations/0001_01_01_000004_create_hospitals_table.php`
-- `database/migrations/2026_02_24_152827_create_hospital_doctors_table.php`
-- `database/migrations/2026_02_25_120100_create_hospital_videos_table.php`
-- `database/migrations/2026_06_11_090000_create_hospital_events_table.php`
-- `database/migrations/2026_06_22_090000_create_hospital_entries_table.php`
-- `database/migrations/2026_07_13_090000_create_hospital_event_ads_table.php`
+- `src/main/java/com/medi/domain`
+- `src/main/java/com/medi/application`
+- `src/main/java/com/medi/adapter/in/web`
+- `src/main/resources/db/migration`
 - `./content-report.md`
 - `./category.md`
