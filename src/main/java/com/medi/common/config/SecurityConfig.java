@@ -3,9 +3,11 @@ package com.medi.common.config;
 import com.medi.common.security.ApiSecurityExceptionHandler;
 import com.medi.common.security.JwtAuthenticationFilter;
 import com.medi.common.security.JwtProperties;
+import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,9 +17,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
 class SecurityConfig {
 
 	@Bean
@@ -27,6 +32,7 @@ class SecurityConfig {
 		JwtAuthenticationFilter jwtAuthenticationFilter
 	) throws Exception {
 		return http
+			.cors(Customizer.withDefaults())
 			.csrf(AbstractHttpConfigurer::disable)
 			.formLogin(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
@@ -50,6 +56,25 @@ class SecurityConfig {
 				.accessDeniedHandler(apiSecurityExceptionHandler))
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 			.build();
+	}
+
+	@Bean
+	CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+		CorsConfiguration configuration = new CorsConfiguration();
+		configuration.setAllowedOrigins(properties.allowedOrigins());
+		configuration.setAllowedMethods(
+			List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+		);
+		configuration.setAllowedHeaders(
+			List.of("Authorization", "Content-Type", "Accept", "X-Request-Id")
+		);
+		configuration.setExposedHeaders(List.of("X-Request-Id", "Content-Disposition"));
+		configuration.setAllowCredentials(false);
+		configuration.setMaxAge(3600L);
+
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/api/**", configuration);
+		return source;
 	}
 
 	@Bean

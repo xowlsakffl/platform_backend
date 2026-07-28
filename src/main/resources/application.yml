@@ -20,6 +20,8 @@ management:
         include: health,info
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002}
   brand:
     name: ${APP_BRAND_NAME:Medi}
     service-name: ${APP_SERVICE_NAME:Beauty Platform}

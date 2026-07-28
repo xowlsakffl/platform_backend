@@ -64,6 +64,8 @@ Redis  localhost:6379 / password=myStrongRedisPassword
 
 환경 변수 예시는 [.env.example](./.env.example)을 참고한다.
 
+로컬 웹 앱의 기본 CORS 허용 origin은 `localhost:3000`, `3001`, `3002`다. 배포 환경에서는 `CORS_ALLOWED_ORIGINS`에 실제 프론트 origin만 쉼표로 구분해 지정한다.
+
 ## 실행
 
 ```bash

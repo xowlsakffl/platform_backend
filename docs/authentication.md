@@ -116,6 +116,8 @@ Spring Security는 URL namespace 단위로 1차 차단한다.
 
 세부 기능 권한과 소유권은 application service 진입부에서 검사한다.
 
+브라우저 기반 프론트의 origin은 `app.cors.allowed-origins`에서 관리한다. 허용 method는 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`이며 `Authorization`, `Content-Type`, `Accept`, `X-Request-Id` 요청 헤더를 허용한다. 배포 환경에서는 `CORS_ALLOWED_ORIGINS`를 실제 프론트 origin으로 제한한다.
+
 ## 6. 권한/소유권
 
 - Staff: permission code 기반
