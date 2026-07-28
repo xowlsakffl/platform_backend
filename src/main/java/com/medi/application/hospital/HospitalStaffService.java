@@ -31,6 +31,9 @@ import com.medi.common.web.PaginatedResponse;
 import com.medi.domain.account.AccountHospital;
 import com.medi.domain.category.Category;
 import com.medi.domain.category.CategoryAssignment;
+import com.medi.domain.category.CategoryDomain;
+import com.medi.domain.category.CategoryStatus;
+import com.medi.domain.category.CategoryUsageType;
 import com.medi.domain.hospital.Hospital;
 import com.medi.domain.hospital.HospitalAllowStatus;
 import com.medi.domain.hospital.HospitalBusinessRegistration;
@@ -42,6 +45,7 @@ import com.medi.domain.hospital.HospitalStatus;
 import com.medi.domain.operationhistory.OperationHistory;
 import com.medi.infrastructure.persistence.category.CategoryAssignmentRepository;
 import com.medi.infrastructure.persistence.category.CategoryRepository;
+import com.medi.infrastructure.persistence.category.CategoryUsageRepository;
 import com.medi.infrastructure.persistence.hospital.HospitalBusinessRegistrationRepository;
 import com.medi.infrastructure.persistence.hospital.HospitalFeatureRepository;
 import com.medi.infrastructure.persistence.hospital.HospitalRepository;
@@ -89,6 +93,7 @@ public class HospitalStaffService {
 	private final HospitalFeatureRepository featureRepository;
 	private final CategoryRepository categoryRepository;
 	private final CategoryAssignmentRepository categoryAssignmentRepository;
+	private final CategoryUsageRepository categoryUsageRepository;
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final ObjectMapper objectMapper;
 
@@ -99,6 +104,7 @@ public class HospitalStaffService {
 		HospitalFeatureRepository featureRepository,
 		CategoryRepository categoryRepository,
 		CategoryAssignmentRepository categoryAssignmentRepository,
+		CategoryUsageRepository categoryUsageRepository,
 		OperationHistoryRepository operationHistoryRepository,
 		ObjectMapper objectMapper
 	) {
@@ -108,6 +114,7 @@ public class HospitalStaffService {
 		this.featureRepository = featureRepository;
 		this.categoryRepository = categoryRepository;
 		this.categoryAssignmentRepository = categoryAssignmentRepository;
+		this.categoryUsageRepository = categoryUsageRepository;
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.objectMapper = objectMapper;
 	}
@@ -569,7 +576,17 @@ public class HospitalStaffService {
 			return;
 		}
 		List<Category> categories = categoryRepository.findByIdIn(categoryIds);
-		if (categories.size() != categoryIds.size()) {
+		boolean invalidCategory = categories.size() != categoryIds.size()
+			|| categories.stream().anyMatch(category ->
+				category.domain() != CategoryDomain.HOSPITAL_MEDICAL
+					|| category.status() != CategoryStatus.ACTIVE
+			)
+			|| categoryUsageRepository.countByUsageAndStatusAndCategory_IdIn(
+				CategoryUsageType.HOSPITAL_DOCTOR_SUBJECT,
+				CategoryStatus.ACTIVE,
+				categoryIds
+			) != categoryIds.size();
+		if (invalidCategory) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "선택한 카테고리 정보가 올바르지 않습니다.");
 		}
 		List<CategoryAssignment> assignments = new ArrayList<>();

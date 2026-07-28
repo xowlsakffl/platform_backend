@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CategoryAssignmentRepository extends JpaRepository<CategoryAssignment, Long> {
 
+	boolean existsByCategory_Id(Long categoryId);
+
 	void deleteByCategorizableTypeAndCategorizableId(String categorizableType, Long categorizableId);
 
 	List<CategoryAssignment> findByCategorizableTypeAndCategorizableId(String categorizableType, Long categorizableId);

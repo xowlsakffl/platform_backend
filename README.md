@@ -114,6 +114,9 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 - Redis 연결 설정
 - Hospital Staff API 1차 골격
 - Hospital 관련 core schema
+- Category Staff 목록/상세/생성/수정/삭제 API
+- 사용처와 계층 탐색을 지원하는 Category selector API
+- `HOSPITAL_MEDICAL` 3단계 기준 트리와 8개 사용처 초기 데이터
 
 ## 개발 기준
 

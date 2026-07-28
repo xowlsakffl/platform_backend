@@ -263,7 +263,8 @@ Table categories {
   id bigint [pk, increment, note: '카테고리 고유 ID']
   domain varchar(40) [note: '카테고리 도메인(HOSPITAL_MEDICAL, HOSPITAL_EVALUATION, TALK, BEAUTY, FAQ)']
   parent_id bigint [null, note: '상위 카테고리 ID(대분류는 null)']
-  depth tinyint [note: '카테고리 깊이(1:대분류, 2:중분류, 3:소분류, 4:상세분류)']
+  depth tinyint [note: '카테고리 깊이(1:대분류, 2:중분류, 3:소분류)']
+  group_code varchar(30) [null, note: '의료 카테고리 그룹(SURGERY, TREATMENT)']
   name varchar(120) [note: '카테고리명']
   code varchar(80) [null, note: '카테고리 운영 코드']
   full_path varchar(255) [null, note: '카테고리 전체 경로(예: 눈 > 쌍꺼풀 > 자연유착)']
@@ -469,24 +470,24 @@ Table hospital_business_registrations {
 
 Table hospital_doctors {
   id bigint [pk, increment, note: '의사 고유 ID']
-  hospital_id bigint [note: '소속 병원 ID']
+  hospital_id bigint [not null, note: '소속 병원 ID. 병원 hard delete 시 의료진도 함께 삭제']
   sort_order int [default: `0`, note: '의사 노출 순서']
   name varchar [note: '의사 이름']
   gender varchar(20) [null, note: '의사 성별(남, 여)']
   position varchar(50) [null, note: '의사 직책(대표원장, 원장, 기타)']
   career_started_at date [null, note: '총 경력 시작일(누적 산정)']
-  license_number varchar(100) [null, note: '의사 면허증 번호']
-  specialist_field varchar(80) [default: `'NONE'`, note: '전문의 분류(NONE, PLASTIC_SURGERY 등)']
+  license_number varchar(100) [not null, note: '숫자로 정규화한 의사 면허증 번호. 서비스 전체 유일값']
+  specialist_field varchar(80) [not null, note: '전문의 분류(PLASTIC_SURGERY, SURGERY 등)']
   educations json [null, note: '학력사항 목록']
   careers json [null, note: '경력사항 목록']
   etc_contents json [null, note: '기타사항 목록']
-  status varchar(20) [default: `'SUSPENDED'`, note: '운영 상태(정상, 정지, 비활성)']
+  status varchar(20) [default: `'HIDDEN'`, note: '노출 상태(VISIBLE, HIDDEN)']
   allow_status varchar(20) [default: `'PENDING'`, note: '검수 상태(PENDING, APPROVED, REJECTED)']
   view_count bigint [default: `0`, note: '의사 조회수']
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null, note: '의사 비활성/삭제 시각']
-  Note: '병의원 소속 의료진 정보와 검수 상태를 관리합니다.'
+  Note: '병원이 소유하는 의료진 정보입니다. 의료진 단독 검색은 별도 API로 제공하되 소속 병원은 필수입니다.'
 
   Indexes {
     (hospital_id, sort_order) [name: 'hospital_doctors_hospital_id_sort_order_index']
@@ -494,6 +495,7 @@ Table hospital_doctors {
     allow_status [name: 'hospital_doctors_allow_status_index']
     view_count [name: 'hospital_doctors_view_count_index']
     specialist_field [name: 'hospital_doctors_specialist_field_index']
+    license_number [unique, name: 'hospital_doctors_license_number_unique']
     (deleted_at, id) [name: 'h_doctors_deleted_id_idx']
     (deleted_at, created_at, id) [name: 'h_doctors_deleted_created_id_idx']
     (deleted_at, hospital_id, id) [name: 'h_doctors_deleted_hospital_id_idx']
@@ -1322,7 +1324,7 @@ Ref: staff_role_permissions.staff_permission_id > staff_permissions.id
 Ref: beauty_business_registrations.beauty_id > beauties.id
 Ref: hospital_contacts.hospital_id > hospitals.id
 Ref: hospital_business_registrations.hospital_id > hospitals.id
-Ref: hospital_doctors.hospital_id > hospitals.id
+Ref: hospital_doctors.hospital_id > hospitals.id [delete: cascade]
 Ref: beauty_experts.beauty_id > beauties.id
 Ref: hospital_videos.hospital_id > hospitals.id
 Ref: hospital_videos.doctor_id > hospital_doctors.id

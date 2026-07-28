@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | 카테고리 트리 | `categories` | 서비스 분류 체계 원본 |
 | 카테고리 그룹 | `categories.group_code` | 같은 domain 안의 성형/쁘띠 같은 성격 구분 |
-| 사용처 노출 목록 | `category_usages` 또는 사용처 정책 | 특정 화면/기능에서 보여줄 카테고리 선별 |
+| 사용처 노출 목록 | `category_usages` | 특정 화면/기능에서 보여줄 카테고리 선별 |
 | 카테고리 연결 | `category_assignments` | 도메인 객체와 카테고리 연결 |
 
 `categories`에는 화면별 노출 플래그를 무분별하게 추가하지 않는다. 병원 진료과목, 의료진 진료분야, 앱 필터처럼 같은 카테고리 트리에서 서로 다른 노드를 골라 써야 하는 기능은 사용처 정책으로 분리한다.
@@ -57,6 +57,8 @@ HOSPITAL_MEDICAL
 | `TREATMENT` | 쁘띠 | 리프팅, 필러, 보톡스, 지방분해주사, 피부, 제모/탈모, 치과, 부인과, 안과, 한방 |
 
 하위 카테고리는 부모의 `group_code`를 상속한다. 운영 화면에서 부모와 다른 `group_code`를 허용하지 않는다.
+
+현재 의료 카테고리 트리는 대분류, 중분류, 소분류의 최대 3단계다. 3단계 아래에는 새 카테고리를 만들 수 없다.
 
 ## 3. 병원/의료진 진료과목
 
@@ -118,36 +120,76 @@ HOSPITAL_DOCTOR_SUBJECT
 
 여기서 leaf는 현재 active 자식이 없는 카테고리를 뜻한다. depth 숫자만 보고 소분류를 강제하지 않는다.
 
-## 7. 권장 패키지 구조
+## 7. 구현 패키지 구조
 
 ```text
 domain/category/
   Category
   CategoryAssignment
+  CategoryUsage
+  CategoryDomain
+  CategoryGroup
+  CategoryStatus
+  CategoryUsageType
 
 application/category/
-  CategoryService
+  CategoryStaffService
+  command/
+    CreateCategoryCommand
+    UpdateCategoryCommand
   query/
+    SearchCategoriesQuery
+    SelectCategoriesQuery
   result/
+    CategoryResult
+    CategoryDeletedResult
 
 infrastructure/persistence/category/
   CategoryRepository
   CategoryAssignmentRepository
+  CategoryUsageRepository
 
 adapter/in/web/staff/category/
-adapter/in/web/publicapi/category/
+  controller/CategoryStaffController
+  request/
 ```
 
-카테고리 초기 데이터는 Flyway migration 또는 별도 seed command로 관리한다. 초기 데이터 방식이 확정되면 이 문서와 `schema.dbml`을 같이 갱신한다.
+초기 데이터는 Flyway로 관리한다.
 
-## 8. API 응답 원칙
+- `V3__complete_category_schema.sql`: `group_code`, 인덱스, `category_usages`
+- `V4__seed_hospital_medical_categories.sql`: `HOSPITAL_MEDICAL` 250개 노드와 8개 사용처 90개 매핑
+
+## 8. Staff API
+
+| Method | Path | 권한 | 책임 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/staff/categories` | `platform.category.manage` | 검색, 필터, 정렬, 페이지 목록 |
+| `GET` | `/api/v1/staff/categories/selector` | Staff 인증 | 사용처, 부모, 검색 기준 선택 목록 |
+| `GET` | `/api/v1/staff/categories/{id}` | `platform.category.manage` | 단건 조회 |
+| `POST` | `/api/v1/staff/categories` | `platform.category.manage` | 카테고리 생성 |
+| `PATCH` | `/api/v1/staff/categories/{id}` | `platform.category.manage` | 이름, 코드, 그룹, 순서, 상태 수정 |
+| `DELETE` | `/api/v1/staff/categories/{id}` | `platform.category.manage` | 카테고리 삭제 |
+
+selector는 `domain`이 필수다. `usage`, `parent_id`, `parent_code`, `q`, `depth`, `group_code`, `status`, `is_menu_visible`, 정렬 조건을 조합할 수 있다.
+
+삭제 제한:
+
+- 하위 카테고리가 있으면 삭제할 수 없다.
+- `category_assignments` 연결이 있으면 삭제할 수 없다.
+- `category_usages`에 등록된 카테고리는 삭제할 수 없다.
+
+생성, 수정, 삭제는 `CATEGORY` 대상 운영 이력으로 기록한다. 카테고리 아이콘 업로드는 공통 Media 도메인을 구현할 때 연결한다.
+
+Hospital의 `category_ids`는 활성 `HOSPITAL_MEDICAL`이면서 활성 `HOSPITAL_DOCTOR_SUBJECT` 사용처에 직접 등록된 카테고리만 허용한다.
+
+## 9. API 응답 원칙
 
 - selector 응답은 `id`, `name`, `code`, `depth`, `parent_id`, `group_code`, `has_children`을 포함한다.
 - 프론트는 `group_code`를 기준으로 성형/쁘띠 표시를 한다.
 - 카테고리를 여러 개 가질 수 있는 도메인은 응답에서 `categories` 배열로 내려준다.
 - 화면마다 다른 선택지는 usage 기준으로 서버가 제한한다.
 
-## 9. 금지 사항
+## 10. 금지 사항
 
 - `성형`, `쁘띠`를 카테고리 노드로 만들지 않는다.
 - 화면별 boolean 컬럼을 `categories`에 계속 추가하지 않는다.

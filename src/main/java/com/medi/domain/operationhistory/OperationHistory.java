@@ -17,6 +17,7 @@ import java.util.List;
 public class OperationHistory extends BaseTimeEntity {
 
 	public static final String TARGET_HOSPITAL = "HOSPITAL";
+	public static final String TARGET_CATEGORY = "CATEGORY";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -50,8 +51,22 @@ public class OperationHistory extends BaseTimeEntity {
 	}
 
 	public OperationHistory(String targetType, Long targetId, String action, String reason, String memo) {
+		this(targetType, targetId, "STAFF", null, action, reason, memo);
+	}
+
+	public OperationHistory(
+		String targetType,
+		Long targetId,
+		String actorType,
+		Long actorId,
+		String action,
+		String reason,
+		String memo
+	) {
 		this.targetType = targetType;
 		this.targetId = targetId;
+		this.actorType = actorType;
+		this.actorId = actorId;
 		this.action = action;
 		this.reason = reason;
 		this.memo = memo;

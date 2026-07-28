@@ -197,17 +197,59 @@
 
 | 저장값 | 표시명 | 의미 |
 |---|---|---|
-| `ACTIVE` | 정상 | 의료진 정상 노출/사용 |
-| `SUSPENDED` | 정지 | 의료진 일시 정지 |
-| `INACTIVE` | 비활성 | 의료진 비활성 |
+| `VISIBLE` | 노출 | 서비스에 의료진 노출 |
+| `HIDDEN` | 미노출 | 서비스에서 의료진 미노출 |
 
 기본값:
 
 - `allow_status`: `PENDING`
-- `status`: `SUSPENDED`
+- `status`: `HIDDEN`
 - `view_count`: `0`
 
-전문의 필드는 `SPECIALIST_FIELD_*` 상수와 `SPECIALIST_FIELD_LABELS`를 기준으로 표시한다.
+관계와 유일성:
+
+- 의료진은 병원이 소유하며 `hospital_id`는 필수다.
+- DB FK는 `ON DELETE CASCADE`를 사용해 병원이 hard delete되면 소속 의료진도 함께 삭제한다.
+- 현재 Hospital 삭제는 soft delete이므로 DB cascade가 실행되지 않는다. 병원 soft delete 유스케이스에서 소속 의료진도 함께 soft delete해야 한다.
+- 의료진 자체 삭제도 `deleted_at`을 사용하는 soft delete다.
+- 면허번호는 숫자만 남겨 정규화하고 `hospital_doctors.license_number` unique index로 서비스 전체에서 중복을 금지한다.
+- 의료진 단독 검색 API를 제공하되 모든 의료진은 소속 병원을 가진다.
+
+전문의 분류는 아래 enum 문자열을 저장한다. 분류 번호는 enum의 고정 코드로 보유하고 DB에는 의미가 드러나는 enum 문자열을 저장한다.
+
+| 분류 번호 | 저장값 | 표시명 |
+|---:|---|---|
+| 1 | `PLASTIC_SURGERY` | 성형외과 |
+| 2 | `SURGERY` | 외과 |
+| 3 | `OTOLARYNGOLOGY` | 이비인후과 |
+| 4 | `FAMILY_MEDICINE` | 가정의학과 |
+| 5 | `OBSTETRICS_GYNECOLOGY` | 산부인과 |
+| 6 | `ORAL_MAXILLOFACIAL_SURGERY` | 구강악안면외과 |
+| 7 | `ANESTHESIOLOGY_PAIN_MEDICINE` | 마취통증의학과 |
+| 8 | `KOREAN_MEDICINE` | 한의학과 |
+| 9 | `DENTISTRY` | 치과 |
+| 10 | `ORTHODONTICS` | 치과교정과 |
+| 11 | `DERMATOLOGY` | 피부과 |
+| 12 | `OPHTHALMOLOGY` | 안과 |
+| 13 | `INTERNAL_MEDICINE` | 내과 |
+| 14 | `NEUROLOGY` | 신경과 |
+| 15 | `ORTHOPEDICS` | 정형외과 |
+| 16 | `NEUROSURGERY` | 신경외과 |
+| 17 | `THORACIC_SURGERY` | 흉부외과 |
+| 19 | `PEDIATRICS` | 소아청소년과 |
+| 20 | `UROLOGY` | 비뇨의학과 |
+| 21 | `RADIOLOGY` | 영상의학과 |
+| 22 | `EMERGENCY_MEDICINE` | 응급의학과 |
+| 23 | `REHABILITATION_MEDICINE` | 재활의학과 |
+| 24 | `PROSTHODONTICS` | 치과보철과 |
+| 25 | `PERIODONTICS` | 치주과 |
+| 26 | `INTEGRATED_DENTISTRY` | 통합치의학과 |
+| 27 | `PATHOLOGY` | 병리과 |
+| 28 | `OCCUPATIONAL_ENVIRONMENTAL_MEDICINE` | 직업환경의학과 |
+| 29 | `CONSERVATIVE_DENTISTRY` | 치과보존과 |
+| 90 | `OTHER` | 기타 |
+
+`NONE` 또는 빈 전문의 분류는 저장하지 않는다.
 
 ### 4.5 `HospitalBusinessRegistration`
 

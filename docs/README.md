@@ -46,6 +46,7 @@
 - 공지사항/FAQ 도메인은 Staff API 기준으로 CRUD와 에디터 이미지를 지원한다.
 - FAQ 카테고리는 전용 테이블이 아니라 공통 `Category` 도메인의 `FAQ` 분류를 사용한다.
 - 병원/의료진/후기/영상 의료 카테고리는 `HOSPITAL_MEDICAL` 트리를 공유하고, 성형/쁘띠 구분은 `categories.group_code`, 화면별 노출 목록은 `category_usages`로 분리한다.
+- Category Staff API는 관리 CRUD와 selector를 제공하고, 의료 카테고리 250개와 8개 사용처 90개 매핑은 Flyway 기준 데이터로 관리한다.
 - 병원/의료진/이벤트의 `allow_status`는 `PENDING`/`APPROVED`/`REJECTED`를 저장하고, 관리자 화면 표기는 `신청`/`승인`/`반려`를 사용한다.
 - 입점신청은 Staff 목록/상세/summary/승인상태 변경 API를 제공하며, 승인상태 변경은 `OperationHistory`에 기록한다.
 - 토크/병의원 후기/병의원 평가는 Staff 운영 API와 User 작성 API를 Actor 기준으로 분리한다.

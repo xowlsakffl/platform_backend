@@ -112,6 +112,8 @@ adapter/in/web/user
 ```text
 adapter/in/web/staff/hospital/controller
 adapter/in/web/staff/hospital/request
+adapter/in/web/staff/category/controller
+adapter/in/web/staff/category/request
 ```
 
 Controller에는 다음만 둔다.
@@ -155,6 +157,16 @@ application/hospital/
   result/
 ```
 
+Category도 같은 구조를 사용한다.
+
+```text
+application/category/
+  CategoryStaffService.java
+  command/
+  query/
+  result/
+```
+
 - `Service`: 유스케이스, 트랜잭션, 권한, 도메인 조합
 - `command`: 생성/수정/상태 변경 입력
 - `query`: 목록/검색 입력
@@ -171,6 +183,19 @@ domain/hospital/
   HospitalAllowStatus.java
   HospitalContact.java
   HospitalContactType.java
+```
+
+공통 분류 도메인은 아래처럼 Entity와 enum을 같은 도메인 패키지에 둔다.
+
+```text
+domain/category/
+  Category.java
+  CategoryAssignment.java
+  CategoryUsage.java
+  CategoryDomain.java
+  CategoryGroup.java
+  CategoryStatus.java
+  CategoryUsageType.java
 ```
 
 Domain에는 다음을 둔다.
@@ -192,6 +217,13 @@ infrastructure/persistence/hospital/
   HospitalFeatureRepository.java
 ```
 
+```text
+infrastructure/persistence/category/
+  CategoryRepository.java
+  CategoryAssignmentRepository.java
+  CategoryUsageRepository.java
+```
+
 초기에는 Spring Data JPA repository를 infrastructure에 둔다.
 
 외부 기술 구현은 모두 infrastructure로 보낸다.
@@ -211,6 +243,9 @@ src/main/resources/
   db/
     migration/
       V1__create_hospital_core.sql
+      V2__create_actor_auth_core.sql
+      V3__complete_category_schema.sql
+      V4__seed_hospital_medical_categories.sql
 ```
 
 - 공통 설정은 `application.yml`

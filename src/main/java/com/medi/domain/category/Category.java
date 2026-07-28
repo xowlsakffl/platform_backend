@@ -3,6 +3,8 @@ package com.medi.domain.category;
 import com.medi.domain.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,7 +22,8 @@ public class Category extends BaseTimeEntity {
 	private Long id;
 
 	@Column(nullable = false, length = 40)
-	private String domain;
+	@Enumerated(EnumType.STRING)
+	private CategoryDomain domain;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "parent_id")
@@ -28,6 +31,10 @@ public class Category extends BaseTimeEntity {
 
 	@Column(nullable = false)
 	private byte depth;
+
+	@Column(name = "group_code", length = 30)
+	@Enumerated(EnumType.STRING)
+	private CategoryGroup groupCode;
 
 	@Column(nullable = false, length = 120)
 	private String name;
@@ -42,7 +49,8 @@ public class Category extends BaseTimeEntity {
 	private int sortOrder;
 
 	@Column(nullable = false, length = 20)
-	private String status = "ACTIVE";
+	@Enumerated(EnumType.STRING)
+	private CategoryStatus status = CategoryStatus.ACTIVE;
 
 	@Column(name = "is_menu_visible", nullable = false)
 	private boolean menuVisible = true;
@@ -50,16 +58,79 @@ public class Category extends BaseTimeEntity {
 	protected Category() {
 	}
 
+	public Category(
+		CategoryDomain domain,
+		Category parent,
+		byte depth,
+		CategoryGroup groupCode,
+		String name,
+		String code,
+		String fullPath,
+		int sortOrder,
+		CategoryStatus status,
+		boolean menuVisible
+	) {
+		this.domain = domain;
+		this.parent = parent;
+		this.depth = depth;
+		this.groupCode = groupCode;
+		this.name = name;
+		this.code = code;
+		this.fullPath = fullPath;
+		this.sortOrder = sortOrder;
+		this.status = status;
+		this.menuVisible = menuVisible;
+	}
+
+	public void update(
+		String name,
+		String code,
+		String fullPath,
+		CategoryGroup groupCode,
+		int sortOrder,
+		CategoryStatus status,
+		boolean menuVisible
+	) {
+		this.name = name;
+		this.code = code;
+		this.fullPath = fullPath;
+		this.groupCode = groupCode;
+		this.sortOrder = sortOrder;
+		this.status = status;
+		this.menuVisible = menuVisible;
+	}
+
+	public void updateInheritedValues(String fullPath, CategoryGroup groupCode) {
+		this.fullPath = fullPath;
+		this.groupCode = groupCode;
+	}
+
 	public Long id() {
 		return id;
 	}
 
-	public String domain() {
+	public CategoryDomain domain() {
 		return domain;
+	}
+
+	public Category parent() {
+		return parent;
+	}
+
+	public Long parentId() {
+		return parent == null ? null : parent.id();
 	}
 
 	public String name() {
 		return name;
+	}
+
+	public String code() {
+		return code;
+	}
+
+	public CategoryGroup groupCode() {
+		return groupCode;
 	}
 
 	public String fullPath() {
@@ -72,5 +143,13 @@ public class Category extends BaseTimeEntity {
 
 	public int sortOrder() {
 		return sortOrder;
+	}
+
+	public CategoryStatus status() {
+		return status;
+	}
+
+	public boolean menuVisible() {
+		return menuVisible;
 	}
 }

@@ -49,6 +49,7 @@ public final class PageMeta {
 		return perPage;
 	}
 
+	@JsonProperty("total")
 	public long total() {
 		return total;
 	}
