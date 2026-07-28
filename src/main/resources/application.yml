@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: medi_backend
+  profiles:
+    default: local
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  brand:
+    name: ${APP_BRAND_NAME:Medi}
+    service-name: ${APP_SERVICE_NAME:Beauty Platform}
