@@ -10,6 +10,7 @@ public record DoctorDetailResult(
 	@JsonProperty("hospital_id") Long hospitalId,
 	@JsonProperty("hospital_name") String hospitalName,
 	@JsonProperty("hospital_business_number") String hospitalBusinessNumber,
+	@JsonProperty("sort_order") int sortOrder,
 	String name,
 	String gender,
 	String position,

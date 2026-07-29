@@ -1,8 +1,9 @@
 package com.medi.adapter.in.web.beauty.auth.controller;
 
-import com.medi.adapter.in.web.auth.request.AuthLoginRequest;
+import com.medi.adapter.in.web.beauty.auth.request.BeautyLoginRequest;
 import com.medi.application.auth.AuthenticationService;
 import com.medi.common.security.AuthenticatedActor;
+import com.medi.common.security.BearerTokenResolver;
 import com.medi.common.web.ApiResponse;
 import com.medi.common.web.RequestTrace;
 import com.medi.domain.account.AccountActorType;
@@ -26,7 +27,7 @@ public class BeautyAuthController {
 	}
 
 	@PostMapping("/login")
-	public ApiResponse login(@Valid @RequestBody AuthLoginRequest body, HttpServletRequest request) {
+	public ApiResponse login(@Valid @RequestBody BeautyLoginRequest body, HttpServletRequest request) {
 		return ApiResponse.success(
 			authenticationService.login(AccountActorType.BEAUTY, body.toCommand()),
 			RequestTrace.traceId(request)
@@ -44,7 +45,7 @@ public class BeautyAuthController {
 	@PostMapping("/logout")
 	public ApiResponse logout(@AuthenticationPrincipal AuthenticatedActor actor, HttpServletRequest request) {
 		return ApiResponse.success(
-			authenticationService.logout(AccountActorType.BEAUTY, actor),
+			authenticationService.logout(AccountActorType.BEAUTY, actor, BearerTokenResolver.resolve(request)),
 			RequestTrace.traceId(request)
 		);
 	}

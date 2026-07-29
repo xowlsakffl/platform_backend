@@ -21,6 +21,6 @@ public record DoctorListItemResult(
 	@JsonProperty("consultation_count") long consultationCount,
 	@JsonProperty("created_at") LocalDateTime createdAt,
 	@JsonProperty("profile_image") DoctorMediaResult profileImage,
-	List<DoctorCategoryResult> categories
+	List<DoctorListCategoryResult> categories
 ) {
 }

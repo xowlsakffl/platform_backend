@@ -1,150 +1,75 @@
-# 공통 Media 설계
+# 미디어
 
-작성 기준: 2026-07-28
+## 저장 모델
 
-## 1. 목적
-
-Media는 병원, 의료진, 이벤트 등 여러 도메인의 파일 메타데이터와 저장 위치를 공통으로 관리한다.
-
-DB에 특정 Java 클래스명이나 JPA 상속 정보를 저장하지 않는다. 연결 대상은 의미가 고정된 `owner_type` enum과 `owner_id` 값으로 식별한다.
+Media는 도메인 테이블에 파일 경로 컬럼을 반복하지 않고 다음 키로 연결한다.
 
 ```text
-owner_type = HOSPITAL
-owner_id = 10
-collection = gallery
+owner_type + owner_id + collection
 ```
 
-현재 연결 가능한 대상은 `HOSPITAL`이다. Doctor 구현 시 `DOCTOR` enum과 대상 존재/권한 검증을 함께 추가한다.
+| owner_type | collection | 개수 | 제약 |
+|---|---|---:|---|
+| `HOSPITAL` | `logo` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
+| `HOSPITAL` | `gallery` | 5 | JPG/PNG, 10MB, 760x490 |
+| `HOSPITAL_BUSINESS_REGISTRATION` | `business_registration_file` | 1 | 이미지/PDF, 10MB |
+| `CATEGORY` | `icon` | 1 | JPG/PNG/WebP, 5MB |
+| `DOCTOR` | `profile_image` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
+| `DOCTOR` | `license_image` | 1 | 이미지/PDF, 10MB |
+| `DOCTOR` | `specialist_certificate_image` | 1 | 이미지/PDF, 10MB |
 
-## 2. 저장 구조
+저장 루트는 `app.media.local.root`이며 기본값은 `./storage/media`다. 파일명은 서버가 생성하고 원본 파일명은 메타데이터로 보존한다.
 
-핵심 컬럼:
+## 쓰기 책임
 
-| 컬럼 | 의미 |
-|---|---|
-| `owner_type` | 연결 도메인 enum |
-| `owner_id` | 연결 대상 ID |
-| `collection` | 도메인별 파일 용도 |
-| `disk` | 저장소 종류. 현재 `LOCAL` |
-| `path` | 저장소 내부 상대 경로 |
-| `original_name` | 사용자 원본 파일명 |
-| `mime_type` | 파일 내용으로 확인한 MIME 타입 |
-| `size` | 파일 크기(bytes) |
-| `width`, `height` | 확인 가능한 이미지 크기 |
-| `sort_order` | 컬렉션 내부 정렬 순서 |
-| `is_primary` | 대표 파일 여부 |
-| `metadata` | 추가 정보 JSON 객체 |
-| `deleted_at` | 소프트 삭제 시각 |
+공통 미디어 CRUD Controller는 두지 않는다. Hospital, Category, Doctor의 생성·수정 API가 소유자와 컬렉션 정책을 알고 `MediaCommandService`를 호출한다.
 
-폴리모픽 연결에는 DB 외래키를 걸 수 없다. 대상 존재 여부와 삭제 연동은 application service가 책임진다.
+- 단건: 새 파일, 유지할 기존 ID, 명시적 삭제를 구분한다.
+- 다건: 유지할 기존 ID와 신규 파일을 합쳐 최대 개수를 검증한다.
+- 순서 변경: `existing:{id}`, `new:{index}` 토큰으로 최종 순서를 전달한다.
+- 기존 ID는 같은 owner와 collection에 속한 활성 Media만 허용한다.
 
-## 3. 파일 저장 규칙
+## 파일 수명주기
 
-- 기본 저장소는 `MEDIA_STORAGE_ROOT`가 가리키는 로컬 디렉토리다.
-- DB에는 저장소 루트가 아닌 `연도/월/UUID.확장자` 상대 경로만 저장한다.
-- 원본 파일명은 표시와 응답 헤더에만 사용하고 실제 저장 경로에는 사용하지 않는다.
-- 파일 확장자와 MIME 타입은 업로드 파일 내용의 signature를 기준으로 결정한다.
-- 허용 형식은 JPEG, PNG, WebP, GIF, PDF다.
-- SVG와 실행 가능한 문서 형식은 허용하지 않는다.
-- 기본 파일 제한은 20MB, 기본 multipart 요청 제한은 21MB다.
-- JPEG, PNG, GIF는 이미지 헤더에서 크기를 읽고 가로 또는 세로 20,000px 초과를 거부한다.
+DB와 파일 시스템은 하나의 원자적 트랜잭션이 아니므로 다음 순서를 지킨다.
 
-환경 변수:
+1. 신규 파일 저장
+2. 파일 형식·크기·크기 비율 검증
+3. Media 메타데이터 저장과 기존 Media soft delete
+4. DB 롤백이면 신규 파일 삭제
+5. DB 커밋이면 교체·삭제된 기존 파일 삭제
 
-```text
-MEDIA_STORAGE_ROOT=./storage/media
-MEDIA_MAX_FILE_SIZE=20MB
-MEDIA_MAX_REQUEST_SIZE=21MB
-```
+Hospital 또는 Doctor soft delete도 연결 Media를 soft delete하고 커밋 후 원본 파일을 정리한다.
 
-## 4. 컬렉션 규칙
+## 조회 경로
 
-`collection`은 영문 소문자로 시작하고 영문 소문자, 숫자, 밑줄만 사용하며 최대 50자다.
+### Staff
 
-```text
-logo
-thumbnail
-gallery
-business_registration_file
-license_file
-```
+`GET /api/v1/staff/media/{id}/content`
 
-컬렉션 이름은 도메인 요구사항에서 정의한다. 임의의 Java 클래스명이나 화면 컴포넌트명을 컬렉션으로 사용하지 않는다.
+Staff 권한과 소유 도메인 존재를 확인한다. Hospital 사업자등록증, Doctor 면허증과 전문의 증빙을 포함한 운영 원본 조회 경로다.
 
-같은 `(owner_type, owner_id, collection)` 범위에서 다음 규칙을 적용한다.
+### Hospital
 
-- 첫 번째 업로드 파일은 자동으로 대표 파일이 된다.
-- `is_primary=true`로 업로드하거나 수정하면 기존 대표 파일을 해제한다.
-- 대표 파일을 삭제하면 남은 파일 중 정렬 순서가 가장 빠른 파일을 대표로 지정한다.
-- `sort_order`를 생략하면 현재 마지막 순서 다음 값으로 저장한다.
+`GET /api/v1/hospital/doctors/{doctorId}/media/{mediaId}/content`
 
-## 5. 삭제 정책
+인증한 Hospital 소유의 Doctor 미디어만 조회한다.
 
-API 삭제는 DB 레코드의 `deleted_at`만 기록한다. 원본 파일은 즉시 삭제하지 않는다.
+### User 앱 공개
 
-- DB 트랜잭션이 롤백된 신규 업로드 파일은 즉시 물리 삭제한다.
-- 병원을 soft delete하면 연결된 `HOSPITAL` Media도 같은 트랜잭션에서 soft delete한다.
-- 보존기간 이후 원본 파일을 물리 삭제하는 작업은 Scheduler 도메인에서 별도로 구현한다.
-- 병원을 hard delete해도 폴리모픽 Media에는 DB cascade가 적용되지 않으므로 application service 연동이 필수다.
+`GET /api/v1/user/media/{id}/content`
 
-## 6. Staff API
+로그인 없이 호출할 수 있지만 다음만 공개한다.
 
-기본 경로:
+- `ACTIVE` Category의 `icon`
+- `APPROVED + VISIBLE` Doctor의 `profile_image`
+- 공개 Doctor의 Hospital도 `APPROVED + ACTIVE`
 
-```text
-/api/v1/staff/media
-```
+Doctor 면허증, 전문의 증빙, 병원 사업자등록증은 이 경로에서 항상 `404`다.
 
-| Method | Path | 기능 |
-|---|---|---|
-| `GET` | `/api/v1/staff/media` | 대상 컬렉션 파일 목록 |
-| `GET` | `/api/v1/staff/media/{id}` | 미디어 메타데이터 상세 |
-| `GET` | `/api/v1/staff/media/{id}/content` | 인증된 원본 파일 조회 |
-| `POST` | `/api/v1/staff/media` | multipart 파일 업로드 |
-| `PATCH` | `/api/v1/staff/media/{id}` | 정렬, 대표 여부, metadata 수정 |
-| `DELETE` | `/api/v1/staff/media/{id}` | 미디어 soft delete |
+## 응답 보안
 
-목록 필수 query:
-
-```text
-owner_type=HOSPITAL
-owner_id=1
-collection=gallery
-```
-
-업로드 multipart 필드:
-
-```text
-owner_type
-owner_id
-collection
-file
-sort_order    선택
-is_primary   선택
-metadata     선택, JSON 객체 문자열
-```
-
-수정 body 예시:
-
-```json
-{
-  "sort_order": 1,
-  "is_primary": true,
-  "metadata": {
-    "alt": "병원 내부"
-  }
-}
-```
-
-`content_url`은 인증이 필요한 Staff 상대 경로를 반환한다. 공개 앱용 파일 조회는 각 도메인의 공개 상태와 미디어 공개 범위 정책을 확인하는 별도 API로 제공한다.
-
-## 7. 권한
-
-Media는 독립 운영 리소스가 아니라 연결 대상의 일부이므로 대상 도메인 권한을 상속한다.
-
-| 작업 | `HOSPITAL` 대상 권한 |
-|---|---|
-| 목록, 상세, 원본 조회 | `platform.hospital.show` |
-| 업로드, 수정, 삭제 | `platform.hospital.update` |
-
-새 `owner_type`을 추가할 때 대상 존재 검증과 읽기/수정 권한 매핑을 반드시 같이 추가한다.
+- 파일은 `inline` Content-Disposition으로 반환한다.
+- `X-Content-Type-Options: nosniff`를 설정한다.
+- Staff 응답은 private cache, User 앱 응답은 public cache를 1시간 적용한다.
+- 파일 시스템 절대 경로는 API 응답에 노출하지 않는다.

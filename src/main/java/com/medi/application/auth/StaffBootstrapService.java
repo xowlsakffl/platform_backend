@@ -1,6 +1,7 @@
 package com.medi.application.auth;
 
 import com.medi.application.auth.command.BootstrapStaffCommand;
+import com.medi.common.error.InternalApplicationException;
 import com.medi.domain.account.AccountStaff;
 import com.medi.domain.account.StaffRole;
 import com.medi.infrastructure.persistence.account.AccountStaffRepository;
@@ -34,19 +35,19 @@ public class StaffBootstrapService {
 		String email = command.email().trim().toLowerCase();
 		String nickname = command.nickname().trim();
 		StaffRole role = roleRepository.findByName(command.roleName().trim())
-			.orElseThrow(() -> new IllegalStateException("운영자 역할을 찾을 수 없습니다: " + command.roleName()));
+			.orElseThrow(() -> new InternalApplicationException("운영자 역할을 찾을 수 없습니다: " + command.roleName()));
 
 		AccountStaff existingStaff = staffRepository.findByEmail(email).orElse(null);
 		if (existingStaff != null) {
 			if (!existingStaff.isActive()) {
-				throw new IllegalStateException("같은 이메일의 비활성 운영자 계정이 존재합니다: " + email);
+				throw new InternalApplicationException("같은 이메일의 비활성 운영자 계정이 존재합니다: " + email);
 			}
 			existingStaff.assignRole(role);
 			return false;
 		}
 
 		if (staffRepository.existsByNickname(nickname)) {
-			throw new IllegalStateException("같은 닉네임의 운영자 계정이 존재합니다: " + nickname);
+			throw new InternalApplicationException("같은 닉네임의 운영자 계정이 존재합니다: " + nickname);
 		}
 
 		AccountStaff staff = AccountStaff.create(
@@ -67,7 +68,7 @@ public class StaffBootstrapService {
 			|| !StringUtils.hasText(command.name())
 			|| !StringUtils.hasText(command.nickname())
 			|| !StringUtils.hasText(command.roleName())) {
-			throw new IllegalStateException("운영자 초기화 설정값이 비어 있습니다.");
+			throw new InternalApplicationException("운영자 초기화 설정값이 비어 있습니다.");
 		}
 	}
 }

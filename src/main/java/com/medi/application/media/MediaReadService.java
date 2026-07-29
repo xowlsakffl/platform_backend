@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medi.application.media.result.MediaResult;
+import com.medi.common.error.InternalApplicationException;
 import com.medi.domain.media.Media;
 import com.medi.domain.media.MediaOwnerType;
 import com.medi.infrastructure.persistence.media.MediaRepository;
@@ -26,6 +27,19 @@ public class MediaReadService {
 	public MediaReadService(MediaRepository mediaRepository, ObjectMapper objectMapper) {
 		this.mediaRepository = mediaRepository;
 		this.objectMapper = objectMapper;
+	}
+
+	@Transactional(readOnly = true)
+	public List<MediaResult> list(MediaOwnerType ownerType, Long ownerId, String collection) {
+		return mediaRepository
+			.findByOwnerTypeAndOwnerIdAndCollectionAndDeletedAtIsNullOrderBySortOrderAscIdAsc(
+				ownerType,
+				ownerId,
+				collection
+			)
+			.stream()
+			.map(this::toResult)
+			.toList();
 	}
 
 	@Transactional(readOnly = true)
@@ -92,7 +106,7 @@ public class MediaReadService {
 		try {
 			return objectMapper.readValue(metadata, METADATA_TYPE);
 		} catch (JsonProcessingException exception) {
-			throw new IllegalStateException("저장된 미디어 메타데이터 JSON이 올바르지 않습니다.", exception);
+			throw new InternalApplicationException("저장된 미디어 메타데이터 JSON이 올바르지 않습니다.", exception);
 		}
 	}
 }

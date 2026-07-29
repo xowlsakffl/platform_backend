@@ -223,8 +223,11 @@ public class LocalMediaStorage implements MediaStorage {
 	}
 
 	private Dimension readImageDimension(Path path, String contentType) {
-		if (!contentType.startsWith("image/") || "image/webp".equals(contentType)) {
+		if (!contentType.startsWith("image/")) {
 			return null;
+		}
+		if ("image/webp".equals(contentType)) {
+			return readWebpDimension(path);
 		}
 		try (ImageInputStream imageInput = ImageIO.createImageInputStream(path.toFile())) {
 			if (imageInput == null) {
@@ -249,6 +252,77 @@ public class LocalMediaStorage implements MediaStorage {
 		} catch (IOException exception) {
 			throw invalid("이미지 정보를 확인할 수 없습니다.");
 		}
+	}
+
+	private Dimension readWebpDimension(Path path) {
+		try {
+			byte[] bytes = Files.readAllBytes(path);
+			if (bytes.length < 20 || !startsWithAscii(bytes, "RIFF") || !asciiAt(bytes, 8, "WEBP")) {
+				throw invalid("이미지 정보를 확인할 수 없습니다.");
+			}
+
+			int offset = 12;
+			while (offset + 8 <= bytes.length) {
+				long chunkSize = littleEndian(bytes, offset + 4, 4);
+				int dataOffset = offset + 8;
+				if (chunkSize > bytes.length - dataOffset) {
+					throw invalid("이미지 정보를 확인할 수 없습니다.");
+				}
+
+				Dimension dimension = null;
+				if (asciiAt(bytes, offset, "VP8X") && chunkSize >= 10) {
+					dimension = dimension(
+						(int) littleEndian(bytes, dataOffset + 4, 3) + 1,
+						(int) littleEndian(bytes, dataOffset + 7, 3) + 1
+					);
+				} else if (asciiAt(bytes, offset, "VP8L") && chunkSize >= 5 && Byte.toUnsignedInt(bytes[dataOffset]) == 0x2F) {
+					long sizeBits = littleEndian(bytes, dataOffset + 1, 4);
+					dimension = dimension(
+						(int) (sizeBits & 0x3FFF) + 1,
+						(int) ((sizeBits >> 14) & 0x3FFF) + 1
+					);
+				} else if (
+					asciiAt(bytes, offset, "VP8 ")
+						&& chunkSize >= 10
+						&& startsWithAt(bytes, dataOffset + 3, 0x9D, 0x01, 0x2A)
+				) {
+					dimension = dimension(
+						(int) littleEndian(bytes, dataOffset + 6, 2) & 0x3FFF,
+						(int) littleEndian(bytes, dataOffset + 8, 2) & 0x3FFF
+					);
+				}
+				if (dimension != null) {
+					return dimension;
+				}
+
+				long nextOffset = dataOffset + chunkSize + (chunkSize & 1);
+				if (nextOffset > Integer.MAX_VALUE) {
+					throw invalid("이미지 정보를 확인할 수 없습니다.");
+				}
+				offset = (int) nextOffset;
+			}
+			throw invalid("이미지 정보를 확인할 수 없습니다.");
+		} catch (IOException exception) {
+			throw invalid("이미지 정보를 확인할 수 없습니다.");
+		}
+	}
+
+	private Dimension dimension(int width, int height) {
+		if (width <= 0 || height <= 0 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+			throw invalid("허용되지 않는 이미지 크기입니다.");
+		}
+		return new Dimension(width, height);
+	}
+
+	private long littleEndian(byte[] bytes, int offset, int length) {
+		if (offset < 0 || length <= 0 || offset + length > bytes.length) {
+			throw invalid("이미지 정보를 확인할 수 없습니다.");
+		}
+		long value = 0;
+		for (int index = 0; index < length; index++) {
+			value |= (long) Byte.toUnsignedInt(bytes[offset + index]) << (index * 8);
+		}
+		return value;
 	}
 
 	private String buildRelativePath(String contentType) {
@@ -291,11 +365,15 @@ public class LocalMediaStorage implements MediaStorage {
 	}
 
 	private boolean startsWith(byte[] bytes, int... expected) {
-		if (bytes.length < expected.length) {
+		return startsWithAt(bytes, 0, expected);
+	}
+
+	private boolean startsWithAt(byte[] bytes, int offset, int... expected) {
+		if (offset < 0 || bytes.length < offset + expected.length) {
 			return false;
 		}
 		for (int index = 0; index < expected.length; index++) {
-			if (Byte.toUnsignedInt(bytes[index]) != expected[index]) {
+			if (Byte.toUnsignedInt(bytes[offset + index]) != expected[index]) {
 				return false;
 			}
 		}

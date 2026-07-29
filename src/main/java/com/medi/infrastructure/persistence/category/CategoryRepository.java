@@ -2,6 +2,7 @@ package com.medi.infrastructure.persistence.category;
 
 import com.medi.domain.category.Category;
 import com.medi.domain.category.CategoryDomain;
+import com.medi.domain.category.CategoryGroup;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -22,15 +23,32 @@ public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSp
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Category> findForUpdateById(Long id);
 
-	List<Category> findByDomainAndFullPathStartingWithOrderByDepthAsc(CategoryDomain domain, String fullPathPrefix);
+	List<Category> findByDomainAndGroupCodeAndFullPathStartingWithOrderByDepthAsc(
+		CategoryDomain domain,
+		CategoryGroup groupCode,
+		String fullPathPrefix
+	);
 
 	boolean existsByDomainAndCode(CategoryDomain domain, String code);
 
 	boolean existsByDomainAndCodeAndIdNot(CategoryDomain domain, String code, Long id);
 
-	boolean existsByDomainAndParentIsNullAndName(CategoryDomain domain, String name);
+	boolean existsByDomainAndParentIsNullAndGroupCodeIsNullAndName(CategoryDomain domain, String name);
 
-	boolean existsByDomainAndParentIsNullAndNameAndIdNot(CategoryDomain domain, String name, Long id);
+	boolean existsByDomainAndParentIsNullAndGroupCodeIsNullAndNameAndIdNot(CategoryDomain domain, String name, Long id);
+
+	boolean existsByDomainAndParentIsNullAndGroupCodeAndName(
+		CategoryDomain domain,
+		CategoryGroup groupCode,
+		String name
+	);
+
+	boolean existsByDomainAndParentIsNullAndGroupCodeAndNameAndIdNot(
+		CategoryDomain domain,
+		CategoryGroup groupCode,
+		String name,
+		Long id
+	);
 
 	boolean existsByDomainAndParent_IdAndName(CategoryDomain domain, Long parentId, String name);
 

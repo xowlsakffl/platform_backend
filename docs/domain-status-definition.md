@@ -1,956 +1,109 @@
-# 도메인 상태 정의서
+# 도메인 정책과 상태
 
-- 작성 기준: 2026-07-28
-- 기준 코드: `src/main/java/com/medi/domain`, `src/main/resources/db/migration`, 주요 Request DTO
-- 목적: 도메인별 상태 컬럼의 저장값, 화면 표시명, 의미를 현재 코드 기준으로 정리한다.
+이 문서는 현재 이식된 Account, Hospital, HospitalFeature, Category, Doctor, Media, OperationHistory의 정책만 정의한다.
 
-## 1. 상태 정의 원칙
+## Hospital
 
-상태값의 기준은 Java enum과 DB 저장값이다. 프론트는 상태값을 임의로 새로 만들지 않고, 백엔드 응답에서 내려주는 label 또는 공통 상태 매핑을 기준으로 표시한다.
+### 상태
 
-상태 컬럼의 의미는 컬럼명별로 구분한다.
-
-| 컬럼/개념 | 의미 |
-|---|---|
-| `allow_status` | 검수/승인 상태. 운영자가 신청, 검수, 승인, 반려를 판단하는 상태 |
-| `status` | 도메인별 운영/계정/노출 상태. 같은 `status`라도 도메인마다 의미가 다르므로 모델 기준으로 해석 |
-| `hospital_status` | 병의원 관리자가 직접 설정하는 공개/비공개 상태 |
-| `admin_status` | Staff가 강제중지/정상 전환하는 상태 |
-| `report_status` | 신고게시물의 처리 상태. 원본 게시물 상태와 분리 |
-| `warning_status` | 신고 대상 작성자에 대한 경고/무시 처리 상태 |
-| `ad_status` | 광고 상태. DB 저장 컬럼이 아니라 `allow_status + start_at/end_at`으로 계산 |
-
-공통 검수 상태 색상 정책:
-
-| 저장값 | 표시명 | 색상 기준 |
+| 필드 | 값 | 의미 |
 |---|---|---|
-| `PENDING` | 신청 | 파랑 |
-| `APPROVED` | 승인 | 초록 |
-| `REJECTED` | 반려 | 빨강 |
+| `allow_status` | `PENDING` | 신청 |
+|  | `APPROVED` | 승인 |
+|  | `REJECTED` | 반려 |
+| `status` | `ACTIVE` | 정상 운영 |
+|  | `SUSPENDED` | 운영 중지 |
+|  | `WITHDRAWN` | 탈퇴 |
 
-주의:
+검수 중간 상태는 사용하지 않는다. Staff가 검수 상태나 운영 상태를 바꾸면 변경 전후 값과 사유를 운영 이력에 남긴다.
 
-- `VALID`, `INVALID`는 현재 신고 상태가 아니다. 신규 코드와 신규 문서에서 사용하지 않는다.
-- `HospitalVideo`는 현재 `allow_status`와 `status`를 쓰지 않는다. `hospital_status`, `admin_status`만 쓴다.
-- `HospitalEventAd.ad_status`는 DB 컬럼이 아니다. 승인된 광고의 노출기간으로 계산한다.
+### 연락처
 
-## 2. 도메인 한눈에
+| 종류 | 최대 개수 |
+|---|---:|
+| 대표 번호 | 1, 필수 |
+| SMS 발신 번호 | 1 |
+| 전화 수신 번호 | 1 |
+| 상담 수신 번호 | 3 |
+| 이벤트·안내 수신 번호 | 3 |
+| 공지·마케팅 수신 이메일 | 3 |
 
-| 분류 | 도메인 | 핵심 상태 |
+연락처는 `hospital_contacts`에 종류와 정렬 순서로 저장한다. 고정 번호 컬럼을 병원 테이블에 추가하지 않는다.
+
+### 특징과 통역 언어
+
+병원 특징은 활성 기준값만 연결한다.
+
+1. 마취과 전문의
+2. 입원 시설
+3. 수술실명제
+4. 야간상담/진료
+5. 응급 대응 체계
+6. 분야별 공동 진료
+7. 전용 휴식 공간
+8. 시술 후 관리
+9. 여성 의사 진료
+10. 역에서 도보 5분 이내
+11. 성형외과 전문의 진료
+12. 주차가능
+
+통역 가능 언어는 `JAPANESE`, `ENGLISH`, `THAI`, `CHINESE`, `TAIWANESE_CHINESE`를 다중 선택한다. 병원 소개 자체의 다국어 필드는 두지 않는다.
+
+### 삭제
+
+Hospital API 삭제는 soft delete다. 연결된 Doctor도 soft delete하고, Hospital·Doctor·사업자등록증 미디어와 카테고리 할당을 함께 정리한다. DB 외래 키는 실제 hard delete 상황에서 Doctor를 `ON DELETE CASCADE`한다.
+
+## Doctor
+
+### 상태
+
+| 필드 | 값 | 의미 |
 |---|---|---|
-| 계정 | `AccountStaff`, `AccountHospital`, `AccountBeauty`, `AccountUser` | 계정 `status` |
-| 병의원 | `Hospital`, `HospitalDoctor`, `HospitalEntry`, `HospitalBusinessRegistration`, `HospitalFeature` | 검수 `allow_status`, 운영 `status` |
-| 뷰티 | `Beauty`, `BeautyExpert`, `BeautyBusinessRegistration` | 검수 `allow_status`, 운영 `status` |
-| 이벤트/광고/동영상 | `HospitalEvent`, `HospitalEventAd`, `HospitalVideo` | 검수, 공개여부, 강제중지, 광고상태 |
-| 고객 DB | `HospitalEventDB`, `HospitalEventRealModelDB` | 상담/승인 상태 |
-| 게시물 | `Talk`, `HospitalReview`, `HospitalEvaluation` 계열 | 노출 `status`, 평가 `post_status`, 영수증 `receipt_status` |
-| 신고 | `ContentReport`, `ContentReportState` | `report_status`, `warning_status` |
-| 공통 | `Category`, `CategoryUsage`, `Hashtag`, `Notice`, `Faq`, `Chat`, `Notification*` | 도메인별 상태/채널/타입 |
+| `allow_status` | `PENDING` | 신청 |
+|  | `APPROVED` | 승인 |
+|  | `REJECTED` | 반려 |
+| `status` | `VISIBLE` | 노출 |
+|  | `HIDDEN` | 미노출 |
 
-## 3. 계정 도메인
+Hospital Actor가 신규 등록하면 검수 상태는 `PENDING`이다. Hospital Actor는 노출 상태만 바꿀 수 있고 검수 상태를 승인할 수 없다. 반려 처리에는 사유가 필요하다.
 
-### 3.1 `AccountStaff`
+### 핵심 규칙
 
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | Staff 로그인/사용 가능 |
-| `SUSPENDED` | 정지 | 일시 정지 |
-| `BLOCKED` | 차단 | 차단 처리 |
+- Doctor는 반드시 하나의 Hospital에 속한다.
+- `license_number`는 숫자로 정규화하며 서비스 전체에서 unique다.
+- 전문의 분류는 필수이고 코드 목록은 `DoctorSpecialistField` enum이 기준이다.
+- 진료 분야 Category는 최대 5개며 첫 항목을 primary로 저장한다.
+- 학력·경력·활동사항은 각 20개, 항목당 1,000자까지 JSON 배열로 저장한다.
+- soft delete 시 상태를 `HIDDEN`으로 바꾸고 연결 미디어와 Category 할당을 정리한다.
 
-기본값: `ACTIVE`
+### 미디어 공개 범위
 
-### 3.2 `AccountHospital`
+| 컬렉션 | Staff | 소속 Hospital | User 앱 공개 |
+|---|---:|---:|---:|
+| `profile_image` | O | O | 승인+노출일 때 O |
+| `license_image` | O | O | X |
+| `specialist_certificate_image` | O | O | X |
 
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 병원 계정 로그인/사용 가능 |
-| `SUSPENDED` | 정지 | 일시 정지 |
-| `BLOCKED` | 차단 | 차단 처리 |
-| `WITHDRAWN` | 탈퇴 | 병원 계정 탈퇴/종료 |
+## Category
 
-기본값: `SUSPENDED`
+- 도메인: `MEDICAL`, `HOSPITAL_EVALUATION`, `TALK`, `BEAUTY`, `FAQ`
+- 상태: `ACTIVE`, `INACTIVE`
+- 의료 카테고리는 최대 3단계다.
+- 의료 카테고리는 `SURGERY(성형)`, `TREATMENT(시술)` 그룹으로 구분한다.
+- 병원·의사는 1뎁스, 이벤트·후기는 3뎁스 카테고리를 복수 선택한다.
+- 같은 그룹의 루트와 같은 부모 아래 이름, 도메인 내 code는 중복할 수 없다.
+- 하위 Category는 상위 Category의 group code를 상속한다.
+- 이름이나 group이 바뀌면 모든 하위 `full_path`와 group을 동기화한다.
+- 하위 또는 할당이 남은 Category는 삭제할 수 없다.
 
-관계 기준:
+현재 기준 데이터는 병원·의사·이벤트·후기가 공유하는 `MEDICAL` 트리 498개다. 사용처별 매핑 테이블은 두지 않는다. 다른 CategoryDomain enum은 확장 식별자이며 모든 도메인 데이터가 seed됐다는 뜻은 아니다.
 
-- `AccountHospital`은 `Hospital`과 1:1이다.
-- `account_hospitals.hospital_id`는 unique다.
+## Media
 
-### 3.3 `AccountBeauty`
+Media는 `owner_type + owner_id + collection`으로 연결한다. DB 외래 키를 둘 수 없는 폴리모픽 구조이므로 application Service가 소유자 존재, 권한, 컬렉션을 검증한다.
 
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 뷰티 계정 로그인/사용 가능 |
-| `SUSPENDED` | 정지 | 일시 정지 |
-| `BLOCKED` | 차단 | 차단 처리 |
+교체·삭제된 메타데이터는 soft delete하고 파일은 트랜잭션 커밋 뒤 삭제한다. 신규 업로드 뒤 트랜잭션이 롤백되면 신규 파일을 삭제한다.
 
-기본값: `SUSPENDED`
+## 미이식 집계
 
-### 3.4 `AccountUser`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 정상 | 일반 회원 정상 사용 |
-| `SUSPENDED` | 정지 | 일시 정지 |
-| `BLOCKED` | 차단 | 신고 경고 누적 등으로 차단 |
-| `WITHDRAWN` | 탈퇴 | 탈퇴 회원 |
-
-기본값:
-
-- `status`: `ACTIVE`
-- `warning_count`: `0`
-- `signup_channel`: `EMAIL`
-
-가입 경로:
-
-| 저장값 | 표시명 |
-|---|---|
-| `KAKAO` | 카카오톡 |
-| `NAVER` | 네이버 |
-| `EMAIL` | 이메일 |
-| `APPLE` | 애플 |
-| `FACEBOOK` | 페이스북 |
-| `EMAIL_NO_CONTACT` | 이메일(연락처 x) |
-| `UNKNOWN` | 미확인 |
-
-신고 경고 규칙:
-
-- 신고게시물 관리에서 `WARNED` 처리하면 작성자의 `warning_count`가 1 증가한다.
-- `warning_count >= 10`이면 `status = BLOCKED`, `blocked_at = now()`로 바뀐다.
-- `WARNED` 처리된 건을 `IGNORED`로 바꾸면 경고 수가 1 감소한다.
-- 경고 수가 차단 기준 미만이 되면 차단 상태를 `ACTIVE`로 되돌린다.
-
-## 4. 병의원 도메인
-
-### 4.1 공통 검수 상태
-
-다음 검수 상태는 `Hospital`, `HospitalDoctor`, `HospitalEntry`, `HospitalEvent`, `HospitalEventAd`가 사용한다.
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `PENDING` | 신청 | 검수 신청 접수 |
-| `APPROVED` | 승인 | 검수 통과 |
-| `REJECTED` | 반려 | 검수 반려 |
-
-### 4.2 `Hospital`
-
-검수 상태: 공통 검수 상태 3종 사용
-
-운영 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 정상 | 병의원 정상 운영 |
-| `SUSPENDED` | 운영중지 | 병의원 운영중지 |
-| `WITHDRAWN` | 탈퇴 | 병의원 탈퇴/종료 |
-
-기본값:
-
-- `allow_status`: `PENDING`
-- `status`: `ACTIVE`
-- `department`: `OTHER`
-- `view_count`, `evaluation_count`, `evaluation_average_rating`: `0`
-
-연락처:
-
-- 병원 연락처는 `hospitals` 본문 컬럼이 아니라 `hospital_contacts`에서 목적별로 관리한다.
-- 대표 번호, SMS 발신 번호, 전화 수신 번호는 각각 최대 1개다.
-- 상담 수신 번호, 이벤트/안내 수신 번호, 공지/마케팅 수신 이메일은 각각 최대 3개다.
-- `ad_reception_phone_1`, `ad_reception_phone_2`, `ad_reception_phone_3` 같은 고정 컬럼은 사용하지 않는다.
-- type별 최대 개수 검증은 application service에서 처리한다.
-
-진료과:
-
-| 저장값 | 표시명 |
-|---|---|
-| `PLASTIC_SURGERY` | 성형외과 |
-| `DERMATOLOGY` | 피부과 |
-| `CLINIC` | 의원 |
-| `DENTISTRY` | 치과 |
-| `OPHTHALMOLOGY` | 안과 |
-| `KOREAN_MEDICINE` | 한의원 |
-| `OTHER` | 기타 |
-
-### 4.3 `HospitalEntry`
-
-입점신청은 검수 상태만 가진다. 운영 상태 `status`는 없다.
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `PENDING` | 신청 | 입점 신청 접수 |
-| `APPROVED` | 승인 | 입점 승인 |
-| `REJECTED` | 반려 | 입점 반려 |
-
-기본값: `PENDING`
-
-파일 컬렉션:
-
-| 컬렉션 | 의미 |
-|---|---|
-| `hospital_entry_business_registration_file` | 사업자등록증 |
-| `hospital_entry_license_file` | 의사면허증 |
-
-### 4.4 `HospitalDoctor`
-
-검수 상태: 공통 검수 상태 3종 사용
-
-운영 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `VISIBLE` | 노출 | 서비스에 의료진 노출 |
-| `HIDDEN` | 미노출 | 서비스에서 의료진 미노출 |
-
-기본값:
-
-- `allow_status`: `PENDING`
-- `status`: `HIDDEN`
-- `view_count`: `0`
-
-관계와 유일성:
-
-- 의료진은 병원이 소유하며 `hospital_id`는 필수다.
-- DB FK는 `ON DELETE CASCADE`를 사용해 병원이 hard delete되면 소속 의료진도 함께 삭제한다.
-- 현재 Hospital 삭제는 soft delete이므로 DB cascade가 실행되지 않는다. 병원 soft delete 유스케이스에서 소속 의료진도 함께 soft delete해야 한다.
-- 의료진 자체 삭제도 `deleted_at`을 사용하는 soft delete다.
-- 면허번호는 숫자만 남겨 정규화하고 `hospital_doctors.license_number` unique index로 서비스 전체에서 중복을 금지한다.
-- 의료진 단독 검색 API를 제공하되 모든 의료진은 소속 병원을 가진다.
-
-전문의 분류는 아래 enum 문자열을 저장한다. 분류 번호는 enum의 고정 코드로 보유하고 DB에는 의미가 드러나는 enum 문자열을 저장한다.
-
-| 분류 번호 | 저장값 | 표시명 |
-|---:|---|---|
-| 1 | `PLASTIC_SURGERY` | 성형외과 |
-| 2 | `SURGERY` | 외과 |
-| 3 | `OTOLARYNGOLOGY` | 이비인후과 |
-| 4 | `FAMILY_MEDICINE` | 가정의학과 |
-| 5 | `OBSTETRICS_GYNECOLOGY` | 산부인과 |
-| 6 | `ORAL_MAXILLOFACIAL_SURGERY` | 구강악안면외과 |
-| 7 | `ANESTHESIOLOGY_PAIN_MEDICINE` | 마취통증의학과 |
-| 8 | `KOREAN_MEDICINE` | 한의학과 |
-| 9 | `DENTISTRY` | 치과 |
-| 10 | `ORTHODONTICS` | 치과교정과 |
-| 11 | `DERMATOLOGY` | 피부과 |
-| 12 | `OPHTHALMOLOGY` | 안과 |
-| 13 | `INTERNAL_MEDICINE` | 내과 |
-| 14 | `NEUROLOGY` | 신경과 |
-| 15 | `ORTHOPEDICS` | 정형외과 |
-| 16 | `NEUROSURGERY` | 신경외과 |
-| 17 | `THORACIC_SURGERY` | 흉부외과 |
-| 19 | `PEDIATRICS` | 소아청소년과 |
-| 20 | `UROLOGY` | 비뇨의학과 |
-| 21 | `RADIOLOGY` | 영상의학과 |
-| 22 | `EMERGENCY_MEDICINE` | 응급의학과 |
-| 23 | `REHABILITATION_MEDICINE` | 재활의학과 |
-| 24 | `PROSTHODONTICS` | 치과보철과 |
-| 25 | `PERIODONTICS` | 치주과 |
-| 26 | `INTEGRATED_DENTISTRY` | 통합치의학과 |
-| 27 | `PATHOLOGY` | 병리과 |
-| 28 | `OCCUPATIONAL_ENVIRONMENTAL_MEDICINE` | 직업환경의학과 |
-| 29 | `CONSERVATIVE_DENTISTRY` | 치과보존과 |
-| 90 | `OTHER` | 기타 |
-
-`NONE` 또는 빈 전문의 분류는 저장하지 않는다.
-
-### 4.5 `HospitalBusinessRegistration`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 유효 | 현재 유효한 사업자등록 정보 |
-| `EXPIRED` | 만료 | 유효기간 만료 |
-| `REVOKED` | 취소/말소 | 등록 취소 또는 말소 |
-
-기본값: `ACTIVE`
-
-### 4.6 `HospitalFeature`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 선택 가능한 병의원 특징 |
-| `INACTIVE` | 비활성 | 선택 불가 |
-
-## 5. 뷰티 도메인
-
-### 5.1 `Beauty`
-
-검수 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `PENDING` | 신청 | 검수 신청 접수 |
-| `APPROVED` | 승인 | 검수 통과 |
-| `REJECTED` | 반려 | 검수 반려 |
-
-운영 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 운영중 | 정상 운영 |
-| `SUSPENDED` | 운영중지 | 운영 일시 중단 |
-| `WITHDRAWN` | 탈퇴/종료 | 운영 종료 |
-
-기본값:
-
-- `allow_status`: `PENDING`
-- `status`: `SUSPENDED`
-
-### 5.2 `BeautyExpert`
-
-검수 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `PENDING` | 신청 | 검수 신청 접수 |
-| `APPROVED` | 승인 | 검수 통과 |
-| `REJECTED` | 반려 | 검수 반려 |
-
-운영 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 정상 노출/사용 |
-| `SUSPENDED` | 정지 | 일시 정지 |
-| `INACTIVE` | 비활성 | 비활성 |
-
-기본값:
-
-- `allow_status`: `PENDING`
-- `status`: `SUSPENDED`
-
-### 5.3 `BeautyBusinessRegistration`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 유효 | 현재 유효한 사업자등록 정보 |
-| `EXPIRED` | 만료 | 유효기간 만료 |
-| `REVOKED` | 취소/말소 | 등록 취소 또는 말소 |
-
-기본값: `ACTIVE`
-
-## 6. 이벤트 / 광고 / 동영상
-
-### 6.1 `HospitalEvent`
-
-이벤트 타입:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `TEXT` | 텍스트 | 텍스트 기반 이벤트 |
-| `IMAGE` | 이미지 | 이미지 기반 이벤트 |
-
-검수 상태: 공통 검수 상태 4종 사용
-
-공개여부 (`hospital_status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `PUBLIC` | 공개 | 병원 관리자가 공개 |
-| `PRIVATE` | 비공개 | 병원 관리자가 비공개 |
-
-강제중지 (`admin_status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `NORMAL` | 정상 | Staff 강제중지 없음 |
-| `FORCED_STOPPED` | 강제중지 | Staff가 강제중지 |
-
-기본값:
-
-- `event_type`: `IMAGE`
-- `allow_status`: `PENDING`
-- `hospital_status`: `PUBLIC`
-- `admin_status`: `NORMAL`
-- `view_count`: `0`
-
-신청 가능 조건(`isApplicationOpen()`):
-
-- `allow_status = APPROVED`
-- `hospital_status = PUBLIC`
-- `admin_status = NORMAL`
-- 삭제되지 않음
-- 이벤트 기간이 시작 전이 아니고, 종료되지 않음
-
-### 6.2 `HospitalEventAd`
-
-광고 그룹 key:
-
-| 저장값 | 표시명 |
-|---|---|
-| `main` | 메인 |
-| `surgery` | 성형이벤트 |
-| `petit` | 쁘띠이벤트 |
-| `etc` | 기타 |
-
-광고 위치:
-
-| 그룹 | 저장값 | 표시명 | 카테고리 필요 |
-|---|---|---|---|
-| 메인 | `MAIN_POPUP` | 메인 팝업 | 아니오 |
-| 메인 | `MAIN_VERTICAL_BANNER` | 메인 세로배너 | 아니오 |
-| 메인 | `MAIN_HORIZONTAL_BANNER` | 메인 가로배너 | 아니오 |
-| 성형이벤트 | `SURGERY_TOP_BANNER` | 성형 상단배너 | 아니오 |
-| 성형이벤트 | `SURGERY_HOT_EVENT` | 성형 HOT이벤트 | 아니오 |
-| 성형이벤트 | `SURGERY_CATEGORY_BANNER` | 성형 카테고리별 배너 | 예 |
-| 쁘띠이벤트 | `PETIT_TOP_BANNER` | 쁘띠 상단배너 | 아니오 |
-| 쁘띠이벤트 | `PETIT_HOT_EVENT` | 쁘띠 HOT이벤트 | 아니오 |
-| 쁘띠이벤트 | `PETIT_CATEGORY_BANNER` | 쁘띠 카테고리별 배너 | 예 |
-| 기타 | `CONSULT_MEMO` | 상담메모장 | 아니오 |
-| 기타 | `SEARCH` | 검색창 | 아니오 |
-
-검수 상태: 공통 검수 상태 4종 사용
-
-광고 상태(`ad_status`)는 저장하지 않고 계산한다.
-
-| 계산값 | 표시명 | 계산 기준 |
-|---|---|---|
-| `SCHEDULED` | 광고예정 | `allow_status = APPROVED`이고 `start_at > now()` |
-| `RUNNING` | 광고중 | `allow_status = APPROVED`이고 현재 시각이 광고기간 안 |
-| `ENDED` | 광고종료 | `allow_status = APPROVED`이고 `end_at < now()` |
-| `null` | - | 아직 승인되지 않은 광고 |
-
-기본값:
-
-- `allow_status`: `PENDING`
-- `cost`: `0`
-- 주차별 구좌 제한: `WEEKLY_SLOT_LIMIT = 3`
-
-요일 정책:
-
-- 쁘띠 광고 3종은 목요일 시작
-- 그 외 광고는 화요일 시작
-
-### 6.3 `HospitalVideo`
-
-동영상은 검수 상태를 쓰지 않는다.
-
-공개여부 (`hospital_status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `PUBLIC` | 공개 | 병원 관리자가 공개 |
-| `PRIVATE` | 미공개 | 병원 관리자가 미공개 |
-
-강제중지 (`admin_status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `NORMAL` | 정상 | Staff 강제중지 없음 |
-| `FORCED_STOPPED` | 강제중지 | Staff가 강제중지 |
-
-기본값:
-
-- `hospital_status`: `PUBLIC`
-- `admin_status`: `NORMAL`
-- `duration_seconds`, `view_count`, `like_count`: `0`
-
-노출 가능 조건(`isVisible()`):
-
-- `hospital_status = PUBLIC`
-- `admin_status = NORMAL`
-- 삭제되지 않음
-
-summary 필터:
-
-| 저장값 | 의미 |
-|---|---|
-| `normal` | 정상노출 동영상 |
-| `limited` | 노출제한 동영상 |
-| `reported` | 신고접수 동영상 |
-
-## 7. 고객 DB
-
-### 7.1 `HospitalEventDB`
-
-상담 여부 상태(`status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `NEW` | 신규 | 신규 신청 |
-| `CONFIRMED` | 확인 | 확인 완료 |
-| `DUPLICATE` | 중복 | 중복 신청 |
-
-검증 상태(`allow_status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `UNVERIFIED_REPORTED` | 미인증DB 신고 | 미인증 DB로 신고됨 |
-| `UNVERIFIED_CONFIRMED` | 미인증DB 확정 | 미인증 DB로 확정 |
-| `NORMAL_CONFIRMED` | 정상DB 확정 | 정상 DB로 확정 |
-
-기본값:
-
-- `status`: `NEW`
-- `allow_status`: `NORMAL_CONFIRMED`
-- `contact_method`: `PHONE`
-- `preferred_time`: `ANYTIME`
-
-연락 방법:
-
-| 저장값 | 표시명 |
-|---|---|
-| `KAKAO` | 카카오톡 |
-| `PHONE` | 전화 |
-| `SMS` | 문자 |
-
-희망 시간:
-
-| 저장값 | 표시명 |
-|---|---|
-| `MORNING` | 오전 |
-| `AFTERNOON` | 오후 |
-| `ANYTIME` | 상시 |
-
-### 7.2 `HospitalEventRealModelDB`
-
-승인상태(`status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `RECEIVED` | 신청 | 리얼모델 신청 접수 |
-| `APPROVED` | 승인 | 승인 |
-| `REJECTED` | 불가 | 불가/반려 |
-
-기본값: `RECEIVED`
-
-리얼모델 이미지는 필수 정책이며, 컬렉션은 `real_model_db_images`다.
-
-## 8. 게시물 / 후기 / 평가
-
-### 8.1 `Talk` / `TalkComment`
-
-노출 상태(`status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 노출 | 서비스 노출 |
-| `INACTIVE` | 미노출 | 운영자 미노출 |
-
-신고 상태는 원본 `status`가 아니라 `ContentReportState.report_status`로 관리한다.
-
-### 8.2 `HospitalReview` / `HospitalReviewComment`
-
-후기 카테고리 도메인:
-
-| 저장값 | 의미 |
-|---|---|
-| `HOSPITAL_REVIEW_SURGERY` | 성형후기 |
-| `HOSPITAL_REVIEW_TREATMENT` | 시술후기 |
-
-노출 상태(`status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 노출 | 서비스 노출 |
-| `INACTIVE` | 미노출 | 운영자 미노출 |
-
-신고 상태는 원본 `status`가 아니라 `ContentReportState.report_status`로 관리한다.
-
-### 8.3 `HospitalEvaluation`
-
-평가 카테고리:
-
-| 저장값 | 의미 |
-|---|---|
-| `HOSPITAL_EVALUATION_SURGERY` | 성형 평가 |
-| `HOSPITAL_EVALUATION_TREATMENT` | 시술 평가 |
-| `HOSPITAL_EVALUATION_CONSULTATION` | 상담 평가 |
-
-노출 상태(`status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 노출 | 서비스 노출 |
-| `INACTIVE` | 미노출 | 운영자 미노출 |
-
-게시 상태(`post_status`)는 기존 평가용 상태다.
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `POST_NORMAL` | 정상 | 정상 게시 |
-| `POST_AUTO_BLIND` | 자동차단 | 기존 평가 게시상태 기준 자동차단 |
-| `POST_USER_DELETE` | 본인삭제 | 작성자가 삭제 |
-| `POST_ADMIN_STOP` | 노출중지 | 운영자가 게시 중지 |
-
-영수증 상태(`receipt_status`):
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `NONE` | 없음 | 영수증 이미지 없음 |
-| `UPLOADED` | 영수증 | 사용자가 영수증 이미지 업로드 |
-| `VERIFIED` | 영수증 인증 | 운영자가 인증 적합 처리 |
-| `REJECTED` | 영수증 부적합 | 운영자가 부적합 처리 |
-
-영수증 부적합 사유:
-
-| 저장값 | 표시명 |
-|---|---|
-| `IMAGE_MISMATCH` | 영수증 이미지 불일치 |
-| `BUSINESS_NAME_MISMATCH` | 상호 불일치 |
-| `BUSINESS_NUMBER_MISMATCH` | 사업자번호 불일치 |
-| `TRANSACTION_DATE_MISMATCH` | 거래일시 불일치 |
-| `SURGERY_COST_MISMATCH` | 수술금액 불일치 |
-| `OTHER` | 기타 |
-
-평균 평점:
-
-- 직원친절도, 수술만족도, 병원시설, 사후관리, 비용 5개 항목의 산술 평균이다.
-- 저장/갱신 시 소수점 1자리로 계산한다.
-- 병원 집계에는 `status = ACTIVE`이고 `post_status = POST_NORMAL`인 평가만 포함한다.
-
-## 9. 신고 도메인
-
-상세 정책은 `content-report.md`를 기준으로 한다.
-
-### 9.1 `ContentReport.reason`
-
-공통 신고 사유:
-
-| 저장값 | 표시명 |
-|---|---|
-| `ABUSE` | 비방/욕설 |
-| `SPAM` | 게시물/댓글 도배 |
-| `ILLEGAL_AD` | 불법광고/홍보 |
-| `PRIVACY_COPYRIGHT` | 개인정보/저작권 침해 |
-| `OTHER` | 기타 |
-
-동영상 신고 사유:
-
-| 저장값 | 표시명 |
-|---|---|
-| `DELETED_VIDEO` | 삭제된 동영상 |
-| `ABUSE` | 비방/욕설 |
-| `ILLEGAL_AD` | 불법광고/홍보 |
-
-### 9.2 `ContentReportState.report_status`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `NONE` | 없음 | 신고 접수 전 기본값 |
-| `REPORTED` | 신고접수 | 신고 접수 상태 |
-| `AUTO_BLOCKED` | 자동차단 | 1시간 내 신고 누적으로 자동 미노출 |
-| `ADMIN_HIDDEN` | 노출중지 | 운영자가 신고 인정/노출중지 처리 |
-| `NORMAL_VISIBLE` | 정상노출 | 운영자가 정상노출 처리 |
-| `REEXPOSED` | 재노출 | 정상노출 처리 3회차부터 자동 전이 잠금 |
-
-동영상 신고 화면 표시:
-
-| 내부 상태 | 동영상 표시 |
-|---|---|
-| `REPORTED`, `AUTO_BLOCKED` | 신고접수 |
-| `ADMIN_HIDDEN` | 삭제처리 |
-| `NORMAL_VISIBLE`, `REEXPOSED` | 신고오류 |
-
-### 9.3 `ContentReportState.warning_status`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `NONE` | 미처리 | 경고/무시 미처리 |
-| `WARNED` | 경고 | 작성자 경고 반영 |
-| `IGNORED` | 무시 | 작성자 경고 없이 처리 |
-
-## 10. 카테고리 / 해시태그
-
-### 10.1 `Category`
-
-도메인:
-
-| 저장값 | 의미 |
-|---|---|
-| `HOSPITAL_MEDICAL` | 병의원/의료진/이벤트/동영상/광고 의료 카테고리 |
-| `HOSPITAL_EVALUATION` | 병의원 평가 카테고리 |
-| `TALK` | 토크 카테고리 |
-| `BEAUTY` | 뷰티 카테고리 |
-| `FAQ` | FAQ 카테고리 |
-
-`HOSPITAL_MEDICAL`은 `group_code`로 성형/쁘띠를 구분한다.
-
-| 저장값 | 표시명 |
-|---|---|
-| `SURGERY` | 성형 |
-| `TREATMENT` | 쁘띠 |
-
-운영 상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 선택/노출 가능 |
-| `INACTIVE` | 비활성 | 선택/노출 불가 |
-
-### 10.2 `CategoryUsage`
-
-사용처:
-
-| 저장값 | 의미 |
-|---|---|
-| `HOSPITAL_DOCTOR_SUBJECT` | 병의원/의료진 진료과목 |
-| `HOSPITAL_REVIEW_SURGERY` | 성형후기 |
-| `HOSPITAL_REVIEW_TREATMENT` | 시술후기 |
-| `HOSPITAL_EVENT_SURGERY` | 성형 이벤트 |
-| `HOSPITAL_EVENT_TREATMENT` | 쁘띠 이벤트 |
-| `HOSPITAL_VIDEO_CATEGORY` | 동영상 카테고리 |
-| `HOSPITAL_EVENT_AD_SURGERY` | 성형 광고 카테고리 |
-| `HOSPITAL_EVENT_AD_TREATMENT` | 쁘띠 광고 카테고리 |
-
-상태:
-
-| 저장값 | 표시명 |
-|---|---|
-| `ACTIVE` | 활성 |
-| `INACTIVE` | 비활성 |
-
-### 10.3 `Hashtag`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 사용 가능 |
-| `INACTIVE` | 비활성 | 사용 불가 |
-
-주의:
-
-- 과거 `BLOCKED` 값은 `INACTIVE`로 정규화한다.
-- 해시태그 이름은 최대 20자이며 한글/영문/숫자/언더스코어만 허용한다.
-
-## 11. 공지 / FAQ
-
-### 11.1 `Notice`
-
-채널:
-
-| 저장값 | 의미 |
-|---|---|
-| `ALL` | 전체 |
-| `APP_WEB` | 앱/웹 |
-| `HOSPITAL` | 병원 |
-| `BEAUTY` | 뷰티 |
-
-상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 게시 가능 |
-| `INACTIVE` | 비활성 | 게시 불가 |
-
-기본값:
-
-- `channel`: `ALL`
-- `status`: `ACTIVE`
-- `is_publish_period_unlimited`: `true`
-- `is_pinned`, `is_important`: `false`
-
-### 11.2 `Faq`
-
-채널:
-
-| 저장값 | 의미 |
-|---|---|
-| `ALL` | 전체 |
-| `APP_WEB` | 앱/웹 |
-| `HOSPITAL` | 병원 |
-| `BEAUTY` | 뷰티 |
-
-상태:
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 노출 가능 |
-| `INACTIVE` | 비활성 | 노출 불가 |
-
-기본값:
-
-- `channel`: `ALL`
-- `status`: `ACTIVE`
-- `sort_order`, `view_count`: `0`
-
-## 12. 채팅
-
-### 12.1 `Chat`
-
-| 저장값 | 표시명 | 의미 |
-|---|---|---|
-| `ACTIVE` | 활성 | 정상 채팅방 |
-| `SUSPENDED` | 정지 | 일시 정지 |
-| `CLOSED` | 종료 | 종료된 채팅방 |
-
-### 12.2 `ChatMessage`
-
-메시지 타입:
-
-| 저장값 | 의미 |
-|---|---|
-| `TEXT` | 텍스트 메시지 |
-| `IMAGE` | 이미지 메시지 |
-| `FILE` | 파일 메시지 |
-
-`ChatMessage` 자체에는 신고 처리용 `status`가 없다. 채팅 신고 상태는 `ContentReportState`로 관리한다.
-
-## 13. 알림
-
-### 13.1 `NotificationInbox`
-
-현재 상수 기준:
-
-| 구분 | 저장값 | 의미 |
-|---|---|---|
-| recipient | `USER` | 일반 사용자 수신자 |
-| actor | `USER` | 일반 사용자 행위자 |
-| event | `chat.message.created` | 채팅 메시지 생성 |
-| target | `chat` | 채팅방 대상 |
-
-읽음 여부는 별도 enum이 아니라 `read_at` 존재 여부로 판단한다.
-
-### 13.2 `NotificationDelivery`
-
-채널:
-
-| 저장값 | 의미 |
-|---|---|
-| `IN_APP` | 인앱 |
-| `PUSH` | 푸시 |
-| `EMAIL` | 이메일 |
-| `WEB` | 웹 |
-
-발송 상태:
-
-| 저장값 | 의미 |
-|---|---|
-| `PENDING` | 발송 대기 |
-| `SENT` | 발송 성공 |
-| `FAILED` | 발송 실패 |
-
-Provider:
-
-| 저장값 | 의미 |
-|---|---|
-| `REVERB` | Reverb |
-| `FCM` | Firebase Cloud Messaging |
-| `APNS` | Apple Push Notification Service |
-| `MIXED` | 복합 provider |
-
-### 13.3 `NotificationDevice`
-
-| 저장값 | 의미 |
-|---|---|
-| `IOS` | iOS |
-| `ANDROID` | Android |
-| `WEB` | Web |
-
-## 14. 공통 미디어 / 메모 / 히스토리
-
-### 14.1 `Media`
-
-별도 상태 enum은 없다.
-
-| 필드 | 의미 |
-|---|---|
-| `owner_type` | 파일 소유 도메인 enum. 현재 `HOSPITAL` |
-| `owner_id` | 파일 소유 데이터 ID |
-| `collection` | 도메인별 파일 용도 |
-| `disk` | 저장소 종류. 현재 `LOCAL` |
-| `is_primary` | 대표 파일 여부 |
-| `sort_order` | 정렬 순서 |
-| `deleted_at` | 소프트 삭제 여부 |
-
-DB에는 Java 클래스명을 저장하지 않는다. 폴리모픽 연결은 `owner_type + owner_id`로 관리하고, 대상 존재 검증과 soft delete 연동은 application service에서 처리한다.
-
-### 14.2 `AdminNote`
-
-별도 상태 enum은 없다. 대상 도메인별 메모를 폴리모픽으로 저장한다.
-
-### 14.3 `OperationHistory`
-
-Action:
-
-| 저장값 | 의미 |
-|---|---|
-| `CREATED` | 생성 |
-| `UPDATED` | 일반 수정 |
-| `STATE_UPDATED` | 상태 변경 |
-| `DELETED` | 삭제 |
-
-Actor kind:
-
-| 저장값 | 의미 |
-|---|---|
-| `STAFF` | Staff 관리자 |
-| `HOSPITAL` | 병원 계정 |
-| `BEAUTY` | 뷰티 계정 |
-| `USER` | 일반 사용자 |
-| `SYSTEM` | 시스템 |
-| `UNKNOWN` | 알 수 없음 |
-
-상태 변경은 신규 코드에서 `ACTION_STATE_UPDATED`를 사용한다. `status`, `allow_status`, `admin_status`, `report_status`, `warning_status` 같은 상태성 필드의 변경은 운영 히스토리 changes에 field 단위로 남긴다.
-
-## 15. 상태 흐름 요약
-
-병의원/의료진/입점신청/이벤트/광고 검수:
-
-```text
-PENDING(신청) -> APPROVED(승인)
-              -> REJECTED(반려)
-```
-
-뷰티/뷰티전문가 검수:
-
-```text
-PENDING(신청) -> APPROVED(승인)
-              -> REJECTED(반려)
-```
-
-병의원 운영:
-
-```text
-ACTIVE(정상) <-> SUSPENDED(운영중지)
-ACTIVE/SUSPENDED -> WITHDRAWN(탈퇴)
-```
-
-이벤트/동영상 노출:
-
-```text
-hospital_status: PUBLIC(공개) <-> PRIVATE(비공개/미공개)
-admin_status: NORMAL(정상) <-> FORCED_STOPPED(강제중지)
-```
-
-광고 상태:
-
-```text
-allow_status != APPROVED -> ad_status 없음
-allow_status = APPROVED and start_at > now -> SCHEDULED(광고예정)
-allow_status = APPROVED and start_at <= now <= end_at -> RUNNING(광고중)
-allow_status = APPROVED and end_at < now -> ENDED(광고종료)
-```
-
-신고 처리:
-
-```text
-NONE -> REPORTED
-REPORTED/AUTO_BLOCKED -> ADMIN_HIDDEN(노출중지)
-REPORTED/AUTO_BLOCKED -> NORMAL_VISIBLE(정상노출)
-NORMAL_VISIBLE 3회차 이상 -> REEXPOSED
-```
-
-## 16. 코드 정리 기준
-
-신규 도메인 상태를 추가할 때는 다음을 같이 처리한다.
-
-- Java enum 추가
-- DB 저장값과 migration 제약 확인
-- 화면 표시가 필요한 경우 Result/DTO label 필드 갱신
-- Request DTO Bean Validation 갱신
-- DTO label 필드 갱신
-- 프론트 옵션/뱃지 색상 갱신
-- 운영 히스토리 field label 갱신
-- summary/filter/cache가 있으면 필터 기준 갱신
-
-기존 코드 정리 대상:
-
-- `Beauty`, `BeautyExpert`는 뷰티 관리자 화면을 본격 구현할 때 병원 계열과 같은 상태/검수 상태 응답 패턴으로 맞춘다.
-- `AccountStaff`, `AccountHospital`, `AccountBeauty`는 계정 상태 표시가 반복되면 공통 상태 label resolver로 정리한다.
-- `schema.dbml`은 일부 과거 상태값이 남아 있을 수 있으므로 DB 문서 정리 턴에서 별도로 갱신한다.
-
-## 17. 참고 파일
-
-- `src/main/java/com/medi/domain`
-- `src/main/java/com/medi/application`
-- `src/main/java/com/medi/adapter/in/web`
-- `src/main/resources/db/migration`
-- `./content-report.md`
-- `./category.md`
+Hospital 목록의 이벤트 수·후기 수, Hospital 상세의 신규 이벤트 DB 수, Doctor 목록의 후기 수는 관련 이벤트·후기 도메인과 테이블이 아직 없어 현재 `0`이다. 이 값에 필터나 정렬의 완전한 의미를 부여하려면 해당 도메인을 먼저 이식해야 한다.

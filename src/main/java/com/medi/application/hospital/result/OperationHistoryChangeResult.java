@@ -1,8 +1,10 @@
 package com.medi.application.hospital.result;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record OperationHistoryChangeResult(
-	String fieldKey,
-	String beforeValue,
-	String afterValue
+	@JsonProperty("field_key") String fieldKey,
+	@JsonProperty("before_value") String beforeValue,
+	@JsonProperty("after_value") String afterValue
 ) {
 }

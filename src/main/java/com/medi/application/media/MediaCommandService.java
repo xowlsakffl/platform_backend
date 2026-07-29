@@ -1,9 +1,5 @@
 package com.medi.application.media;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medi.application.media.command.UploadMediaCommand;
 import com.medi.application.media.result.MediaResult;
 import com.medi.application.media.storage.MediaFileSource;
 import com.medi.application.media.storage.MediaStorage;
@@ -11,11 +7,16 @@ import com.medi.application.media.storage.MediaStorageException;
 import com.medi.application.media.storage.StoredMediaFile;
 import com.medi.common.error.ApiException;
 import com.medi.common.error.ErrorCode;
+import com.medi.common.error.InternalApplicationException;
 import com.medi.domain.media.Media;
 import com.medi.domain.media.MediaOwnerType;
 import com.medi.infrastructure.persistence.media.MediaRepository;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,61 +24,29 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.util.StringUtils;
 
 @Service
 public class MediaCommandService {
 
 	private static final Logger log = LoggerFactory.getLogger(MediaCommandService.class);
-	private static final int MAX_SORT_ORDER = 100_000;
-	private static final int MAX_METADATA_LENGTH = 10_000;
-	private static final TypeReference<Map<String, Object>> METADATA_TYPE = new TypeReference<>() {
-	};
-
 	private final MediaRepository mediaRepository;
 	private final MediaStorage mediaStorage;
 	private final MediaCollectionPolicy collectionPolicy;
 	private final MediaReadService readService;
-	private final ObjectMapper objectMapper;
+	private final MediaFileCleanup fileCleanup;
 
 	public MediaCommandService(
 		MediaRepository mediaRepository,
 		MediaStorage mediaStorage,
 		MediaCollectionPolicy collectionPolicy,
 		MediaReadService readService,
-		ObjectMapper objectMapper
+		MediaFileCleanup fileCleanup
 	) {
 		this.mediaRepository = mediaRepository;
 		this.mediaStorage = mediaStorage;
 		this.collectionPolicy = collectionPolicy;
 		this.readService = readService;
-		this.objectMapper = objectMapper;
-	}
-
-	@Transactional(propagation = Propagation.MANDATORY)
-	public MediaResult upload(UploadMediaCommand command) {
-		collectionPolicy.validateCollection(command.ownerType(), command.collection());
-		String metadata = normalizeMetadata(command.metadata());
-		List<Media> collectionMedia = lockedCollection(command.ownerType(), command.ownerId(), command.collection());
-		boolean primary = Boolean.TRUE.equals(command.primary()) || collectionMedia.isEmpty();
-		if (primary) {
-			collectionMedia.forEach(media -> media.changePrimary(false));
-		}
-		int sortOrder = command.sortOrder() == null ? nextSortOrder(collectionMedia) : validateSortOrder(command.sortOrder());
-		StoredMediaFile stored = store(command.file());
-		registerRollbackCleanup(stored.path());
-		collectionPolicy.validateFile(command.ownerType(), command.collection(), stored);
-
-		Media media = createMedia(
-			command.ownerType(),
-			command.ownerId(),
-			command.collection(),
-			stored,
-			sortOrder,
-			primary,
-			metadata
-		);
-		return readService.toResult(mediaRepository.saveAndFlush(media));
+		this.fileCleanup = fileCleanup;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -95,7 +64,7 @@ public class MediaCommandService {
 			StoredMediaFile stored = store(newFile);
 			registerRollbackCleanup(stored.path());
 			collectionPolicy.validateFile(ownerType, collection, stored);
-			current.forEach(Media::softDelete);
+			softDelete(current);
 			Media media = createMedia(ownerType, ownerId, collection, stored, 0, true, null);
 			return readService.toResult(mediaRepository.saveAndFlush(media));
 		}
@@ -110,7 +79,7 @@ public class MediaCommandService {
 					media.changePrimary(true);
 					media.changeSortOrder(0);
 				} else {
-					media.softDelete();
+					softDelete(media);
 				}
 			}
 			return readService.toResult(selected);
@@ -119,8 +88,166 @@ public class MediaCommandService {
 		if (required) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "필수 미디어 파일을 등록해주세요.");
 		}
-		current.forEach(Media::softDelete);
+		softDelete(current);
 		return null;
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public List<MediaResult> synchronizeMany(
+		MediaOwnerType ownerType,
+		Long ownerId,
+		String collection,
+		List<MediaFileSource> newFiles,
+		List<Long> existingMediaIds,
+		boolean required,
+		int maxCount
+	) {
+		collectionPolicy.validateCollection(ownerType, collection);
+		List<Media> current = lockedCollection(ownerType, ownerId, collection);
+		Set<Long> requestedIds = existingMediaIds == null
+			? Set.of()
+			: existingMediaIds.stream()
+				.filter(Objects::nonNull)
+				.collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+		Map<Long, Media> currentById = current.stream().collect(java.util.stream.Collectors.toMap(Media::id, media -> media));
+		if (!currentById.keySet().containsAll(requestedIds)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "유지할 미디어 정보가 올바르지 않습니다.");
+		}
+		List<MediaFileSource> uploads = newFiles == null
+			? List.of()
+			: newFiles.stream().filter(Objects::nonNull).filter(file -> file.size() > 0).toList();
+		int finalCount = requestedIds.size() + uploads.size();
+		if (finalCount > maxCount) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "등록 가능한 미디어 개수를 초과했습니다.");
+		}
+		if (required && finalCount == 0) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "필수 미디어 파일을 등록해주세요.");
+		}
+
+		current.forEach(media -> {
+			if (!requestedIds.contains(media.id())) {
+				softDelete(media);
+			}
+		});
+		int sortOrder = 0;
+		for (Long mediaId : requestedIds) {
+			Media media = currentById.get(mediaId);
+			media.changeSortOrder(sortOrder);
+			media.changePrimary(sortOrder == 0);
+			sortOrder++;
+		}
+		for (MediaFileSource upload : uploads) {
+			StoredMediaFile stored = store(upload);
+			registerRollbackCleanup(stored.path());
+			collectionPolicy.validateFile(ownerType, collection, stored);
+			Media media = createMedia(ownerType, ownerId, collection, stored, sortOrder, sortOrder == 0, null);
+			mediaRepository.save(media);
+			sortOrder++;
+		}
+		mediaRepository.flush();
+		return readService.list(ownerType, ownerId, collection);
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public List<MediaResult> synchronizeManyOrdered(
+		MediaOwnerType ownerType,
+		Long ownerId,
+		String collection,
+		List<MediaFileSource> newFiles,
+		List<String> order,
+		boolean required,
+		int maxCount
+	) {
+		collectionPolicy.validateCollection(ownerType, collection);
+		List<Media> current = lockedCollection(ownerType, ownerId, collection);
+		Map<Long, Media> currentById = current.stream().collect(java.util.stream.Collectors.toMap(Media::id, media -> media));
+		List<MediaFileSource> uploads = newFiles == null ? List.of() : newFiles;
+		List<OrderedMediaEntry> entries = parseOrder(order, currentById, uploads);
+		long uploadedFileCount = uploads.stream()
+			.filter(Objects::nonNull)
+			.filter(file -> file.size() > 0)
+			.count();
+		long orderedUploadCount = entries.stream().filter(entry -> entry.newFile() != null).count();
+		if (orderedUploadCount != uploadedFileCount) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "새로 업로드한 대표/내부 이미지 순서 정보가 누락되었습니다.");
+		}
+		if (entries.size() > maxCount) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "등록 가능한 미디어 개수를 초과했습니다.");
+		}
+		if (required && entries.isEmpty()) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "필수 미디어 파일을 등록해주세요.");
+		}
+
+		Set<Long> keptIds = entries.stream()
+			.map(OrderedMediaEntry::existing)
+			.filter(Objects::nonNull)
+			.map(Media::id)
+			.collect(java.util.stream.Collectors.toSet());
+		current.forEach(media -> {
+			if (!keptIds.contains(media.id())) {
+				softDelete(media);
+			}
+		});
+		for (int index = 0; index < entries.size(); index++) {
+			OrderedMediaEntry entry = entries.get(index);
+			if (entry.existing() != null) {
+				entry.existing().changeSortOrder(index);
+				entry.existing().changePrimary(index == 0);
+				continue;
+			}
+			StoredMediaFile stored = store(entry.newFile());
+			registerRollbackCleanup(stored.path());
+			collectionPolicy.validateFile(ownerType, collection, stored);
+			mediaRepository.save(createMedia(ownerType, ownerId, collection, stored, index, index == 0, null));
+		}
+		mediaRepository.flush();
+		return readService.list(ownerType, ownerId, collection);
+	}
+
+	private List<OrderedMediaEntry> parseOrder(
+		List<String> order,
+		Map<Long, Media> currentById,
+		List<MediaFileSource> uploads
+	) {
+		List<String> tokens = order == null ? List.of() : order;
+		if (new LinkedHashSet<>(tokens).size() != tokens.size()) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "대표/내부 이미지 순서 정보가 중복되었습니다.");
+		}
+		List<OrderedMediaEntry> entries = new ArrayList<>();
+		Set<Long> existingIds = new LinkedHashSet<>();
+		Set<Integer> newIndexes = new LinkedHashSet<>();
+		for (String token : tokens) {
+			String[] parts = token == null ? new String[0] : token.split(":", 2);
+			if (parts.length != 2) {
+				throw new ApiException(ErrorCode.INVALID_REQUEST, "대표/내부 이미지 순서 정보가 올바르지 않습니다.");
+			}
+			try {
+				long value = Long.parseLong(parts[1]);
+				if ("existing".equals(parts[0])) {
+					Media media = currentById.get(value);
+					if (media == null || !existingIds.add(value)) {
+						throw new ApiException(ErrorCode.INVALID_REQUEST, "선택한 대표/내부 이미지 정보가 올바르지 않습니다.");
+					}
+					entries.add(new OrderedMediaEntry(media, null));
+				} else if (value <= Integer.MAX_VALUE
+					&& "new".equals(parts[0])
+					&& value >= 0
+					&& value < uploads.size()
+					&& uploads.get((int) value) != null
+					&& uploads.get((int) value).size() > 0
+					&& newIndexes.add((int) value)) {
+					entries.add(new OrderedMediaEntry(null, uploads.get((int) value)));
+				} else {
+					throw new ApiException(ErrorCode.INVALID_REQUEST, "새로 업로드한 이미지 순서 정보가 올바르지 않습니다.");
+				}
+			} catch (NumberFormatException exception) {
+				throw new ApiException(ErrorCode.INVALID_REQUEST, "대표/내부 이미지 순서 정보가 올바르지 않습니다.");
+			}
+		}
+		return entries;
+	}
+
+	private record OrderedMediaEntry(Media existing, MediaFileSource newFile) {
 	}
 
 	private List<Media> lockedCollection(MediaOwnerType ownerType, Long ownerId, String collection) {
@@ -129,6 +256,15 @@ public class MediaCommandService {
 			ownerId,
 			collection
 		);
+	}
+
+	private void softDelete(List<Media> media) {
+		media.forEach(this::softDelete);
+	}
+
+	private void softDelete(Media media) {
+		media.softDelete();
+		fileCleanup.deleteAfterCommit(List.of(media.path()));
 	}
 
 	private Media createMedia(
@@ -161,50 +297,19 @@ public class MediaCommandService {
 		try {
 			return mediaStorage.store(source);
 		} catch (MediaStorageException exception) {
-			throw toApiException(exception);
+			throw toApplicationException(exception);
 		}
 	}
 
-	private ApiException toApiException(MediaStorageException exception) {
+	private RuntimeException toApplicationException(MediaStorageException exception) {
 		return switch (exception.reason()) {
 			case INVALID_FILE -> new ApiException(ErrorCode.INVALID_REQUEST, exception.getMessage());
 			case FILE_TOO_LARGE -> new ApiException(ErrorCode.PAYLOAD_TOO_LARGE, exception.getMessage());
 			case FILE_NOT_FOUND -> new ApiException(ErrorCode.NOT_FOUND, exception.getMessage());
 			case IO_ERROR -> {
-				log.error("미디어 저장소 처리 중 오류가 발생했습니다.", exception);
-				yield new ApiException(ErrorCode.INTERNAL_ERROR, "미디어 파일 처리 중 오류가 발생했습니다.");
+				yield new InternalApplicationException("미디어 파일 처리 중 오류가 발생했습니다.", exception);
 			}
 		};
-	}
-
-	private String normalizeMetadata(String metadata) {
-		if (!StringUtils.hasText(metadata)) {
-			return null;
-		}
-		if (metadata.length() > MAX_METADATA_LENGTH) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "미디어 메타데이터는 10000자를 초과할 수 없습니다.");
-		}
-		try {
-			Map<String, Object> value = objectMapper.readValue(metadata, METADATA_TYPE);
-			if (value == null) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "미디어 메타데이터는 JSON 객체여야 합니다.");
-			}
-			return objectMapper.writeValueAsString(value);
-		} catch (JsonProcessingException exception) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "미디어 메타데이터 JSON이 올바르지 않습니다.");
-		}
-	}
-
-	private int validateSortOrder(int sortOrder) {
-		if (sortOrder < 0 || sortOrder > MAX_SORT_ORDER) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "정렬 순서는 0 이상 100000 이하여야 합니다.");
-		}
-		return sortOrder;
-	}
-
-	private int nextSortOrder(List<Media> media) {
-		int currentMax = media.stream().mapToInt(Media::sortOrder).max().orElse(-1);
-		return currentMax >= MAX_SORT_ORDER ? MAX_SORT_ORDER : currentMax + 1;
 	}
 
 	private void registerRollbackCleanup(String path) {

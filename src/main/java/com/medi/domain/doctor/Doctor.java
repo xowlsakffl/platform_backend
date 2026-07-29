@@ -31,13 +31,13 @@ public class Doctor extends BaseTimeEntity {
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
 
-	@Column(nullable = false, length = 100)
+	@Column(nullable = false, length = 255)
 	private String name;
 
-	@Column(nullable = false, length = 20)
+	@Column(length = 20)
 	private String gender;
 
-	@Column(nullable = false, length = 50)
+	@Column(length = 50)
 	private String position;
 
 	@Column(name = "career_started_at")

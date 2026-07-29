@@ -44,6 +44,7 @@ class SecurityConfig {
 					"/api/v1/hospital/auth/login",
 					"/api/v1/beauty/auth/login",
 					"/api/v1/user/auth/login",
+					"/api/v1/user/media/*/content",
 					"/actuator/health"
 				).permitAll()
 				.requestMatchers("/api/v1/staff/**").hasAuthority("ACTOR_STAFF")

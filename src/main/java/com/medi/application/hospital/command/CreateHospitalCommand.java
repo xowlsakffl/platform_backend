@@ -1,13 +1,14 @@
 package com.medi.application.hospital.command;
 
+import com.medi.application.media.storage.MediaFileSource;
 import com.medi.domain.hospital.HospitalAllowStatus;
-import com.medi.domain.hospital.HospitalDepartment;
+import com.medi.domain.hospital.HospitalInterpretationLanguage;
 import com.medi.domain.hospital.HospitalStatus;
 import java.util.Set;
+import java.util.List;
 
 public record CreateHospitalCommand(
 	String name,
-	HospitalDepartment department,
 	String description,
 	String youtubeLink,
 	String address,
@@ -22,6 +23,10 @@ public record CreateHospitalCommand(
 	HospitalContactSetCommand contacts,
 	HospitalBusinessRegistrationCommand businessRegistration,
 	Set<Long> categoryIds,
-	Set<Long> featureIds
+	Set<Long> featureIds,
+	Set<HospitalInterpretationLanguage> interpretationLanguages,
+	MediaFileSource logo,
+	List<MediaFileSource> gallery,
+	MediaFileSource businessRegistrationFile
 ) {
 }

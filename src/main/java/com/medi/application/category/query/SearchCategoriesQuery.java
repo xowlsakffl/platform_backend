@@ -12,6 +12,7 @@ public record SearchCategoriesQuery(
 	Integer depth,
 	CategoryGroup groupCode,
 	List<CategoryStatus> status,
+	List<String> include,
 	Boolean menuVisible,
 	String sort,
 	String direction,

@@ -1,177 +1,72 @@
-# 인증 설계
+# 인증과 권한
 
-작성 기준: 2026-07-28
+## Actor
 
-이 문서는 Staff, Hospital, Beauty, User 4개 actor의 인증 구현 기준을 정의한다.
+| Actor | namespace | 계정 | 현재 인증 방식 |
+|---|---|---|---|
+| Staff | `/api/v1/staff` | `account_staffs` | 이메일·비밀번호 |
+| Hospital | `/api/v1/hospital` | `account_hospitals` | 이메일·비밀번호 |
+| Beauty | `/api/v1/beauty` | `account_beauties` | 이메일·비밀번호 |
+| User | `/api/v1/user` | `account_users` | 이메일·비밀번호 |
 
-## 1. 인증 방식
+각 Actor는 `/auth/login`, `/auth/me`, `/auth/logout`을 제공한다. 다른 Actor의 토큰으로 namespace를 호출하면 `403 FORBIDDEN`이다.
 
-1차 구현은 JWT access token 기반 stateless 인증으로 간다.
+## JWT 흐름
 
-- 로그인 성공 시 `access_token`을 발급한다.
-- API 요청은 `Authorization: Bearer {token}` 헤더를 사용한다.
-- 세션은 서버에 저장하지 않는다.
-- logout은 1차에서는 클라이언트 토큰 폐기 요청으로 처리한다.
-- refresh token, token blacklist, 기기별 세션 관리는 후속 단계에서 추가한다.
+1. 이메일을 소문자로 정규화하고 활성 계정을 조회한다.
+2. BCrypt 비밀번호를 검증한다.
+3. `last_login_at`을 갱신한다.
+4. Actor, 계정 ID, 소유 리소스 ID, Staff 권한을 담은 HS256 access token을 발급한다.
+5. 매 요청에서 서명·issuer·만료·Redis 폐기 여부를 검증한다.
+6. DB에서 계정을 다시 조회해 삭제·정지 상태와 최신 Staff 권한을 확인한다.
 
-## 2. Actor
+JWT는 stateless지만 로그아웃은 무효 응답만 반환하지 않는다. 현재 토큰의 `jti`를 `auth:revoked:{jti}` 키로 Redis에 저장하고 원래 만료 시점까지 재사용을 차단한다.
 
-```text
-STAFF
-HOSPITAL
-BEAUTY
-USER
-```
+비밀번호 재설정, refresh token, 소셜 로그인은 아직 구현하지 않았다.
 
-토큰에는 actor 타입, 계정 ID, 소유 리소스 ID, 권한 목록을 넣는다.
+## 계정 상태
 
-| actor | 토큰 주요 claim |
-| --- | --- |
-| `STAFF` | `actor`, `account_id`, `permissions` |
-| `HOSPITAL` | `actor`, `account_id`, `hospital_id` |
-| `BEAUTY` | `actor`, `account_id`, `beauty_id` |
-| `USER` | `actor`, `account_id` |
+네 계정 유형은 `ACTIVE`, `SUSPENDED`, `BLOCKED`, `WITHDRAWN`을 사용한다. 로그인과 인증 유지가 가능한 상태는 `ACTIVE`뿐이다. `deleted_at`이 있는 계정도 인증할 수 없다.
 
-## 3. API
+## Staff 권한
 
-각 actor는 같은 인증 API 모양을 사용한다.
+Staff만 역할 기반 권한을 사용한다.
 
 ```text
-POST /api/v1/staff/auth/login
-GET  /api/v1/staff/auth/me
-POST /api/v1/staff/auth/logout
-
-POST /api/v1/hospital/auth/login
-GET  /api/v1/hospital/auth/me
-POST /api/v1/hospital/auth/logout
-
-POST /api/v1/beauty/auth/login
-GET  /api/v1/beauty/auth/me
-POST /api/v1/beauty/auth/logout
-
-POST /api/v1/user/auth/login
-GET  /api/v1/user/auth/me
-POST /api/v1/user/auth/logout
+account_staffs
+  -> account_staff_roles
+  -> staff_roles
+  -> staff_role_permissions
+  -> staff_permissions
 ```
 
-로그인 request:
+`account_staff_roles`는 내부 운영자와 역할의 다대다 연결 테이블이다. 권한 코드를 Controller에서 직접 비교하지 않고 application의 `PermissionService`를 사용한다.
 
-```json
-{
-  "email": "admin@example.com",
-  "password": "password"
-}
-```
+현재 도메인이 사용하는 권한은 다음과 같다.
 
-로그인 response:
+| 영역 | 권한 |
+|---|---|
+| 병원 | `platform.hospital.show/create/update/delete` |
+| 의료진 | `platform.doctor.show/create/update/delete` |
+| 카테고리 | `platform.category.manage` |
 
-```json
-{
-  "success": true,
-  "data": {
-    "token_type": "Bearer",
-    "access_token": "jwt",
-    "expires_in": 7200,
-    "actor": {
-      "actor_type": "STAFF",
-      "account_id": 1,
-      "hospital_id": null,
-      "beauty_id": null,
-      "email": "admin@example.com",
-      "name": "관리자",
-      "nickname": "admin",
-      "permissions": ["platform.hospital.show"]
-    }
-  },
-  "meta": null,
-  "traceId": "request-trace-id"
-}
-```
+권한 migration에는 향후 도메인 코드도 일부 준비되어 있지만, 해당 API가 구현됐다는 의미는 아니다.
 
-## 4. 계정 상태 기준
+## 소유권
 
-로그인은 활성 계정만 허용한다.
+- Hospital Actor는 JWT의 `hospital_id`와 대상 병원 ID가 같아야 한다.
+- Beauty Actor는 JWT의 `beauty_id`와 대상 ID가 같아야 한다.
+- User Actor는 JWT의 `account_id`와 본인 계정 ID가 같아야 한다.
+- Staff는 대상 소유권 대신 권한 코드를 검사한다.
 
-| actor | 활성 상태 |
-| --- | --- |
-| `STAFF` | `ACTIVE` |
-| `HOSPITAL` | `ACTIVE` |
-| `BEAUTY` | `ACTIVE` |
-| `USER` | `ACTIVE` |
+의료진의 Hospital API는 요청에서 병원 ID를 신뢰하지 않고 인증 주체의 `hospital_id`를 사용한다.
 
-`SUSPENDED`, `BLOCKED`, `WITHDRAWN` 계정은 로그인과 API 접근을 막는다.
+## 공개 경로
 
-## 5. SecurityConfig 기준
+로그인 없이 허용하는 현재 경로는 다음뿐이다.
 
-Spring Security는 URL namespace 단위로 1차 차단한다.
+- 네 Actor의 `/auth/login`
+- `/api/v1/user/media/{id}/content`
+- `/actuator/health`
 
-```text
-/api/v1/public/**       permitAll
-/api/v1/*/auth/login    permitAll
-/api/v1/staff/**        ACTOR_STAFF
-/api/v1/hospital/**     ACTOR_HOSPITAL
-/api/v1/beauty/**       ACTOR_BEAUTY
-/api/v1/user/**         ACTOR_USER
-```
-
-세부 기능 권한과 소유권은 application service 진입부에서 검사한다.
-
-브라우저 기반 프론트의 origin은 `app.cors.allowed-origins`에서 관리한다. 허용 method는 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`이며 `Authorization`, `Content-Type`, `Accept`, `X-Request-Id` 요청 헤더를 허용한다. 배포 환경에서는 `CORS_ALLOWED_ORIGINS`를 실제 프론트 origin으로 제한한다.
-
-## 6. 권한/소유권
-
-- Staff: permission code 기반
-- Hospital: `hospital_id` 소유권 기반
-- Beauty: `beauty_id` 소유권 기반
-- User: 본인 계정 ID와 계정 상태 기반
-
-컨트롤러에 권한 문자열을 흩뿌리지 않는다. 반복되는 권한 검사는 `PermissionService`, 소유권 검사는 actor별 policy/service로 분리한다.
-
-## 7. 패키지 구조
-
-```text
-adapter/in/web/{actor}/auth/controller
-adapter/in/web/auth/request
-
-application/auth
-  command
-  result
-
-domain/account
-
-infrastructure/persistence/account
-
-common/security
-```
-
-Request DTO는 HTTP 입력 모델이므로 adapter 계층에 둔다. 로그인 로직은 application 계층의 `AuthenticationService`가 담당한다.
-
-## 8. 최초 Staff 관리자 생성
-
-Staff 역할과 권한의 기준 데이터는 Flyway migration이 관리한다. 비밀번호가 필요한 최초 관리자 계정은 환경변수 기반 bootstrap runner가 생성한다.
-
-```bash
-STAFF_BOOTSTRAP_ENABLED=true \
-STAFF_BOOTSTRAP_EMAIL=admin@medi.local \
-STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
-./gradlew bootRun
-```
-
-처리 기준:
-
-- 비밀번호는 BCrypt로 암호화한 뒤 저장한다.
-- 기본 역할은 `platform.super_admin`이다.
-- 계정 생성과 `account_staff_roles` 연결을 하나의 트랜잭션으로 처리한다.
-- 동일한 활성 이메일이 있으면 계정을 중복 생성하지 않고 역할 연결만 보장한다.
-- 기존 계정의 비밀번호는 자동으로 변경하지 않는다.
-- bootstrap 설정이 꺼져 있으면 runner 자체가 실행되지 않는다.
-
-## 9. 후속 작업
-
-- refresh token
-- token blacklist 기반 logout
-- 비밀번호 재설정
-- 이메일/휴대폰 인증
-- OAuth 소셜 로그인
-- login attempt rate limit
-- 계정 생성/초대/승인 플로우
+User 미디어 경로는 아무 미디어나 노출하지 않는다. 활성 Category의 `icon`, 승인·노출 상태이고 활성·승인 병원에 속한 Doctor의 `profile_image`만 조회할 수 있다.

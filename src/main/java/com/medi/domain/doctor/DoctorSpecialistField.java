@@ -1,7 +1,5 @@
 package com.medi.domain.doctor;
 
-import java.util.Arrays;
-
 public enum DoctorSpecialistField {
 	PLASTIC_SURGERY(1, "성형외과"),
 	SURGERY(2, "외과"),
@@ -49,10 +47,4 @@ public enum DoctorSpecialistField {
 		return label;
 	}
 
-	public static DoctorSpecialistField fromCode(int code) {
-		return Arrays.stream(values())
-			.filter(value -> value.code == code)
-			.findFirst()
-			.orElseThrow(() -> new IllegalArgumentException("지원하지 않는 전문의 분류 코드입니다: " + code));
-	}
 }

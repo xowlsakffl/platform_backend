@@ -3,7 +3,9 @@ package com.medi.domain.hospital;
 import com.medi.domain.account.AccountHospital;
 import com.medi.domain.common.BaseTimeEntity;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -32,10 +34,6 @@ public class Hospital extends BaseTimeEntity {
 
 	@Column(nullable = false, unique = true)
 	private String name;
-
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 30)
-	private HospitalDepartment department = HospitalDepartment.OTHER;
 
 	@Column(columnDefinition = "text")
 	private String description;
@@ -98,12 +96,20 @@ public class Hospital extends BaseTimeEntity {
 	)
 	private Set<HospitalFeature> features = new LinkedHashSet<>();
 
+	@ElementCollection(fetch = FetchType.LAZY)
+	@CollectionTable(
+		name = "hospital_interpretation_languages",
+		joinColumns = @JoinColumn(name = "hospital_id")
+	)
+	@Enumerated(EnumType.STRING)
+	@Column(name = "language", nullable = false, length = 30)
+	private Set<HospitalInterpretationLanguage> interpretationLanguages = new LinkedHashSet<>();
+
 	protected Hospital() {
 	}
 
 	public Hospital(
 		String name,
-		HospitalDepartment department,
 		String description,
 		String youtubeLink,
 		String address,
@@ -117,7 +123,6 @@ public class Hospital extends BaseTimeEntity {
 		HospitalStatus status
 	) {
 		this.name = name;
-		this.department = department == null ? HospitalDepartment.OTHER : department;
 		this.description = description;
 		this.youtubeLink = youtubeLink;
 		this.address = address;
@@ -132,7 +137,6 @@ public class Hospital extends BaseTimeEntity {
 	}
 
 	public void updateProfile(
-		HospitalDepartment department,
 		String description,
 		String youtubeLink,
 		String address,
@@ -145,9 +149,6 @@ public class Hospital extends BaseTimeEntity {
 		HospitalAllowStatus allowStatus,
 		HospitalStatus status
 	) {
-		if (department != null) {
-			this.department = department;
-		}
 		this.description = description;
 		this.youtubeLink = youtubeLink;
 		this.address = address;
@@ -193,6 +194,11 @@ public class Hospital extends BaseTimeEntity {
 		this.features.addAll(features);
 	}
 
+	public void replaceInterpretationLanguages(Set<HospitalInterpretationLanguage> interpretationLanguages) {
+		this.interpretationLanguages.clear();
+		this.interpretationLanguages.addAll(interpretationLanguages);
+	}
+
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
 	}
@@ -203,10 +209,6 @@ public class Hospital extends BaseTimeEntity {
 
 	public String name() {
 		return name;
-	}
-
-	public HospitalDepartment department() {
-		return department;
 	}
 
 	public String description() {
@@ -283,5 +285,9 @@ public class Hospital extends BaseTimeEntity {
 
 	public Set<HospitalFeature> features() {
 		return features;
+	}
+
+	public Set<HospitalInterpretationLanguage> interpretationLanguages() {
+		return interpretationLanguages;
 	}
 }

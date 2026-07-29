@@ -1,8 +1,9 @@
 package com.medi.adapter.in.web.user.auth.controller;
 
-import com.medi.adapter.in.web.auth.request.AuthLoginRequest;
+import com.medi.adapter.in.web.user.auth.request.UserLoginRequest;
 import com.medi.application.auth.AuthenticationService;
 import com.medi.common.security.AuthenticatedActor;
+import com.medi.common.security.BearerTokenResolver;
 import com.medi.common.web.ApiResponse;
 import com.medi.common.web.RequestTrace;
 import com.medi.domain.account.AccountActorType;
@@ -26,7 +27,7 @@ public class UserAuthController {
 	}
 
 	@PostMapping("/login")
-	public ApiResponse login(@Valid @RequestBody AuthLoginRequest body, HttpServletRequest request) {
+	public ApiResponse login(@Valid @RequestBody UserLoginRequest body, HttpServletRequest request) {
 		return ApiResponse.success(
 			authenticationService.login(AccountActorType.USER, body.toCommand()),
 			RequestTrace.traceId(request)
@@ -44,7 +45,7 @@ public class UserAuthController {
 	@PostMapping("/logout")
 	public ApiResponse logout(@AuthenticationPrincipal AuthenticatedActor actor, HttpServletRequest request) {
 		return ApiResponse.success(
-			authenticationService.logout(AccountActorType.USER, actor),
+			authenticationService.logout(AccountActorType.USER, actor, BearerTokenResolver.resolve(request)),
 			RequestTrace.traceId(request)
 		);
 	}

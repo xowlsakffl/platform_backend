@@ -4,6 +4,8 @@ import com.medi.application.auth.command.AuthLoginCommand;
 import com.medi.application.auth.result.AuthActorResult;
 import com.medi.application.auth.result.AuthLogoutResult;
 import com.medi.application.auth.result.AuthTokenResult;
+import com.medi.application.cache.StaffSummaryCache;
+import com.medi.application.cache.StaffSummaryCacheInvalidator;
 import com.medi.common.error.ApiException;
 import com.medi.common.error.ErrorCode;
 import com.medi.common.security.AuthenticatedActor;
@@ -31,6 +33,7 @@ public class AuthenticationService {
 	private final AccountUserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtTokenService jwtTokenService;
+	private final StaffSummaryCacheInvalidator summaryCacheInvalidator;
 
 	public AuthenticationService(
 		AccountStaffRepository staffRepository,
@@ -38,7 +41,8 @@ public class AuthenticationService {
 		AccountBeautyRepository beautyRepository,
 		AccountUserRepository userRepository,
 		PasswordEncoder passwordEncoder,
-		JwtTokenService jwtTokenService
+		JwtTokenService jwtTokenService,
+		StaffSummaryCacheInvalidator summaryCacheInvalidator
 	) {
 		this.staffRepository = staffRepository;
 		this.hospitalRepository = hospitalRepository;
@@ -46,6 +50,7 @@ public class AuthenticationService {
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.jwtTokenService = jwtTokenService;
+		this.summaryCacheInvalidator = summaryCacheInvalidator;
 	}
 
 	@Transactional
@@ -89,8 +94,12 @@ public class AuthenticationService {
 		return AuthActorResult.from(authenticatedActor);
 	}
 
-	public AuthLogoutResult logout(AccountActorType expectedActorType, AuthenticatedActor actor) {
+	public AuthLogoutResult logout(AccountActorType expectedActorType, AuthenticatedActor actor, String accessToken) {
 		requireActor(expectedActorType, actor);
+		if (accessToken == null) {
+			throw unauthorized();
+		}
+		jwtTokenService.revoke(accessToken);
 		return new AuthLogoutResult(true);
 	}
 
@@ -109,6 +118,7 @@ public class AuthenticationService {
 		assertPassword(command.password(), hospital.password());
 		assertUsable(hospital.isActive());
 		hospital.markLoggedIn();
+		summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.HOSPITAL);
 		return actorFromHospital(hospital);
 	}
 

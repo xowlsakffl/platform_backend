@@ -2,7 +2,7 @@ package com.medi.domain.category;
 
 public enum CategoryGroup {
 	SURGERY("성형"),
-	TREATMENT("쁘띠");
+	TREATMENT("시술");
 
 	private final String label;
 

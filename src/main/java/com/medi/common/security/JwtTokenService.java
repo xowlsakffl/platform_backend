@@ -5,10 +5,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medi.common.error.ApiException;
 import com.medi.common.error.ErrorCode;
+import com.medi.common.error.InternalApplicationException;
 import com.medi.domain.account.AccountActorType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -31,10 +33,16 @@ public class JwtTokenService {
 
 	private final ObjectMapper objectMapper;
 	private final JwtProperties properties;
+	private final RevokedTokenStore revokedTokenStore;
 
-	public JwtTokenService(ObjectMapper objectMapper, JwtProperties properties) {
+	public JwtTokenService(
+		ObjectMapper objectMapper,
+		JwtProperties properties,
+		RevokedTokenStore revokedTokenStore
+	) {
 		this.objectMapper = objectMapper;
 		this.properties = properties;
+		this.revokedTokenStore = revokedTokenStore;
 	}
 
 	public String issue(AuthenticatedActor actor) {
@@ -87,6 +95,10 @@ public class JwtTokenService {
 		if (longValue(payload.get("exp")) < Instant.now().getEpochSecond()) {
 			throw unauthorized();
 		}
+		String tokenId = stringValue(payload.get("jti"));
+		if (revokedTokenStore.isRevoked(tokenId)) {
+			throw unauthorized();
+		}
 
 		AccountActorType actorType = actorType(payload.get("actor"));
 		return new AuthenticatedActor(
@@ -101,6 +113,30 @@ public class JwtTokenService {
 		);
 	}
 
+	public void revoke(String token) {
+		String[] parts = token == null ? new String[0] : token.split("\\.");
+		if (parts.length != 3) {
+			throw unauthorized();
+		}
+		String unsignedToken = parts[0] + "." + parts[1];
+		if (!MessageDigest.isEqual(
+			sign(unsignedToken).getBytes(StandardCharsets.UTF_8),
+			parts[2].getBytes(StandardCharsets.UTF_8)
+		)) {
+			throw unauthorized();
+		}
+		Map<String, Object> payload = decodeJson(parts[1]);
+		if (!properties.issuer().equals(payload.get("iss"))) {
+			throw unauthorized();
+		}
+		long expiresAt = longValue(payload.get("exp"));
+		long remainingSeconds = expiresAt - Instant.now().getEpochSecond();
+		if (remainingSeconds <= 0) {
+			return;
+		}
+		revokedTokenStore.revoke(stringValue(payload.get("jti")), Duration.ofSeconds(remainingSeconds));
+	}
+
 	public long accessTokenTtlSeconds() {
 		return properties.accessTokenTtlSeconds();
 	}
@@ -109,7 +145,7 @@ public class JwtTokenService {
 		try {
 			return ENCODER.encodeToString(objectMapper.writeValueAsBytes(value));
 		} catch (JsonProcessingException exception) {
-			throw new ApiException(ErrorCode.INTERNAL_ERROR);
+			throw new InternalApplicationException("인증 토큰 payload를 만들 수 없습니다.", exception);
 		}
 	}
 
@@ -127,7 +163,7 @@ public class JwtTokenService {
 			mac.init(new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
 			return ENCODER.encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
 		} catch (Exception exception) {
-			throw new ApiException(ErrorCode.INTERNAL_ERROR);
+			throw new InternalApplicationException("인증 토큰에 서명할 수 없습니다.", exception);
 		}
 	}
 

@@ -7,6 +7,7 @@ import com.medi.domain.category.CategoryGroup;
 import com.medi.domain.category.CategoryStatus;
 import com.medi.application.media.result.MediaResult;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CategoryResult(
@@ -23,6 +24,8 @@ public record CategoryResult(
 	CategoryStatus status,
 	@JsonProperty("is_menu_visible") boolean menuVisible,
 	@JsonProperty("has_children") boolean hasChildren,
+	CategoryResult parent,
+	List<CategoryResult> children,
 	@JsonProperty("middle_count") Integer middleCount,
 	@JsonProperty("small_count") Integer smallCount,
 	MediaResult icon,

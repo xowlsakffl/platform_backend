@@ -3,6 +3,7 @@ package com.medi.application.media;
 import com.medi.domain.media.Media;
 import com.medi.domain.media.MediaOwnerType;
 import com.medi.infrastructure.persistence.media.MediaRepository;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,15 +12,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class MediaLifecycleService {
 
 	private final MediaRepository mediaRepository;
+	private final MediaFileCleanup fileCleanup;
 
-	public MediaLifecycleService(MediaRepository mediaRepository) {
+	public MediaLifecycleService(MediaRepository mediaRepository, MediaFileCleanup fileCleanup) {
 		this.mediaRepository = mediaRepository;
+		this.fileCleanup = fileCleanup;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void softDeleteOwnedMedia(MediaOwnerType ownerType, Long ownerId) {
-		for (Media media : mediaRepository.findByOwnerTypeAndOwnerIdAndDeletedAtIsNull(ownerType, ownerId)) {
+		List<Media> mediaItems = mediaRepository.findByOwnerTypeAndOwnerIdAndDeletedAtIsNull(ownerType, ownerId);
+		for (Media media : mediaItems) {
 			media.softDelete();
 		}
+		fileCleanup.deleteAfterCommit(mediaItems.stream().map(Media::path).toList());
 	}
 }

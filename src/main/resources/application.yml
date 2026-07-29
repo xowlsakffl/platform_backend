@@ -26,14 +26,13 @@ management:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002}
-  brand:
-    name: ${APP_BRAND_NAME:Medi}
-    service-name: ${APP_SERVICE_NAME:Beauty Platform}
   auth:
     jwt:
       issuer: ${AUTH_JWT_ISSUER:medi_backend}
       secret: ${AUTH_JWT_SECRET:local-medi-auth-secret-change-before-production}
       access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:7200}
+  cache:
+    staff-summary-ttl-seconds: ${STAFF_SUMMARY_CACHE_TTL_SECONDS:300}
   bootstrap:
     staff:
       enabled: ${STAFF_BOOTSTRAP_ENABLED:false}

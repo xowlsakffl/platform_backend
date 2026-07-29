@@ -1,7 +1,7 @@
 package com.medi.domain.category;
 
 public enum CategoryDomain {
-	HOSPITAL_MEDICAL,
+	MEDICAL,
 	HOSPITAL_EVALUATION,
 	TALK,
 	BEAUTY,

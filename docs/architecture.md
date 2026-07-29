@@ -1,173 +1,101 @@
-# 백엔드 아키텍처
+# 아키텍처와 디렉터리
 
-작성 기준: 2026-07-28
+## 구조 선택
 
-이 문서는 백엔드 구현의 기본 구조를 정의한다. 현재 기준은 Spring Boot 단일 애플리케이션이며, `Controller-Service-Repository` 흐름을 유지하되 도메인별 패키지 경계를 분명히 둔다.
-
-## 1. 아키텍처 방향
-
-초기 구조는 모듈러 모놀리스다.
-
-- 배포 단위는 하나의 Spring Boot 애플리케이션이다.
-- 코드는 actor가 아니라 도메인 중심으로 나눈다.
-- actor는 URL prefix, 인증 주체, 권한 정책을 구분하는 값이다.
-- 비즈니스 흐름은 application service가 조립한다.
-- 상태 전이와 핵심 불변식은 domain 객체가 갖는다.
-- DB, Redis, storage, messaging 구현은 infrastructure로 밀어낸다.
-
-## 2. 계층
+백엔드는 단일 배포 단위의 모듈형 모놀리스다. Spring의 일반적인 `Controller-Service-Repository` 흐름을 유지하면서 도메인 모델과 외부 연동을 분리한다.
 
 ```text
-adapter.in.web
-  -> Controller, HTTP Request DTO
-
-application
-  -> Service, Command, Query, Result
-
-domain
-  -> Entity, enum, value object, 도메인 규칙
-
-infrastructure
-  -> Repository, DB/Redis/storage/messaging 구현
-
-common
-  -> 설정, 공통 응답, 공통 예외, 보안, 웹 공통 기능
+HTTP
+  -> adapter.in.web.{actor}.controller
+  -> adapter.in.web.{actor}.request
+  -> application.{domain}.Service
+  -> domain.{domain}
+  -> infrastructure.persistence / redis / storage
 ```
 
-Spring 관점에서는 Controller, Service, Repository 구조가 맞다. 다만 Request DTO, Command/Query, Result, Entity가 한 패키지에 섞이지 않게 분리한다.
+별도 `Action` 클래스를 기계적으로 만들지 않는다. 유스케이스가 작으면 application Service 메서드가 진입점이며, 공통 쓰기·조회 조립이 커지면 `DoctorWriteService`, `DoctorResultAssembler`처럼 책임 단위로 분리한다.
 
-## 3. API namespace
+## 패키지 구조
 
 ```text
-/api/v1/public
-/api/v1/staff
-/api/v1/hospital
-/api/v1/beauty
-/api/v1/user
+src/main/java/com/medi/
+  adapter/in/web/
+    staff/       내부 운영자 API
+    hospital/    병원 파트너 API
+    beauty/      뷰티 파트너 API
+    user/        사용자 앱 API
+  application/
+    auth/        인증·권한 유스케이스
+    cache/       캐시 포트와 무효화
+    category/    카테고리 유스케이스, command/query/result
+    doctor/      의료진 유스케이스, command/query/result
+    hospital/    병원 유스케이스, command/query/result
+    media/       미디어 정책, 저장 포트, 응답
+  domain/
+    account/
+    category/
+    doctor/
+    hospital/
+    media/
+    operationhistory/
+  infrastructure/
+    persistence/ JPA Repository
+    redis/       Redis 구현
+    storage/     로컬 파일 저장소 구현
+  common/
+    config/      Security, CORS 등 전역 설정
+    error/       공통 예외와 핸들러
+    security/    JWT와 인증 주체
+    web/         API 응답, trace, multipart 공통
+src/main/resources/
+  db/migration/  Flyway migration
 ```
 
-- `public`: 로그인 전 또는 공개 데이터
-- `staff`: 내부 운영자
-- `hospital`: 병원 파트너
-- `beauty`: 뷰티 파트너
-- `user`: 일반 앱/웹 사용자
+`adapter.in.web`의 최상위에는 네 Actor 폴더만 둔다. 도메인 공통 HTTP 진입점도 실제 호출 Actor 아래에 둔다.
 
-API 경로는 리소스 기준으로 설계한다. 화면 메뉴명과 API path가 반드시 같을 필요는 없다.
+## 계층 책임
 
-## 4. 요청 처리 흐름
+### Controller와 Request
 
-1. Controller가 HTTP 요청을 바인딩한다.
-2. Bean Validation으로 입력값을 검증한다.
-3. Request DTO를 Command 또는 Query로 변환한다.
-4. Application Service가 인증 주체, 권한, 트랜잭션, 도메인 조합을 처리한다.
-5. Domain 객체가 상태 전이와 핵심 규칙을 검증한다.
-6. Repository가 영속화를 수행한다.
-7. Result를 공통 `ApiResponse`로 감싸 반환한다.
+- URL, HTTP method, content type을 선언한다.
+- `@ModelAttribute` 또는 `@RequestBody` Request를 검증한다.
+- Request를 Command/Query로 바꾸고 application Service를 호출한다.
+- 결과를 공통 `ApiResponse`로 포장한다.
 
-## 5. Request DTO 기준
+### Application
 
-Request DTO는 HTTP 입력 모델이 의미 있는 단위일 때만 만든다.
+- 권한과 소유권을 확인한다.
+- 트랜잭션 경계를 정한다.
+- Repository, 도메인 객체, 미디어, 이력, 캐시를 조합한다.
+- HTTP 타입에 의존하지 않는다.
 
-| 상황 | 기준 |
-| --- | --- |
-| 단일 `PathVariable` 조회 | DTO 없이 `@PathVariable Long id` 사용 |
-| 단일 `PathVariable` 삭제 | DTO 없이 `@PathVariable Long id` 사용 |
-| query parameter가 여러 개인 목록/검색 | `*ListRequest` 또는 `*SearchRequest` 사용 |
-| request body가 있는 생성 | `*CreateRequest` 사용 |
-| request body가 있는 수정 | `*UpdateRequest` 사용 |
-| 상태 변경 | `*StatusUpdateRequest`, `*AllowStatusUpdateRequest` 사용 |
+### Domain
 
-예시:
+- JPA 엔티티와 enum을 소유한다.
+- 상태 변경과 soft delete 같은 핵심 규칙을 메서드로 표현한다.
+- Controller나 Redis, 파일 시스템을 참조하지 않는다.
 
-```java
-@GetMapping
-public ApiResponse list(@Valid @ModelAttribute HospitalListRequest query, HttpServletRequest request) {
-    return ApiResponse.success(...);
-}
+### Infrastructure
 
-@GetMapping("/{id}")
-public ApiResponse get(@PathVariable Long id, HttpServletRequest request) {
-    return ApiResponse.success(...);
-}
-```
+- Spring Data JPA Repository를 제공한다.
+- Redis와 파일 저장소 포트를 구현한다.
+- 비즈니스 상태를 새로 결정하지 않는다.
 
-snake_case query parameter는 Request DTO에서 `@BindParam`으로 처리한다.
+## Actor와 도메인
 
-## 6. Application 기준
+Actor 분리는 같은 엔티티를 중복 구현한다는 뜻이 아니다. Doctor 엔티티는 하나지만 Staff와 Hospital의 요청, 권한, 응답 공개 범위가 다르므로 Controller와 application 유스케이스를 분리한다.
 
-Application 계층은 유스케이스의 중심이다.
+| Actor | 현재 역할 |
+|---|---|
+| Staff | 병원·카테고리·의료진 관리, 검수, 증빙 조회 |
+| Hospital | 자기 병원의 의료진 관리와 증빙 조회 |
+| Beauty | 이메일 인증 기반만 구현 |
+| User | 이메일 인증과 공개 미디어 조회만 구현 |
 
-- 트랜잭션 경계
-- 권한 확인
-- 여러 Repository 조합
-- 도메인 객체 생성/수정
-- 운영 히스토리 기록
-- 캐시 무효화
-- Result 조립
+## 트랜잭션 기준
 
-Service는 HTTP Request DTO를 직접 의존하지 않는다. Controller에서 Command/Query로 변환해 넘긴다.
-
-## 7. Domain 기준
-
-Domain 계층은 DB 테이블을 단순히 옮긴 폴더가 아니다.
-
-- 엔티티
-- enum
-- 상태 전이 메서드
-- 도메인 불변식
-- 연관관계 기준
-
-단순 조회 조합이나 화면 표시용 문자열은 domain에 넣지 않는다.
-
-## 8. Infrastructure 기준
-
-Infrastructure는 외부 기술 구현이다.
-
-- Spring Data JPA repository
-- Redis cache
-- 파일 storage
-- queue/messaging
-- scheduler adapter
-
-도메인 규칙을 infrastructure에 넣지 않는다.
-
-## 9. 현재 Hospital 기준
-
-Hospital 1차 구현은 다음 구조를 따른다.
-
-```text
-adapter.in.web.staff.hospital
-  controller
-  request
-
-application.hospital
-  HospitalStaffService
-  command
-  query
-  result
-
-domain.hospital
-domain.account
-domain.category
-domain.operationhistory
-
-infrastructure.persistence.hospital
-infrastructure.persistence.account
-infrastructure.persistence.category
-infrastructure.persistence.operationhistory
-```
-
-검수 상태는 `PENDING`, `APPROVED`, `REJECTED`만 사용한다. 화면 표기는 신청, 승인, 반려를 기준으로 한다.
-
-연락처는 병원 본문 컬럼에 흩뿌리지 않고 `hospital_contacts`에서 타입과 순번으로 관리한다.
-
-## 10. 인증/인가 방향
-
-초기 보안 설정은 public/actuator 일부만 열고 나머지는 인증 필요 기준으로 둔다. 실제 인증 방식은 계정 도메인을 구현하면서 확정한다.
-
-- Staff API: 내부 운영자 인증과 권한 코드 확인
-- Hospital API: 병원 계정 인증과 `hospital_id` 소유권 확인
-- Beauty API: 뷰티 계정 인증과 `beauty_id` 소유권 확인
-- User API: 일반 사용자 인증과 활성/차단 상태 확인
-
-프론트 권한 제어는 UX 보조 수단이고, 최종 권한 검증은 백엔드가 책임진다.
+- 생성·수정·상태 변경·삭제는 application Service에서 `@Transactional`을 사용한다.
+- 목록·상세는 `@Transactional(readOnly = true)`를 사용한다.
+- 동시 수정에 민감한 병원·의료진·카테고리는 쓰기 전에 비관적 잠금을 사용한다.
+- 새 미디어 파일은 트랜잭션 롤백 시 정리하고, 교체·삭제 파일은 커밋 후 정리한다.
+- 캐시 무효화는 원본 DB 커밋 뒤 실행한다.

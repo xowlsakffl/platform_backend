@@ -12,8 +12,16 @@ public interface DoctorRepository extends JpaRepository<Doctor, Long>, JpaSpecif
 
 	Optional<Doctor> findByIdAndDeletedAtIsNullAndHospital_DeletedAtIsNull(Long id);
 
+	Optional<Doctor> findByIdAndHospital_IdAndDeletedAtIsNullAndHospital_DeletedAtIsNull(Long id, Long hospitalId);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Doctor> findForUpdateByIdAndDeletedAtIsNull(Long id);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Doctor> findForUpdateByIdAndHospital_IdAndDeletedAtIsNullAndHospital_DeletedAtIsNull(
+		Long id,
+		Long hospitalId
+	);
 
 	boolean existsByIdAndDeletedAtIsNullAndHospital_DeletedAtIsNull(Long id);
 
@@ -22,4 +30,6 @@ public interface DoctorRepository extends JpaRepository<Doctor, Long>, JpaSpecif
 	boolean existsByLicenseNumberAndIdNot(String licenseNumber, Long id);
 
 	List<Doctor> findByHospital_IdAndDeletedAtIsNull(Long hospitalId);
+
+	List<Doctor> findByHospital_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(Long hospitalId);
 }

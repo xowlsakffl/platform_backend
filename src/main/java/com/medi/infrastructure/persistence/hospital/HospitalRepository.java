@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 
 public interface HospitalRepository extends JpaRepository<Hospital, Long>, JpaSpecificationExecutor<Hospital> {
 
@@ -18,7 +19,13 @@ public interface HospitalRepository extends JpaRepository<Hospital, Long>, JpaSp
 
 	boolean existsByIdAndDeletedAtIsNull(Long id);
 
-	@EntityGraph(attributePaths = {"contacts", "businessRegistration", "accountHospital", "features"})
+	@EntityGraph(attributePaths = {
+		"contacts",
+		"businessRegistration",
+		"accountHospital",
+		"features",
+		"interpretationLanguages"
+	})
 	Optional<Hospital> findByIdAndDeletedAtIsNull(Long id);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -32,4 +39,14 @@ public interface HospitalRepository extends JpaRepository<Hospital, Long>, JpaSp
 	long countByDeletedAtIsNullAndAllowStatus(HospitalAllowStatus allowStatus);
 
 	long countByDeletedAtIsNullAndStatus(HospitalStatus status);
+
+	long countByAllowStatus(HospitalAllowStatus allowStatus);
+
+	@Query("""
+		select count(hospital)
+		from Hospital hospital
+		where hospital.status = com.medi.domain.hospital.HospitalStatus.WITHDRAWN
+		   or hospital.deletedAt is not null
+		""")
+	long countWithdrawnOrDeleted();
 }
