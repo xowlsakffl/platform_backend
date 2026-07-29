@@ -22,6 +22,7 @@
 - [Scheduler 운영 가이드](./scheduler.md)
 - [도메인 & 상태 정의서](./domain-status-definition.md)
 - [카테고리 설계](./category.md)
+- [공통 Media 설계](./media.md)
 - [운영 히스토리 설계](./operation-history.md)
 - [콘텐츠 신고 / 신고게시물 관리](./content-report.md)
 - [채팅 설계](./chat.md)
@@ -47,6 +48,7 @@
 - FAQ 카테고리는 전용 테이블이 아니라 공통 `Category` 도메인의 `FAQ` 분류를 사용한다.
 - 병원/의료진/후기/영상 의료 카테고리는 `HOSPITAL_MEDICAL` 트리를 공유하고, 성형/쁘띠 구분은 `categories.group_code`, 화면별 노출 목록은 `category_usages`로 분리한다.
 - Category Staff API는 관리 CRUD와 selector를 제공하고, 의료 카테고리 250개와 8개 사용처 90개 매핑은 Flyway 기준 데이터로 관리한다.
+- Media는 `owner_type + owner_id` 폴리모픽 키로 연결하며, 현재 로컬 저장소와 Staff 업로드/조회/수정/삭제 API를 제공한다.
 - 병원/의료진/이벤트의 `allow_status`는 `PENDING`/`APPROVED`/`REJECTED`를 저장하고, 관리자 화면 표기는 `신청`/`승인`/`반려`를 사용한다.
 - 입점신청은 Staff 목록/상세/summary/승인상태 변경 API를 제공하며, 승인상태 변경은 `OperationHistory`에 기록한다.
 - 토크/병의원 후기/병의원 평가는 Staff 운영 API와 User 작성 API를 Actor 기준으로 분리한다.

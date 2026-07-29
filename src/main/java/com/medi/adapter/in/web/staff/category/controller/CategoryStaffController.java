@@ -2,6 +2,8 @@ package com.medi.adapter.in.web.staff.category.controller;
 
 import com.medi.adapter.in.web.staff.category.request.CategoryCreateRequest;
 import com.medi.adapter.in.web.staff.category.request.CategoryListRequest;
+import com.medi.adapter.in.web.staff.category.request.CategoryMultipartCreateRequest;
+import com.medi.adapter.in.web.staff.category.request.CategoryMultipartUpdateRequest;
 import com.medi.adapter.in.web.staff.category.request.CategorySelectorRequest;
 import com.medi.adapter.in.web.staff.category.request.CategoryUpdateRequest;
 import com.medi.application.category.CategoryStaffService;
@@ -13,6 +15,7 @@ import com.medi.common.web.RequestTrace;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,7 +66,7 @@ public class CategoryStaffController {
 		return ApiResponse.success(service.get(actor, id), RequestTrace.traceId(request));
 	}
 
-	@PostMapping
+	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ApiResponse create(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@Valid @RequestBody CategoryCreateRequest body,
@@ -72,7 +75,16 @@ public class CategoryStaffController {
 		return ApiResponse.success(service.create(actor, body.toCommand()), RequestTrace.traceId(request));
 	}
 
-	@PatchMapping("/{id}")
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ApiResponse createMultipart(
+		@AuthenticationPrincipal AuthenticatedActor actor,
+		@Valid @ModelAttribute CategoryMultipartCreateRequest body,
+		HttpServletRequest request
+	) {
+		return ApiResponse.success(service.create(actor, body.toCommand()), RequestTrace.traceId(request));
+	}
+
+	@PatchMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ApiResponse update(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@PathVariable Long id,
@@ -80,6 +92,26 @@ public class CategoryStaffController {
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(service.update(actor, id, body.toCommand()), RequestTrace.traceId(request));
+	}
+
+	@PostMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ApiResponse updateMultipart(
+		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long id,
+		@Valid @ModelAttribute CategoryMultipartUpdateRequest body,
+		HttpServletRequest request
+	) {
+		return ApiResponse.success(
+			service.update(
+				actor,
+				id,
+				body.toCommand(
+					request.getParameterMap().containsKey("code"),
+					request.getParameterMap().containsKey("group_code")
+				)
+			),
+			RequestTrace.traceId(request)
+		);
 	}
 
 	@DeleteMapping("/{id}")

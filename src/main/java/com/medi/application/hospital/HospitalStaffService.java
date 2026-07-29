@@ -3,6 +3,7 @@ package com.medi.application.hospital;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medi.application.auth.PermissionService;
+import com.medi.application.doctor.DoctorLifecycleService;
 import com.medi.application.hospital.command.CreateHospitalCommand;
 import com.medi.application.hospital.command.ChangeHospitalAllowStatusCommand;
 import com.medi.application.hospital.command.ChangeHospitalStatusCommand;
@@ -24,6 +25,7 @@ import com.medi.application.hospital.result.HospitalListItemResult;
 import com.medi.application.hospital.result.HospitalSummaryResult;
 import com.medi.application.hospital.result.OperationHistoryChangeResult;
 import com.medi.application.hospital.result.OperationHistoryResult;
+import com.medi.application.media.MediaLifecycleService;
 import com.medi.common.error.ApiException;
 import com.medi.common.error.ErrorCode;
 import com.medi.common.security.AuthenticatedActor;
@@ -42,6 +44,7 @@ import com.medi.domain.hospital.HospitalContactType;
 import com.medi.domain.hospital.HospitalFeature;
 import com.medi.domain.hospital.HospitalFeatureStatus;
 import com.medi.domain.hospital.HospitalStatus;
+import com.medi.domain.media.MediaOwnerType;
 import com.medi.domain.operationhistory.OperationHistory;
 import com.medi.infrastructure.persistence.category.CategoryAssignmentRepository;
 import com.medi.infrastructure.persistence.category.CategoryRepository;
@@ -95,6 +98,8 @@ public class HospitalStaffService {
 	private final CategoryAssignmentRepository categoryAssignmentRepository;
 	private final CategoryUsageRepository categoryUsageRepository;
 	private final OperationHistoryRepository operationHistoryRepository;
+	private final MediaLifecycleService mediaLifecycleService;
+	private final DoctorLifecycleService doctorLifecycleService;
 	private final ObjectMapper objectMapper;
 
 	public HospitalStaffService(
@@ -106,6 +111,8 @@ public class HospitalStaffService {
 		CategoryAssignmentRepository categoryAssignmentRepository,
 		CategoryUsageRepository categoryUsageRepository,
 		OperationHistoryRepository operationHistoryRepository,
+		MediaLifecycleService mediaLifecycleService,
+		DoctorLifecycleService doctorLifecycleService,
 		ObjectMapper objectMapper
 	) {
 		this.permissionService = permissionService;
@@ -116,6 +123,8 @@ public class HospitalStaffService {
 		this.categoryAssignmentRepository = categoryAssignmentRepository;
 		this.categoryUsageRepository = categoryUsageRepository;
 		this.operationHistoryRepository = operationHistoryRepository;
+		this.mediaLifecycleService = mediaLifecycleService;
+		this.doctorLifecycleService = doctorLifecycleService;
 		this.objectMapper = objectMapper;
 	}
 
@@ -328,8 +337,10 @@ public class HospitalStaffService {
 	@Transactional
 	public HospitalDeletedResult delete(AuthenticatedActor actor, Long id) {
 		permissionService.requireStaffPermission(actor, PERMISSION_DELETE);
-		Hospital hospital = findActiveHospital(id);
+		Hospital hospital = findLockedActiveHospital(id);
+		doctorLifecycleService.softDeleteByHospital(hospital.id());
 		hospital.softDelete();
+		mediaLifecycleService.softDeleteOwnedMedia(MediaOwnerType.HOSPITAL, hospital.id());
 		Hospital saved = hospitalRepository.saveAndFlush(hospital);
 		recordSimpleHistory(saved, ACTION_DELETED, null);
 		return new HospitalDeletedResult(saved.id(), saved.deletedAt());
@@ -444,6 +455,11 @@ public class HospitalStaffService {
 
 	private Hospital findActiveHospital(Long id) {
 		return hospitalRepository.findByIdAndDeletedAtIsNull(id)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "병의원을 찾을 수 없습니다."));
+	}
+
+	private Hospital findLockedActiveHospital(Long id) {
+		return hospitalRepository.findForUpdateByIdAndDeletedAtIsNull(id)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "병의원을 찾을 수 없습니다."));
 	}
 

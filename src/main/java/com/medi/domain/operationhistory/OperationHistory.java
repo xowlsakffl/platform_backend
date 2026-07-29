@@ -18,6 +18,7 @@ public class OperationHistory extends BaseTimeEntity {
 
 	public static final String TARGET_HOSPITAL = "HOSPITAL";
 	public static final String TARGET_CATEGORY = "CATEGORY";
+	public static final String TARGET_DOCTOR = "DOCTOR";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

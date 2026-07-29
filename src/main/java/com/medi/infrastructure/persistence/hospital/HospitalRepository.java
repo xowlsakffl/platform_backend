@@ -16,8 +16,13 @@ public interface HospitalRepository extends JpaRepository<Hospital, Long>, JpaSp
 
 	boolean existsByNameAndDeletedAtIsNull(String name);
 
+	boolean existsByIdAndDeletedAtIsNull(Long id);
+
 	@EntityGraph(attributePaths = {"contacts", "businessRegistration", "accountHospital", "features"})
 	Optional<Hospital> findByIdAndDeletedAtIsNull(Long id);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Hospital> findForUpdateByIdAndDeletedAtIsNull(Long id);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	List<Hospital> findByIdInAndDeletedAtIsNull(Collection<Long> ids);

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.medi.domain.category.CategoryDomain;
 import com.medi.domain.category.CategoryGroup;
 import com.medi.domain.category.CategoryStatus;
+import com.medi.application.media.result.MediaResult;
 import java.time.LocalDateTime;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -24,6 +25,7 @@ public record CategoryResult(
 	@JsonProperty("has_children") boolean hasChildren,
 	@JsonProperty("middle_count") Integer middleCount,
 	@JsonProperty("small_count") Integer smallCount,
+	MediaResult icon,
 	@JsonProperty("created_at") LocalDateTime createdAt,
 	@JsonProperty("updated_at") LocalDateTime updatedAt
 ) {

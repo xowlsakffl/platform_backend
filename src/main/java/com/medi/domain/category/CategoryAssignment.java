@@ -23,6 +23,7 @@ import jakarta.persistence.UniqueConstraint;
 public class CategoryAssignment extends BaseTimeEntity {
 
 	public static final String HOSPITAL_TARGET_TYPE = "HOSPITAL";
+	public static final String DOCTOR_TARGET_TYPE = "DOCTOR";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -57,5 +58,9 @@ public class CategoryAssignment extends BaseTimeEntity {
 
 	public Long categorizableId() {
 		return categorizableId;
+	}
+
+	public boolean primary() {
+		return primary;
 	}
 }

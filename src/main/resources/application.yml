@@ -12,6 +12,10 @@ spring:
   web:
     resources:
       add-mappings: false
+  servlet:
+    multipart:
+      max-file-size: ${MEDIA_MAX_FILE_SIZE:20MB}
+      max-request-size: ${MEDIA_MAX_REQUEST_SIZE:21MB}
 
 management:
   endpoints:
@@ -38,3 +42,13 @@ app:
       name: ${STAFF_BOOTSTRAP_NAME:Medi Admin}
       nickname: ${STAFF_BOOTSTRAP_NICKNAME:admin}
       role: ${STAFF_BOOTSTRAP_ROLE:platform.super_admin}
+  media:
+    storage:
+      root: ${MEDIA_STORAGE_ROOT:./storage/media}
+      max-file-size: ${MEDIA_MAX_FILE_SIZE:20MB}
+      allowed-content-types:
+        - image/jpeg
+        - image/png
+        - image/webp
+        - image/gif
+        - application/pdf

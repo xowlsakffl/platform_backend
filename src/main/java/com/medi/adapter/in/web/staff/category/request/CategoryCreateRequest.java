@@ -30,7 +30,8 @@ public record CategoryCreateRequest(
 			groupCode,
 			sortOrder,
 			status,
-			menuVisible
+			menuVisible,
+			null
 		);
 	}
 }

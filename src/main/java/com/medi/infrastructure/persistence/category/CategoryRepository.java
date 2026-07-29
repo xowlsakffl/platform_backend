@@ -5,9 +5,11 @@ import com.medi.domain.category.CategoryDomain;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 
 public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSpecificationExecutor<Category> {
 
@@ -16,6 +18,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSp
 	List<Category> findAllByDomain(CategoryDomain domain, Sort sort);
 
 	Optional<Category> findByDomainAndCode(CategoryDomain domain, String code);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Category> findForUpdateById(Long id);
 
 	List<Category> findByDomainAndFullPathStartingWithOrderByDepthAsc(CategoryDomain domain, String fullPathPrefix);
 

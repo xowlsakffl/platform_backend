@@ -71,6 +71,7 @@ src/main/java/com/medi/
       account/
       hospital/
       category/
+      media/
       operationhistory/
     redis/
     storage/
@@ -224,6 +225,13 @@ infrastructure/persistence/category/
   CategoryUsageRepository.java
 ```
 
+```text
+infrastructure/persistence/media/
+  MediaRepository.java
+infrastructure/storage/
+  LocalMediaStorage.java
+```
+
 초기에는 Spring Data JPA repository를 infrastructure에 둔다.
 
 외부 기술 구현은 모두 infrastructure로 보낸다.
@@ -246,6 +254,7 @@ src/main/resources/
       V2__create_actor_auth_core.sql
       V3__complete_category_schema.sql
       V4__seed_hospital_medical_categories.sql
+      V5__create_media.sql
 ```
 
 - 공통 설정은 `application.yml`

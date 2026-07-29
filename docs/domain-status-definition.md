@@ -841,10 +841,15 @@ Provider:
 
 | 필드 | 의미 |
 |---|---|
+| `owner_type` | 파일 소유 도메인 enum. 현재 `HOSPITAL` |
+| `owner_id` | 파일 소유 데이터 ID |
 | `collection` | 도메인별 파일 용도 |
+| `disk` | 저장소 종류. 현재 `LOCAL` |
 | `is_primary` | 대표 파일 여부 |
 | `sort_order` | 정렬 순서 |
 | `deleted_at` | 소프트 삭제 여부 |
+
+DB에는 Java 클래스명을 저장하지 않는다. 폴리모픽 연결은 `owner_type + owner_id`로 관리하고, 대상 존재 검증과 soft delete 연동은 application service에서 처리한다.
 
 ### 14.2 `AdminNote`
 

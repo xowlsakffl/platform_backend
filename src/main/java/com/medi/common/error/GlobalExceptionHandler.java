@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -16,11 +18,16 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.HttpMessageConversionException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
 	@ExceptionHandler(ApiException.class)
 	ResponseEntity<ApiResponse.Failure> handleApiException(ApiException exception, HttpServletRequest request) {
@@ -66,11 +73,21 @@ class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler({
-		HttpMessageNotReadableException.class,
-		MissingServletRequestParameterException.class
+		HttpMessageConversionException.class,
+		MissingServletRequestParameterException.class,
+		MethodArgumentTypeMismatchException.class,
+		MultipartException.class
 	})
 	ResponseEntity<ApiResponse.Failure> handleInvalidRequest(Exception exception, HttpServletRequest request) {
 		return error(ErrorCode.INVALID_REQUEST, request);
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	ResponseEntity<ApiResponse.Failure> handleMaxUploadSizeExceeded(
+		MaxUploadSizeExceededException exception,
+		HttpServletRequest request
+	) {
+		return error(ErrorCode.PAYLOAD_TOO_LARGE, request);
 	}
 
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
@@ -99,6 +116,7 @@ class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	ResponseEntity<ApiResponse.Failure> handleException(Exception exception, HttpServletRequest request) {
+		log.error("처리되지 않은 API 예외가 발생했습니다. traceId={}", RequestTrace.traceId(request), exception);
 		return error(ErrorCode.INTERNAL_ERROR, request);
 	}
 

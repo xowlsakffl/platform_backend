@@ -28,6 +28,7 @@
 - [구현 원칙](./docs/implementation-principles.md)
 - [공통 API 응답](./docs/api-response.md)
 - [도메인 상태 정의](./docs/domain-status-definition.md)
+- [공통 Media 설계](./docs/media.md)
 - [DBML 스키마](./docs/schema.dbml)
 
 ## 디렉토리 요약
@@ -117,6 +118,7 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 - Category Staff 목록/상세/생성/수정/삭제 API
 - 사용처와 계층 탐색을 지원하는 Category selector API
 - `HOSPITAL_MEDICAL` 3단계 기준 트리와 8개 사용처 초기 데이터
+- 폴리모픽 Media 로컬 저장소와 Staff 업로드/조회/수정/삭제 API
 
 ## 개발 기준
 

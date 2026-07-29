@@ -64,7 +64,8 @@ public final class CategoryUpdateRequest {
 			groupCodeSpecified,
 			sortOrder,
 			status,
-			menuVisible
+			menuVisible,
+			null
 		);
 	}
 }

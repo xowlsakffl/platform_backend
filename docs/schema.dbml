@@ -8,7 +8,7 @@ Project medi_backend {
 }
 
 // Polymorphic conventions
-// media.model_type/model_id -> 파일 소유 모델: hospitals, doctors, reviews, evaluations, events, chats, notices, faqs 등
+// media.owner_type/owner_id -> 파일 소유 도메인과 대상 ID. 폴리모픽 연결은 application service에서 검증
 // category_assignments.categorizable_type/id -> 카테고리 소유 모델: hospitals, doctors, talks, reviews, evaluations, events, faqs 등
 // operation_histories.target_type/id, admin_notes.target_type/id -> 운영 대상 모델
 // content_reports.target_type/id, content_report_states.target_type/id -> 신고 대상 모델
@@ -894,22 +894,30 @@ Table likes {
 
 Table media {
   id bigint [pk, increment, note: '미디어(파일) 고유 ID']
-  model_type varchar(191) [note: '연결 모델 타입(App\\\\Domains\\\\Hospital\\\\Models\\\\Hospital 등)']
-  model_id bigint [note: '연결 모델 고유 ID']
+  owner_type varchar(50) [note: '파일 소유 도메인 enum(HOSPITAL, DOCTOR 등)']
+  owner_id bigint [note: '파일 소유 데이터 ID']
   collection varchar(50) [note: '파일 용도(logo, thumbnail, gallery, business_registration_file 등)']
-  disk varchar(32) [default: `'public'`, note: '저장 디스크(public, s3 등)']
-  path varchar(1024) [note: '파일 저장 경로 또는 키']
-  mime_type varchar(127) [null, note: 'MIME 타입(image/jpeg, image/png 등)']
-  size bigint [null, note: '파일 크기(bytes)']
+  disk varchar(20) [default: `'LOCAL'`, note: '저장소 종류(LOCAL, 향후 S3 등)']
+  path varchar(512) [note: '저장소 내부 상대 경로 또는 객체 키']
+  original_name varchar(255) [note: '사용자 원본 파일명']
+  mime_type varchar(127) [note: '파일 내용으로 확인한 MIME 타입(image/jpeg, image/png 등)']
+  size bigint [note: '파일 크기(bytes)']
   width int [null, note: '이미지 가로(px)']
   height int [null, note: '이미지 세로(px)']
-  sort_order smallint [default: `0`, note: '정렬 순서(내부 이미지용)']
+  sort_order int [default: `0`, note: '컬렉션 내부 정렬 순서']
   is_primary boolean [default: `false`, note: '대표 이미지 여부']
   metadata json [null, note: '추가 메타데이터(리사이즈, alt, crop 정보 등)']
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null, note: '소프트 삭제 시각']
-  Note: '파일/이미지 polymorphic 저장 메타데이터입니다.'
+  Note: '파일/이미지 폴리모픽 저장 메타데이터입니다. DB 외래키 대신 application service에서 소유 대상을 검증합니다.'
+
+  Indexes {
+    path [unique, name: 'media_path_unique']
+    (owner_type, owner_id, collection, deleted_at, sort_order, id) [name: 'media_owner_collection_order_idx']
+    (owner_type, owner_id, deleted_at, id) [name: 'media_owner_deleted_idx']
+    (deleted_at, created_at, id) [name: 'media_deleted_created_idx']
+  }
 }
 
 Table model_has_permissions {

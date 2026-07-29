@@ -7,6 +7,11 @@ import com.medi.application.category.query.SearchCategoriesQuery;
 import com.medi.application.category.query.SelectCategoriesQuery;
 import com.medi.application.category.result.CategoryDeletedResult;
 import com.medi.application.category.result.CategoryResult;
+import com.medi.application.media.MediaCollectionPolicy;
+import com.medi.application.media.MediaCommandService;
+import com.medi.application.media.MediaLifecycleService;
+import com.medi.application.media.MediaReadService;
+import com.medi.application.media.result.MediaResult;
 import com.medi.common.error.ApiException;
 import com.medi.common.error.ErrorCode;
 import com.medi.common.security.AuthenticatedActor;
@@ -18,6 +23,7 @@ import com.medi.domain.category.CategoryGroup;
 import com.medi.domain.category.CategoryStatus;
 import com.medi.domain.category.CategoryUsage;
 import com.medi.domain.operationhistory.OperationHistory;
+import com.medi.domain.media.MediaOwnerType;
 import com.medi.infrastructure.persistence.category.CategoryAssignmentRepository;
 import com.medi.infrastructure.persistence.category.CategoryRepository;
 import com.medi.infrastructure.persistence.category.CategoryUsageRepository;
@@ -51,19 +57,28 @@ public class CategoryStaffService {
 	private final CategoryUsageRepository categoryUsageRepository;
 	private final CategoryAssignmentRepository categoryAssignmentRepository;
 	private final OperationHistoryRepository operationHistoryRepository;
+	private final MediaCommandService mediaCommandService;
+	private final MediaReadService mediaReadService;
+	private final MediaLifecycleService mediaLifecycleService;
 
 	public CategoryStaffService(
 		PermissionService permissionService,
 		CategoryRepository categoryRepository,
 		CategoryUsageRepository categoryUsageRepository,
 		CategoryAssignmentRepository categoryAssignmentRepository,
-		OperationHistoryRepository operationHistoryRepository
+		OperationHistoryRepository operationHistoryRepository,
+		MediaCommandService mediaCommandService,
+		MediaReadService mediaReadService,
+		MediaLifecycleService mediaLifecycleService
 	) {
 		this.permissionService = permissionService;
 		this.categoryRepository = categoryRepository;
 		this.categoryUsageRepository = categoryUsageRepository;
 		this.categoryAssignmentRepository = categoryAssignmentRepository;
 		this.operationHistoryRepository = operationHistoryRepository;
+		this.mediaCommandService = mediaCommandService;
+		this.mediaReadService = mediaReadService;
+		this.mediaLifecycleService = mediaLifecycleService;
 	}
 
 	@Transactional(readOnly = true)
@@ -78,8 +93,9 @@ public class CategoryStaffService {
 			)
 		);
 		CategoryTreeSummary summary = summarize(condition.domain());
+		Map<Long, MediaResult> icons = icons(page.getContent());
 
-		return PaginatedResponse.from(page, category -> toResult(category, summary, true));
+		return PaginatedResponse.from(page, category -> toResult(category, summary, true, icons.get(category.id())));
 	}
 
 	@Transactional(readOnly = true)
@@ -135,15 +151,16 @@ public class CategoryStaffService {
 			.limit(clamp(condition.perPage(), 1, 100))
 			.toList();
 		CategoryTreeSummary summary = summarize(all);
+		Map<Long, MediaResult> icons = icons(selected);
 
-		return selected.stream().map(category -> toResult(category, summary, false)).toList();
+		return selected.stream().map(category -> toResult(category, summary, false, icons.get(category.id()))).toList();
 	}
 
 	@Transactional(readOnly = true)
 	public CategoryResult get(AuthenticatedActor actor, Long id) {
 		permissionService.requireStaffPermission(actor, PERMISSION_MANAGE);
 		Category category = findCategory(id);
-		return toResult(category, summarize(category.domain()), true);
+		return toResult(category, summarize(category.domain()), true, icon(category.id()));
 	}
 
 	@Transactional
@@ -172,15 +189,25 @@ public class CategoryStaffService {
 			command.status() == null ? CategoryStatus.ACTIVE : command.status(),
 			command.menuVisible() == null || command.menuVisible()
 		));
+		if (command.icon() != null) {
+			mediaCommandService.synchronizeSingle(
+				MediaOwnerType.CATEGORY,
+				category.id(),
+				MediaCollectionPolicy.CATEGORY_ICON,
+				command.icon(),
+				null,
+				false
+			);
+		}
 		recordHistory(actor, category, "CREATED", null, Map.of(), capture(category));
 
-		return toResult(category, summarize(command.domain()), true);
+		return toResult(category, summarize(command.domain()), true, icon(category.id()));
 	}
 
 	@Transactional
 	public CategoryResult update(AuthenticatedActor actor, Long id, UpdateCategoryCommand command) {
 		permissionService.requireStaffPermission(actor, PERMISSION_MANAGE);
-		Category category = findCategory(id);
+		Category category = findLockedCategory(id);
 		Map<String, String> before = capture(category);
 		String oldPath = category.fullPath();
 		CategoryGroup oldGroup = category.groupCode();
@@ -211,15 +238,25 @@ public class CategoryStaffService {
 				descendant.updateInheritedValues(nextPath, groupCode);
 			}
 		}
+		if (command.icon() != null) {
+			mediaCommandService.synchronizeSingle(
+				MediaOwnerType.CATEGORY,
+				category.id(),
+				MediaCollectionPolicy.CATEGORY_ICON,
+				command.icon(),
+				null,
+				false
+			);
+		}
 		recordHistory(actor, category, "UPDATED", null, before, capture(category));
 
-		return toResult(category, summarize(category.domain()), true);
+		return toResult(category, summarize(category.domain()), true, icon(category.id()));
 	}
 
 	@Transactional
 	public CategoryDeletedResult delete(AuthenticatedActor actor, Long id) {
 		permissionService.requireStaffPermission(actor, PERMISSION_MANAGE);
-		Category category = findCategory(id);
+		Category category = findLockedCategory(id);
 		if (categoryRepository.existsByParent_Id(id)) {
 			throw new ApiException(ErrorCode.CONFLICT, "하위 카테고리가 있어 삭제할 수 없습니다.");
 		}
@@ -230,6 +267,7 @@ public class CategoryStaffService {
 			throw new ApiException(ErrorCode.CONFLICT, "사용처에 등록된 카테고리는 삭제할 수 없습니다.");
 		}
 		recordHistory(actor, category, "DELETED", null, capture(category), Map.of());
+		mediaLifecycleService.softDeleteOwnedMedia(MediaOwnerType.CATEGORY, category.id());
 		categoryRepository.delete(category);
 		return new CategoryDeletedResult(id);
 	}
@@ -341,7 +379,12 @@ public class CategoryStaffService {
 		return Sort.by(new Sort.Order(sortDirection, property), Sort.Order.asc("id"));
 	}
 
-	private CategoryResult toResult(Category category, CategoryTreeSummary summary, boolean includeCounts) {
+	private CategoryResult toResult(
+		Category category,
+		CategoryTreeSummary summary,
+		boolean includeCounts,
+		MediaResult icon
+	) {
 		CategoryGroup group = category.groupCode();
 		return new CategoryResult(
 			category.id(),
@@ -359,6 +402,7 @@ public class CategoryStaffService {
 			summary.parentIds().contains(category.id()),
 			includeCounts ? summary.middleCounts().getOrDefault(category.id(), 0) : null,
 			includeCounts ? summary.smallCounts().getOrDefault(category.id(), 0) : null,
+			icon,
 			category.createdAt(),
 			category.updatedAt()
 		);
@@ -420,6 +464,20 @@ public class CategoryStaffService {
 	private Category findCategory(Long id) {
 		return categoryRepository.findById(id)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다."));
+	}
+
+	private Category findLockedCategory(Long id) {
+		return categoryRepository.findForUpdateById(id)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다."));
+	}
+
+	private MediaResult icon(Long categoryId) {
+		return mediaReadService.primary(MediaOwnerType.CATEGORY, categoryId, MediaCollectionPolicy.CATEGORY_ICON);
+	}
+
+	private Map<Long, MediaResult> icons(List<Category> categories) {
+		Set<Long> ids = categories.stream().map(Category::id).collect(java.util.stream.Collectors.toSet());
+		return mediaReadService.primaries(MediaOwnerType.CATEGORY, ids, MediaCollectionPolicy.CATEGORY_ICON);
 	}
 
 	private void ensureSiblingNameAvailable(CategoryDomain domain, Long parentId, String name, Long excludedId) {
