@@ -6,14 +6,14 @@ Redis는 두 기능에 사용한다.
 
 | 기능 | key | TTL |
 |---|---|---:|
-| Staff Hospital summary | `staff:summary:hospital:default` | 기본 300초 |
+| Staff Partner summary | `staff:summary:partner:default` | 기본 300초 |
 | 로그아웃 JWT 차단 | `auth:revoked:{jti}` | JWT 남은 만료 시간 |
 
-## Hospital summary
+## Partner summary
 
-`GET /api/v1/staff/hospitals/summary` 결과를 캐시한다. 병원 생성·삭제·상태·검수 변경과 Hospital 로그인으로 휴면 수치가 바뀌면 DB 커밋 후 무효화한다.
+`GET /api/v1/staff/partners/summary` 결과를 캐시한다. 파트너 생성·삭제·상태·검수 변경과 Partner 로그인으로 휴면 수치가 바뀌면 DB 커밋 후 무효화한다.
 
-캐시 조회·저장 실패 시 summary는 DB 조회로 대체한다. 캐시는 원본 데이터가 아니므로 Redis 장애 때문에 병원 관리 조회가 틀린 값을 확정해서는 안 된다.
+캐시 조회·저장 실패 시 summary는 DB 조회로 대체한다. 캐시는 원본 데이터가 아니므로 Redis 장애 때문에 파트너 관리 조회가 틀린 값을 확정해서는 안 된다.
 
 ## JWT 차단 목록
 

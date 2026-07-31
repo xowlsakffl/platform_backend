@@ -7,15 +7,19 @@ public final class AccessPermissions {
 	public static final String COMMON_PROFILE_SHOW = "common.profile.show";
 	public static final String COMMON_PROFILE_UPDATE = "common.profile.update";
 
-	public static final String HOSPITAL_SHOW = "platform.hospital.show";
-	public static final String HOSPITAL_CREATE = "platform.hospital.create";
-	public static final String HOSPITAL_UPDATE = "platform.hospital.update";
-	public static final String HOSPITAL_DELETE = "platform.hospital.delete";
+	public static final String PARTNER_SHOW = "platform.partner.show";
+	public static final String PARTNER_CREATE = "platform.partner.create";
+	public static final String PARTNER_UPDATE = "platform.partner.update";
+	public static final String PARTNER_DELETE = "platform.partner.delete";
+	public static final String PARTNER_ASSIGN_STAFF = "platform.partner.assign_staff";
+	public static final String PARTNER_ACCOUNT_STATUS_UPDATE = "platform.partner.account_status.update";
+	public static final String PARTNER_ALLOW_STATUS_UPDATE = "platform.partner.allow_status.update";
+	public static final String PARTNER_STATUS_UPDATE = "platform.partner.status.update";
 
-	public static final String DOCTOR_SHOW = "platform.doctor.show";
-	public static final String DOCTOR_CREATE = "platform.doctor.create";
-	public static final String DOCTOR_UPDATE = "platform.doctor.update";
-	public static final String DOCTOR_DELETE = "platform.doctor.delete";
+	public static final String SPECIALIST_SHOW = "platform.specialist.show";
+	public static final String SPECIALIST_CREATE = "platform.specialist.create";
+	public static final String SPECIALIST_UPDATE = "platform.specialist.update";
+	public static final String SPECIALIST_DELETE = "platform.specialist.delete";
 
 	public static final String CATEGORY_MANAGE = "platform.category.manage";
 

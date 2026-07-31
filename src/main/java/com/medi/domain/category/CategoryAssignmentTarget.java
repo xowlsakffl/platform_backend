@@ -1,8 +1,8 @@
 package com.medi.domain.category;
 
 public enum CategoryAssignmentTarget {
-	HOSPITAL(1),
-	DOCTOR(1),
+	PARTNER(1),
+	SPECIALIST(1),
 	EVENT(3),
 	REVIEW(3);
 
@@ -21,7 +21,7 @@ public enum CategoryAssignmentTarget {
 	}
 
 	public boolean accepts(Category category) {
-		return category.domain() == CategoryDomain.MEDICAL
+		return category.domain() == CategoryDomain.BEAUTY
 			&& category.status() == CategoryStatus.ACTIVE
 			&& category.depth() == selectableDepth;
 	}

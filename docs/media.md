@@ -10,19 +10,20 @@ owner_type + owner_id + collection
 
 | owner_type | collection | 개수 | 제약 |
 |---|---|---:|---|
-| `HOSPITAL` | `logo` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
-| `HOSPITAL` | `gallery` | 5 | JPG/PNG, 10MB, 760x490 |
-| `HOSPITAL_BUSINESS_REGISTRATION` | `business_registration_file` | 1 | 이미지/PDF, 10MB |
+| `PARTNER` | `logo` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
+| `PARTNER` | `main_image` | 1 | JPG/PNG/WebP, 10MB, 760x490 |
+| `PARTNER` | `interior_image` | 5 | JPG/PNG/WebP, 10MB, 760x490 |
+| `PARTNER_BUSINESS_REGISTRATION` | `business_registration_file` | 1 | 이미지/PDF, 10MB |
 | `CATEGORY` | `icon` | 1 | JPG/PNG/WebP, 5MB |
-| `DOCTOR` | `profile_image` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
-| `DOCTOR` | `license_image` | 1 | 이미지/PDF, 10MB |
-| `DOCTOR` | `specialist_certificate_image` | 1 | 이미지/PDF, 10MB |
+| `SPECIALIST` | `profile_image` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
+| `SPECIALIST` | `license_image` | 1 | 이미지/PDF, 10MB |
+| `SPECIALIST` | `specialist_certificate_image` | 1 | 이미지/PDF, 10MB |
 
 저장 루트는 `app.media.local.root`이며 기본값은 `./storage/media`다. 파일명은 서버가 생성하고 원본 파일명은 메타데이터로 보존한다.
 
 ## 쓰기 책임
 
-공통 미디어 CRUD Controller는 두지 않는다. Hospital, Category, Doctor의 생성·수정 API가 소유자와 컬렉션 정책을 알고 `MediaCommandService`를 호출한다.
+공통 미디어 CRUD Controller는 두지 않는다. Partner, Category, Specialist의 생성·수정 API가 소유자와 컬렉션 정책을 알고 `MediaCommandService`를 호출한다.
 
 - 단건: 새 파일, 유지할 기존 ID, 명시적 삭제를 구분한다.
 - 다건: 유지할 기존 ID와 신규 파일을 합쳐 최대 개수를 검증한다.
@@ -39,7 +40,7 @@ DB와 파일 시스템은 하나의 원자적 트랜잭션이 아니므로 다�
 4. DB 롤백이면 신규 파일 삭제
 5. DB 커밋이면 교체·삭제된 기존 파일 삭제
 
-Hospital 또는 Doctor soft delete도 연결 Media를 soft delete하고 커밋 후 원본 파일을 정리한다.
+Partner 또는 Specialist soft delete도 연결 Media를 soft delete하고 커밋 후 원본 파일을 정리한다.
 
 ## 조회 경로
 
@@ -47,13 +48,13 @@ Hospital 또는 Doctor soft delete도 연결 Media를 soft delete하고 커밋 �
 
 `GET /api/v1/staff/media/{id}/content`
 
-Staff 권한과 소유 도메인 존재를 확인한다. Hospital 사업자등록증, Doctor 면허증과 전문의 증빙을 포함한 운영 원본 조회 경로다.
+Staff 권한과 소유 도메인 존재를 확인한다. Partner 사업자등록증, Specialist 자격 증빙 파일을 포함한 운영 원본 조회 경로다.
 
-### Hospital
+### Partner
 
-`GET /api/v1/hospital/doctors/{doctorId}/media/{mediaId}/content`
+`GET /api/v1/partner/specialists/{specialistId}/media/{mediaId}/content`
 
-인증한 Hospital 소유의 Doctor 미디어만 조회한다.
+인증한 Partner 소유의 Specialist 미디어만 조회한다.
 
 ### User 앱 공개
 
@@ -62,10 +63,10 @@ Staff 권한과 소유 도메인 존재를 확인한다. Hospital 사업자등�
 로그인 없이 호출할 수 있지만 다음만 공개한다.
 
 - `ACTIVE` Category의 `icon`
-- `APPROVED + VISIBLE` Doctor의 `profile_image`
-- 공개 Doctor의 Hospital도 `APPROVED + ACTIVE`
+- `APPROVED + VISIBLE` Specialist의 `profile_image`
+- 공개 Specialist의 Partner도 `APPROVED + ACTIVE`
 
-Doctor 면허증, 전문의 증빙, 병원 사업자등록증은 이 경로에서 항상 `404`다.
+Specialist 자격 증빙 파일과 파트너 사업자등록증은 이 경로에서 항상 `404`다.
 
 ## 응답 보안
 

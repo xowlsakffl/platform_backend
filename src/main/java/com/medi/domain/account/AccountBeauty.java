@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "account_beauties")
@@ -75,6 +76,10 @@ public class AccountBeauty extends BaseTimeEntity {
 
 	public String password() {
 		return password;
+	}
+
+	public void changePassword(String encodedPassword) {
+		this.password = Objects.requireNonNull(encodedPassword);
 	}
 
 	public boolean isActive() {

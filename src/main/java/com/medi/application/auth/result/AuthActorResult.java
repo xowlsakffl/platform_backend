@@ -10,8 +10,8 @@ public record AuthActorResult(
 	AccountActorType actorType,
 	@JsonProperty("account_id")
 	Long accountId,
-	@JsonProperty("hospital_id")
-	Long hospitalId,
+	@JsonProperty("partner_id")
+	Long partnerId,
 	@JsonProperty("beauty_id")
 	Long beautyId,
 	String email,
@@ -24,7 +24,7 @@ public record AuthActorResult(
 		return new AuthActorResult(
 			actor.actorType(),
 			actor.accountId(),
-			actor.hospitalId(),
+			actor.partnerId(),
 			actor.beautyId(),
 			actor.email(),
 			actor.name(),

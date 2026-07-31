@@ -4,7 +4,7 @@ import java.util.function.Supplier;
 
 public interface StaffSummaryCache {
 
-	String HOSPITAL = "hospital";
+	String PARTNER = "partner";
 
 	<T> T remember(String domain, Class<T> resultType, Supplier<T> resolver);
 

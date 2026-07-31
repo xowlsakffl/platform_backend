@@ -13,10 +13,12 @@ public record AuthenticatedActor(
 	AccountActorType actorType,
 	@JsonProperty("account_id")
 	Long accountId,
-	@JsonProperty("hospital_id")
-	Long hospitalId,
+	@JsonProperty("partner_id")
+	Long partnerId,
 	@JsonProperty("beauty_id")
 	Long beautyId,
+	@JsonProperty("session_id")
+	String sessionId,
 	String email,
 	String name,
 	String nickname,
@@ -34,5 +36,19 @@ public record AuthenticatedActor(
 			authorities.add(new SimpleGrantedAuthority(permission));
 		}
 		return authorities;
+	}
+
+	public AuthenticatedActor withSessionId(String value) {
+		return new AuthenticatedActor(
+			actorType,
+			accountId,
+			partnerId,
+			beautyId,
+			value,
+			email,
+			name,
+			nickname,
+			permissions
+		);
 	}
 }

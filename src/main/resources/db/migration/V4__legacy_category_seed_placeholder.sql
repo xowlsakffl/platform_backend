@@ -1,0 +1,1 @@
+-- Legacy placeholder. Beauty category seed is managed by V11.

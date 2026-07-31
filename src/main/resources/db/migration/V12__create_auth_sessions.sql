@@ -1,0 +1,22 @@
+CREATE TABLE auth_sessions (
+    id VARCHAR(36) NOT NULL,
+    actor_type VARCHAR(20) NOT NULL,
+    account_id BIGINT NOT NULL,
+    refresh_token_hash CHAR(64) NOT NULL,
+    previous_refresh_token_hash CHAR(64) NULL,
+    previous_token_valid_until TIMESTAMP(6) NULL,
+    persistent BOOLEAN NOT NULL DEFAULT FALSE,
+    expires_at TIMESTAMP(6) NOT NULL,
+    last_used_at TIMESTAMP(6) NOT NULL,
+    revoked_at TIMESTAMP(6) NULL,
+    revocation_reason VARCHAR(80) NULL,
+    ip_address VARCHAR(45) NULL,
+    user_agent VARCHAR(500) NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY auth_sessions_refresh_token_hash_unique (refresh_token_hash),
+    INDEX auth_sessions_actor_account_active_idx (actor_type, account_id, revoked_at, expires_at),
+    INDEX auth_sessions_expires_at_idx (expires_at),
+    INDEX auth_sessions_revoked_at_idx (revoked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='인증 리프레시 세션 테이블';

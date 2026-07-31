@@ -16,8 +16,32 @@ spring:
     multipart:
       max-file-size: ${MEDIA_MAX_FILE_SIZE:20MB}
       max-request-size: ${MEDIA_MAX_REQUEST_SIZE:21MB}
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    protocol: smtp
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:true}
+          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+          timeout: ${MAIL_SMTP_READ_TIMEOUT:5000}
+          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
+        transport:
+          protocol: smtp
+
+server:
+  port: ${SERVER_PORT:8081}
 
 management:
+  health:
+    mail:
+      enabled: ${MAIL_HEALTH_ENABLED:true}
   endpoints:
     web:
       exposure:
@@ -25,12 +49,49 @@ management:
 
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4001,http://localhost:4002,http://localhost:4003,http://localhost:4004,http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003,http://127.0.0.1:4004}
   auth:
     jwt:
       issuer: ${AUTH_JWT_ISSUER:medi_backend}
-      secret: ${AUTH_JWT_SECRET:local-medi-auth-secret-change-before-production}
-      access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:7200}
+      audience: ${AUTH_JWT_AUDIENCE:medi-api}
+      secret: ${AUTH_JWT_SECRET}
+      access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
+    session:
+      cookie-secure: ${AUTH_COOKIE_SECURE:true}
+      cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Strict}
+      refresh-token-bytes: ${AUTH_REFRESH_TOKEN_BYTES:32}
+      rotation-grace-seconds: ${AUTH_ROTATION_GRACE_SECONDS:30}
+      staff-ttl-seconds: ${AUTH_STAFF_SESSION_TTL_SECONDS:28800}
+      staff-persistent-ttl-seconds: ${AUTH_STAFF_PERSISTENT_SESSION_TTL_SECONDS:604800}
+      partner-ttl-seconds: ${AUTH_PARTNER_SESSION_TTL_SECONDS:43200}
+      partner-persistent-ttl-seconds: ${AUTH_PARTNER_PERSISTENT_SESSION_TTL_SECONDS:2592000}
+      beauty-ttl-seconds: ${AUTH_BEAUTY_SESSION_TTL_SECONDS:43200}
+      beauty-persistent-ttl-seconds: ${AUTH_BEAUTY_PERSISTENT_SESSION_TTL_SECONDS:2592000}
+      user-ttl-seconds: ${AUTH_USER_SESSION_TTL_SECONDS:86400}
+      user-persistent-ttl-seconds: ${AUTH_USER_PERSISTENT_SESSION_TTL_SECONDS:7776000}
+      cleanup-cron: ${AUTH_SESSION_CLEANUP_CRON:0 20 4 * * *}
+    login-attempt:
+      max-attempts: ${AUTH_LOGIN_MAX_ATTEMPTS:5}
+      account-max-attempts: ${AUTH_LOGIN_ACCOUNT_MAX_ATTEMPTS:15}
+      window-seconds: ${AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS:600}
+    password-reset:
+      token-ttl-seconds: ${AUTH_PASSWORD_RESET_TOKEN_TTL_SECONDS:3600}
+      token-throttle-seconds: ${AUTH_PASSWORD_RESET_TOKEN_THROTTLE_SECONDS:60}
+      request-ip-max-attempts: ${AUTH_PASSWORD_RESET_REQUEST_IP_MAX_ATTEMPTS:10}
+      request-email-max-attempts: ${AUTH_PASSWORD_RESET_REQUEST_EMAIL_MAX_ATTEMPTS:3}
+      request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
+      verify-max-attempts: ${AUTH_PASSWORD_RESET_VERIFY_MAX_ATTEMPTS:30}
+      verify-window-seconds: ${AUTH_PASSWORD_RESET_VERIFY_WINDOW_SECONDS:600}
+      submit-max-attempts: ${AUTH_PASSWORD_RESET_SUBMIT_MAX_ATTEMPTS:10}
+      submit-window-seconds: ${AUTH_PASSWORD_RESET_SUBMIT_WINDOW_SECONDS:900}
+      mail-mode: ${PASSWORD_RESET_MAIL_MODE:smtp}
+      mail-from-address: ${MAIL_FROM_ADDRESS}
+      mail-from-name: ${MAIL_FROM_NAME:Medi}
+      service-name: ${SERVICE_NAME:Medi}
+      staff-url: ${PASSWORD_RESET_STAFF_URL}
+      partner-url: ${PASSWORD_RESET_PARTNER_URL}
+      beauty-url: ${PASSWORD_RESET_BEAUTY_URL}
+      user-url: ${PASSWORD_RESET_USER_URL}
   cache:
     staff-summary-ttl-seconds: ${STAFF_SUMMARY_CACHE_TTL_SECONDS:300}
   bootstrap:
@@ -41,6 +102,9 @@ app:
       name: ${STAFF_BOOTSTRAP_NAME:Medi Admin}
       nickname: ${STAFF_BOOTSTRAP_NICKNAME:admin}
       role: ${STAFF_BOOTSTRAP_ROLE:platform.super_admin}
+    partner-sample:
+      enabled: ${PARTNER_SAMPLE_BOOTSTRAP_ENABLED:false}
+      password: ${PARTNER_SAMPLE_BOOTSTRAP_PASSWORD:}
   media:
     storage:
       root: ${MEDIA_STORAGE_ROOT:./storage/media}

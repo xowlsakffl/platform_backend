@@ -16,6 +16,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSp
 
 	List<Category> findByIdIn(Collection<Long> ids);
 
+	List<Category> findByDomainAndCodeIn(CategoryDomain domain, Collection<String> codes);
+
 	List<Category> findAllByDomain(CategoryDomain domain, Sort sort);
 
 	Optional<Category> findByDomainAndCode(CategoryDomain domain, String code);

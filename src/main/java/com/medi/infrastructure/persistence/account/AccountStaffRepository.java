@@ -1,6 +1,8 @@
 package com.medi.infrastructure.persistence.account;
 
 import com.medi.domain.account.AccountStaff;
+import com.medi.domain.account.AccountStaffStatus;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,6 +20,23 @@ public interface AccountStaffRepository extends JpaRepository<AccountStaff, Long
 	boolean existsByNickname(String nickname);
 
 	Optional<AccountStaff> findByIdAndDeletedAtIsNull(Long id);
+
+	Optional<AccountStaff> findFirstByStatusAndDeletedAtIsNullOrderByIdAsc(AccountStaffStatus status);
+
+	@Query("""
+		select staff
+		from AccountStaff staff
+		where staff.deletedAt is null
+		  and staff.status = com.medi.domain.account.AccountStaffStatus.ACTIVE
+		  and (
+			:q is null
+			or lower(staff.name) like :q
+			or lower(staff.nickname) like :q
+			or lower(staff.email) like :q
+		  )
+		order by staff.name asc, staff.id asc
+		""")
+	List<AccountStaff> searchActiveOptions(@Param("q") String query);
 
 	@EntityGraph(attributePaths = {"roles", "roles.permissions"})
 	@Query("select staff from AccountStaff staff where staff.id = :id and staff.deletedAt is null")

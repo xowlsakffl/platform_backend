@@ -1,46 +1,39 @@
 package com.medi.common.security;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medi.common.error.ApiException;
 import com.medi.common.error.ErrorCode;
-import com.medi.common.error.InternalApplicationException;
 import com.medi.domain.account.AccountActorType;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtTokenService {
 
-	private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
-	private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
-	private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-	};
-
-	private final ObjectMapper objectMapper;
+	private final JwtEncoder jwtEncoder;
+	private final JwtDecoder jwtDecoder;
 	private final JwtProperties properties;
 	private final RevokedTokenStore revokedTokenStore;
 
 	public JwtTokenService(
-		ObjectMapper objectMapper,
+		JwtEncoder jwtEncoder,
+		JwtDecoder jwtDecoder,
 		JwtProperties properties,
 		RevokedTokenStore revokedTokenStore
 	) {
-		this.objectMapper = objectMapper;
+		this.jwtEncoder = jwtEncoder;
+		this.jwtDecoder = jwtDecoder;
 		this.properties = properties;
 		this.revokedTokenStore = revokedTokenStore;
 	}
@@ -48,168 +41,87 @@ public class JwtTokenService {
 	public String issue(AuthenticatedActor actor) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plusSeconds(properties.accessTokenTtlSeconds());
-
-		Map<String, Object> header = Map.of(
-			"alg", "HS256",
-			"typ", "JWT"
-		);
-		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("iss", properties.issuer());
-		payload.put("sub", actor.actorType().name() + ":" + actor.accountId());
-		payload.put("jti", UUID.randomUUID().toString());
-		payload.put("iat", now.getEpochSecond());
-		payload.put("exp", expiresAt.getEpochSecond());
-		payload.put("actor", actor.actorType().name());
-		payload.put("account_id", actor.accountId());
-		payload.put("hospital_id", actor.hospitalId());
-		payload.put("beauty_id", actor.beautyId());
-		payload.put("email", actor.email());
-		payload.put("name", actor.name());
-		payload.put("nickname", actor.nickname());
-		payload.put("permissions", actor.permissions().stream().sorted().toList());
-
-		String unsignedToken = encodeJson(header) + "." + encodeJson(payload);
-		return unsignedToken + "." + sign(unsignedToken);
+		JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
+			.issuer(properties.issuer())
+			.audience(List.of(properties.audience()))
+			.subject(actor.actorType().name() + ":" + actor.accountId())
+			.id(UUID.randomUUID().toString())
+			.issuedAt(now)
+			.notBefore(now)
+			.expiresAt(expiresAt)
+			.claim("sid", actor.sessionId())
+			.claim("actor", actor.actorType().name())
+			.claim("account_id", actor.accountId())
+			.claim("permissions", actor.permissions().stream().sorted().toList());
+		optionalClaim(claimsBuilder, "partner_id", actor.partnerId());
+		optionalClaim(claimsBuilder, "beauty_id", actor.beautyId());
+		optionalClaim(claimsBuilder, "email", actor.email());
+		optionalClaim(claimsBuilder, "name", actor.name());
+		optionalClaim(claimsBuilder, "nickname", actor.nickname());
+		JwtClaimsSet claims = claimsBuilder.build();
+		JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
+		return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
 	}
 
 	public AuthenticatedActor parse(String token) {
-		String[] parts = token.split("\\.");
-		if (parts.length != 3) {
+		Jwt jwt = decode(token);
+		if (revokedTokenStore.isRevoked(jwt.getId())) {
 			throw unauthorized();
 		}
 
-		String unsignedToken = parts[0] + "." + parts[1];
-		if (!MessageDigest.isEqual(sign(unsignedToken).getBytes(StandardCharsets.UTF_8), parts[2].getBytes(StandardCharsets.UTF_8))) {
+		try {
+			return new AuthenticatedActor(
+				AccountActorType.valueOf(jwt.getClaimAsString("actor")),
+				jwt.getClaim("account_id"),
+				jwt.getClaim("partner_id"),
+				jwt.getClaim("beauty_id"),
+				jwt.getClaimAsString("sid"),
+				jwt.getClaimAsString("email"),
+				jwt.getClaimAsString("name"),
+				jwt.getClaimAsString("nickname"),
+				permissions(jwt)
+			);
+		} catch (IllegalArgumentException | ClassCastException exception) {
 			throw unauthorized();
 		}
-
-		Map<String, Object> header = decodeJson(parts[0]);
-		if (!"HS256".equals(header.get("alg"))) {
-			throw unauthorized();
-		}
-
-		Map<String, Object> payload = decodeJson(parts[1]);
-		if (!properties.issuer().equals(payload.get("iss"))) {
-			throw unauthorized();
-		}
-		if (longValue(payload.get("exp")) < Instant.now().getEpochSecond()) {
-			throw unauthorized();
-		}
-		String tokenId = stringValue(payload.get("jti"));
-		if (revokedTokenStore.isRevoked(tokenId)) {
-			throw unauthorized();
-		}
-
-		AccountActorType actorType = actorType(payload.get("actor"));
-		return new AuthenticatedActor(
-			actorType,
-			longValue(payload.get("account_id")),
-			nullableLong(payload.get("hospital_id")),
-			nullableLong(payload.get("beauty_id")),
-			stringValue(payload.get("email")),
-			stringValue(payload.get("name")),
-			stringValue(payload.get("nickname")),
-			permissions(payload.get("permissions"))
-		);
 	}
 
 	public void revoke(String token) {
-		String[] parts = token == null ? new String[0] : token.split("\\.");
-		if (parts.length != 3) {
+		Jwt jwt = decode(token);
+		Instant expiresAt = jwt.getExpiresAt();
+		if (expiresAt == null || jwt.getId() == null) {
 			throw unauthorized();
 		}
-		String unsignedToken = parts[0] + "." + parts[1];
-		if (!MessageDigest.isEqual(
-			sign(unsignedToken).getBytes(StandardCharsets.UTF_8),
-			parts[2].getBytes(StandardCharsets.UTF_8)
-		)) {
-			throw unauthorized();
+		Duration remaining = Duration.between(Instant.now(), expiresAt);
+		if (!remaining.isNegative() && !remaining.isZero()) {
+			revokedTokenStore.revoke(jwt.getId(), remaining);
 		}
-		Map<String, Object> payload = decodeJson(parts[1]);
-		if (!properties.issuer().equals(payload.get("iss"))) {
-			throw unauthorized();
-		}
-		long expiresAt = longValue(payload.get("exp"));
-		long remainingSeconds = expiresAt - Instant.now().getEpochSecond();
-		if (remainingSeconds <= 0) {
-			return;
-		}
-		revokedTokenStore.revoke(stringValue(payload.get("jti")), Duration.ofSeconds(remainingSeconds));
 	}
 
 	public long accessTokenTtlSeconds() {
 		return properties.accessTokenTtlSeconds();
 	}
 
-	private String encodeJson(Map<String, Object> value) {
-		try {
-			return ENCODER.encodeToString(objectMapper.writeValueAsBytes(value));
-		} catch (JsonProcessingException exception) {
-			throw new InternalApplicationException("인증 토큰 payload를 만들 수 없습니다.", exception);
+	private void optionalClaim(JwtClaimsSet.Builder builder, String name, Object value) {
+		if (value != null) {
+			builder.claim(name, value);
 		}
 	}
 
-	private Map<String, Object> decodeJson(String value) {
+	private Jwt decode(String token) {
+		if (token == null || token.isBlank()) {
+			throw unauthorized();
+		}
 		try {
-			return objectMapper.readValue(DECODER.decode(value), MAP_TYPE);
-		} catch (IllegalArgumentException | IOException exception) {
+			return jwtDecoder.decode(token);
+		} catch (JwtException exception) {
 			throw unauthorized();
 		}
 	}
 
-	private String sign(String value) {
-		try {
-			Mac mac = Mac.getInstance("HmacSHA256");
-			mac.init(new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-			return ENCODER.encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
-		} catch (Exception exception) {
-			throw new InternalApplicationException("인증 토큰에 서명할 수 없습니다.", exception);
-		}
-	}
-
-	private AccountActorType actorType(Object value) {
-		try {
-			return AccountActorType.valueOf(stringValue(value));
-		} catch (IllegalArgumentException exception) {
-			throw unauthorized();
-		}
-	}
-
-	private Long nullableLong(Object value) {
-		if (value == null) {
-			return null;
-		}
-		return longValue(value);
-	}
-
-	private long longValue(Object value) {
-		if (value instanceof Number number) {
-			return number.longValue();
-		}
-		if (value instanceof String string && !string.isBlank()) {
-			return Long.parseLong(string);
-		}
-		throw unauthorized();
-	}
-
-	private String stringValue(Object value) {
-		if (value instanceof String string) {
-			return string;
-		}
-		throw unauthorized();
-	}
-
-	private Set<String> permissions(Object value) {
-		if (!(value instanceof List<?> list)) {
-			return Set.of();
-		}
-		Set<String> permissions = new LinkedHashSet<>();
-		for (Object item : list) {
-			if (item instanceof String permission && !permission.isBlank()) {
-				permissions.add(permission);
-			}
-		}
-		return permissions;
+	private Set<String> permissions(Jwt jwt) {
+		List<String> values = jwt.getClaimAsStringList("permissions");
+		return values == null ? Set.of() : Set.copyOf(values);
 	}
 
 	private ApiException unauthorized() {

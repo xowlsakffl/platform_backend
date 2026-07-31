@@ -111,6 +111,10 @@ public class AccountStaff extends BaseTimeEntity {
 		return password;
 	}
 
+	public void changePassword(String encodedPassword) {
+		this.password = Objects.requireNonNull(encodedPassword);
+	}
+
 	public AccountStaffStatus status() {
 		return status;
 	}

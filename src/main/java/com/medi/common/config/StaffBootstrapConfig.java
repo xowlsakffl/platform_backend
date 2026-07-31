@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 @EnableConfigurationProperties(StaffBootstrapProperties.class)
@@ -17,6 +18,7 @@ class StaffBootstrapConfig {
 	private static final Logger log = LoggerFactory.getLogger(StaffBootstrapConfig.class);
 
 	@Bean
+	@Order(100)
 	@ConditionalOnProperty(prefix = "app.bootstrap.staff", name = "enabled", havingValue = "true")
 	ApplicationRunner staffBootstrapRunner(
 		StaffBootstrapService bootstrapService,

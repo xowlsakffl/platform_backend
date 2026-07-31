@@ -14,3 +14,34 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  mail:
+    host: ${MAIL_HOST:localhost}
+
+app:
+  auth:
+    jwt:
+      secret: ${AUTH_JWT_SECRET:medi-local-development-jwt-secret-change-me-2026}
+    session:
+      cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    password-reset:
+      mail-mode: ${PASSWORD_RESET_MAIL_MODE:log}
+      mail-from-address: ${MAIL_FROM_ADDRESS:no-reply@medi.local}
+      staff-url: ${PASSWORD_RESET_STAFF_URL:http://localhost:4001/password/reset}
+      partner-url: ${PASSWORD_RESET_PARTNER_URL:http://localhost:4003/password/reset}
+      beauty-url: ${PASSWORD_RESET_BEAUTY_URL:http://localhost:4004/password/reset}
+      user-url: ${PASSWORD_RESET_USER_URL:http://localhost:4002/password/reset}
+  bootstrap:
+    staff-sample:
+      enabled: ${STAFF_SAMPLE_BOOTSTRAP_ENABLED:true}
+      email: ${STAFF_SAMPLE_BOOTSTRAP_EMAIL:staff@medi.local}
+      password: ${STAFF_SAMPLE_BOOTSTRAP_PASSWORD:Medi1234!}
+      name: ${STAFF_SAMPLE_BOOTSTRAP_NAME:일반 직원}
+      nickname: ${STAFF_SAMPLE_BOOTSTRAP_NICKNAME:medi_staff}
+    partner-sample:
+      enabled: ${PARTNER_SAMPLE_BOOTSTRAP_ENABLED:true}
+      password: ${PARTNER_SAMPLE_BOOTSTRAP_PASSWORD:Medi1234!}
+
+management:
+  health:
+    mail:
+      enabled: ${MAIL_HEALTH_ENABLED:false}

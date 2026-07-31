@@ -10,10 +10,14 @@ import org.springframework.stereotype.Service;
 public class PermissionService {
 
 	public void requireStaffPermission(AuthenticatedActor actor, String permission) {
-		requireActor(actor, AccountActorType.STAFF);
-		if (!actor.permissions().contains(permission)) {
+		if (!hasStaffPermission(actor, permission)) {
 			throw new ApiException(ErrorCode.FORBIDDEN);
 		}
+	}
+
+	public boolean hasStaffPermission(AuthenticatedActor actor, String permission) {
+		requireActor(actor, AccountActorType.STAFF);
+		return actor.permissions().contains(permission);
 	}
 
 	public void requireActor(AuthenticatedActor actor, AccountActorType actorType) {

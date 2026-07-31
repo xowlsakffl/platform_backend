@@ -16,9 +16,9 @@ import java.util.List;
 @Table(name = "operation_histories")
 public class OperationHistory extends BaseTimeEntity {
 
-	public static final String TARGET_HOSPITAL = "HOSPITAL";
+	public static final String TARGET_PARTNER = "PARTNER";
 	public static final String TARGET_CATEGORY = "CATEGORY";
-	public static final String TARGET_DOCTOR = "DOCTOR";
+	public static final String TARGET_SPECIALIST = "SPECIALIST";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

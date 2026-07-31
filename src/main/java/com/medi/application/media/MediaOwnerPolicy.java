@@ -8,37 +8,37 @@ import com.medi.common.security.AccessPermissions;
 import com.medi.domain.media.MediaOwnerType;
 import com.medi.domain.media.Media;
 import com.medi.domain.category.CategoryStatus;
-import com.medi.domain.doctor.DoctorAllowStatus;
-import com.medi.domain.doctor.DoctorStatus;
-import com.medi.domain.hospital.HospitalAllowStatus;
-import com.medi.domain.hospital.HospitalStatus;
+import com.medi.domain.specialist.SpecialistAllowStatus;
+import com.medi.domain.specialist.SpecialistStatus;
+import com.medi.domain.partner.PartnerAllowStatus;
+import com.medi.domain.partner.PartnerStatus;
 import com.medi.infrastructure.persistence.category.CategoryRepository;
-import com.medi.infrastructure.persistence.doctor.DoctorRepository;
-import com.medi.infrastructure.persistence.hospital.HospitalRepository;
-import com.medi.infrastructure.persistence.hospital.HospitalBusinessRegistrationRepository;
+import com.medi.infrastructure.persistence.specialist.SpecialistRepository;
+import com.medi.infrastructure.persistence.partner.PartnerRepository;
+import com.medi.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import org.springframework.stereotype.Component;
 
 @Component
 class MediaOwnerPolicy {
 
 	private final PermissionService permissionService;
-	private final HospitalRepository hospitalRepository;
-	private final HospitalBusinessRegistrationRepository businessRegistrationRepository;
+	private final PartnerRepository partnerRepository;
+	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final CategoryRepository categoryRepository;
-	private final DoctorRepository doctorRepository;
+	private final SpecialistRepository specialistRepository;
 
 	MediaOwnerPolicy(
 		PermissionService permissionService,
-		HospitalRepository hospitalRepository,
-		HospitalBusinessRegistrationRepository businessRegistrationRepository,
+		PartnerRepository partnerRepository,
+		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		CategoryRepository categoryRepository,
-		DoctorRepository doctorRepository
+		SpecialistRepository specialistRepository
 	) {
 		this.permissionService = permissionService;
-		this.hospitalRepository = hospitalRepository;
+		this.partnerRepository = partnerRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.categoryRepository = categoryRepository;
-		this.doctorRepository = doctorRepository;
+		this.specialistRepository = specialistRepository;
 	}
 
 	void requireReadable(AuthenticatedActor actor, MediaOwnerType ownerType, Long ownerId) {
@@ -52,14 +52,14 @@ class MediaOwnerPolicy {
 				&& categoryRepository.findById(media.ownerId())
 					.filter(category -> category.status() == CategoryStatus.ACTIVE)
 					.isPresent();
-			case DOCTOR -> MediaCollectionPolicy.DOCTOR_PROFILE_IMAGE.equals(media.collection())
-				&& doctorRepository.findByIdAndDeletedAtIsNullAndHospital_DeletedAtIsNull(media.ownerId())
-					.filter(doctor -> doctor.status() == DoctorStatus.VISIBLE)
-					.filter(doctor -> doctor.allowStatus() == DoctorAllowStatus.APPROVED)
-					.filter(doctor -> doctor.hospital().status() == HospitalStatus.ACTIVE)
-					.filter(doctor -> doctor.hospital().allowStatus() == HospitalAllowStatus.APPROVED)
+			case SPECIALIST -> MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE.equals(media.collection())
+				&& specialistRepository.findByIdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(media.ownerId())
+					.filter(specialist -> specialist.status() == SpecialistStatus.VISIBLE)
+					.filter(specialist -> specialist.allowStatus() == SpecialistAllowStatus.APPROVED)
+					.filter(specialist -> specialist.partner().status() == PartnerStatus.ACTIVE)
+					.filter(specialist -> specialist.partner().allowStatus() == PartnerAllowStatus.APPROVED)
 					.isPresent();
-			case HOSPITAL, HOSPITAL_BUSINESS_REGISTRATION -> false;
+			case PARTNER, PARTNER_BUSINESS_REGISTRATION -> false;
 		};
 		if (!readable) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "공개된 미디어를 찾을 수 없습니다.");
@@ -68,11 +68,11 @@ class MediaOwnerPolicy {
 
 	private void requireActiveOwner(MediaOwnerType ownerType, Long ownerId) {
 		boolean exists = switch (ownerType) {
-			case HOSPITAL -> hospitalRepository.existsByIdAndDeletedAtIsNull(ownerId);
-			case HOSPITAL_BUSINESS_REGISTRATION -> businessRegistrationRepository
-				.existsByIdAndHospital_DeletedAtIsNull(ownerId);
+			case PARTNER -> partnerRepository.existsByIdAndDeletedAtIsNull(ownerId);
+			case PARTNER_BUSINESS_REGISTRATION -> businessRegistrationRepository
+				.existsByIdAndPartner_DeletedAtIsNull(ownerId);
 			case CATEGORY -> categoryRepository.existsById(ownerId);
-			case DOCTOR -> doctorRepository.existsByIdAndDeletedAtIsNullAndHospital_DeletedAtIsNull(ownerId);
+			case SPECIALIST -> specialistRepository.existsByIdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(ownerId);
 		};
 		if (!exists) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "미디어 연결 대상을 찾을 수 없습니다.");
@@ -81,9 +81,9 @@ class MediaOwnerPolicy {
 
 	private String readPermission(MediaOwnerType ownerType) {
 		return switch (ownerType) {
-			case HOSPITAL, HOSPITAL_BUSINESS_REGISTRATION -> AccessPermissions.HOSPITAL_SHOW;
+			case PARTNER, PARTNER_BUSINESS_REGISTRATION -> AccessPermissions.PARTNER_SHOW;
 			case CATEGORY -> AccessPermissions.CATEGORY_MANAGE;
-			case DOCTOR -> AccessPermissions.DOCTOR_SHOW;
+			case SPECIALIST -> AccessPermissions.SPECIALIST_SHOW;
 		};
 	}
 

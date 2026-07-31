@@ -1,6 +1,50 @@
 Project medi_backend {
   database_type: 'MySQL'
-  Note: '현재 Flyway V1~V9 기준. 실행 기준은 src/main/resources/db/migration이다.'
+  Note: '현재 Flyway V1~V13 기준. 실행 기준은 src/main/resources/db/migration이다.'
+}
+
+Table auth_sessions {
+  id varchar(36) [pk]
+  actor_type varchar(20) [not null]
+  account_id bigint [not null]
+  refresh_token_hash char(64) [not null, unique]
+  previous_refresh_token_hash char(64)
+  previous_token_valid_until timestamp
+  persistent boolean [not null, default: false]
+  expires_at timestamp [not null]
+  last_used_at timestamp [not null]
+  revoked_at timestamp
+  revocation_reason varchar(80)
+  ip_address varchar(45)
+  user_agent varchar(500)
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (actor_type, account_id, revoked_at, expires_at)
+    expires_at
+    revoked_at
+  }
+
+  Note: 'Actor 공통 다형 인증 세션. account_id는 actor_type에 따라 계정 테이블을 가리키므로 물리 FK를 두지 않는다.'
+}
+
+Table password_reset_tokens {
+  id bigint [pk, increment]
+  actor_type varchar(20) [not null]
+  email varchar(255) [not null]
+  token_hash char(64) [not null]
+  issued_at timestamp [not null]
+  expires_at timestamp [not null]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (actor_type, email) [unique]
+    expires_at
+  }
+
+  Note: 'Actor 공통 비밀번호 재설정 토큰. 원문은 저장하지 않는다.'
 }
 
 Table account_staffs {
@@ -60,9 +104,9 @@ Table account_staff_roles {
   }
 }
 
-Table account_hospitals {
+Table account_partners {
   id bigint [pk, increment]
-  hospital_id bigint [not null, unique]
+  partner_id bigint [not null, unique]
   name varchar(255) [not null]
   nickname varchar(255) [not null, unique]
   email varchar(255) [not null, unique]
@@ -119,16 +163,17 @@ Table account_users {
   deleted_at timestamp
 }
 
-Table hospitals {
+Table partners {
   id bigint [pk, increment]
   name varchar(255) [not null, unique]
   description text
-  youtube_link varchar(500)
-  address varchar(255)
-  address_detail varchar(255)
+  instagram_link varchar(500)
+  kakao_link varchar(500)
+  road_address varchar(255)
+  jibun_address varchar(255)
   latitude varchar(50)
   longitude varchar(50)
-  consulting_hours text
+  operating_hours_notice text
   operation_hours json
   direction text
   view_count bigint [not null, default: 0]
@@ -136,14 +181,15 @@ Table hospitals {
   evaluation_average_rating decimal(2,1) [not null, default: 0.0]
   allow_status varchar(20) [not null, default: 'PENDING']
   status varchar(20) [not null, default: 'ACTIVE']
+  assigned_staff_id bigint
   created_at timestamp [not null]
   updated_at timestamp [not null]
   deleted_at timestamp
 }
 
-Table hospital_contacts {
+Table partner_contacts {
   id bigint [pk, increment]
-  hospital_id bigint [not null]
+  partner_id bigint [not null]
   contact_type varchar(40) [not null]
   value varchar(255) [not null]
   sort_order tinyint [not null, default: 0]
@@ -156,9 +202,9 @@ Table hospital_contacts {
   deleted_at timestamp
 }
 
-Table hospital_business_registrations {
+Table partner_business_registrations {
   id bigint [pk, increment]
-  hospital_id bigint [not null]
+  partner_id bigint [not null]
   business_number varchar(20) [not null, unique]
   company_name varchar(255) [not null]
   ceo_name varchar(100) [not null]
@@ -176,7 +222,7 @@ Table hospital_business_registrations {
   updated_at timestamp [not null]
 }
 
-Table hospital_features {
+Table partner_features {
   id bigint [pk, increment]
   code varchar(100) [not null, unique]
   name varchar(100) [not null]
@@ -186,30 +232,21 @@ Table hospital_features {
   updated_at timestamp [not null]
 }
 
-Table hospital_feature_assignments {
+Table partner_feature_assignments {
   id bigint [pk, increment]
-  hospital_id bigint [not null]
-  hospital_feature_id bigint [not null]
+  partner_id bigint [not null]
+  partner_feature_id bigint [not null]
   created_at timestamp [not null]
   updated_at timestamp [not null]
 
   indexes {
-    (hospital_id, hospital_feature_id) [unique]
+    (partner_id, partner_feature_id) [unique]
   }
 }
 
-Table hospital_interpretation_languages {
-  hospital_id bigint [not null]
-  language varchar(30) [not null]
-
-  indexes {
-    (hospital_id, language) [pk]
-  }
-}
-
-Table hospital_doctors {
+Table partner_specialists {
   id bigint [pk, increment]
-  hospital_id bigint [not null]
+  partner_id bigint [not null]
   sort_order int [not null, default: 0]
   name varchar(255) [not null]
   gender varchar(20)
@@ -309,13 +346,13 @@ Ref: staff_role_permissions.staff_role_id > staff_roles.id [delete: cascade]
 Ref: staff_role_permissions.staff_permission_id > staff_permissions.id [delete: cascade]
 Ref: account_staff_roles.account_staff_id > account_staffs.id [delete: cascade]
 Ref: account_staff_roles.staff_role_id > staff_roles.id [delete: cascade]
-Ref: account_hospitals.hospital_id > hospitals.id [delete: cascade]
-Ref: hospital_contacts.hospital_id > hospitals.id [delete: cascade]
-Ref: hospital_business_registrations.hospital_id > hospitals.id [delete: cascade]
-Ref: hospital_feature_assignments.hospital_id > hospitals.id [delete: cascade]
-Ref: hospital_feature_assignments.hospital_feature_id > hospital_features.id [delete: restrict]
-Ref: hospital_interpretation_languages.hospital_id > hospitals.id [delete: cascade]
-Ref: hospital_doctors.hospital_id > hospitals.id [delete: cascade]
+Ref: account_partners.partner_id > partners.id [delete: cascade]
+Ref: partners.assigned_staff_id > account_staffs.id [delete: set null]
+Ref: partner_contacts.partner_id > partners.id [delete: cascade]
+Ref: partner_business_registrations.partner_id > partners.id [delete: cascade]
+Ref: partner_feature_assignments.partner_id > partners.id [delete: cascade]
+Ref: partner_feature_assignments.partner_feature_id > partner_features.id [delete: restrict]
+Ref: partner_specialists.partner_id > partners.id [delete: cascade]
 Ref: categories.parent_id > categories.id
 Ref: category_assignments.category_id > categories.id [delete: restrict]
 Ref: operation_history_changes.operation_history_id > operation_histories.id [delete: cascade]

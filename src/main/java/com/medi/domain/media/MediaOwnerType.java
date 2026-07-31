@@ -1,8 +1,8 @@
 package com.medi.domain.media;
 
 public enum MediaOwnerType {
-	HOSPITAL,
-	HOSPITAL_BUSINESS_REGISTRATION,
+	PARTNER,
+	PARTNER_BUSINESS_REGISTRATION,
 	CATEGORY,
-	DOCTOR
+	SPECIALIST
 }

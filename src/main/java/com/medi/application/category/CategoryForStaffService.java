@@ -569,9 +569,6 @@ public class CategoryForStaffService {
 
 	private CategoryGroup resolveGroup(CategoryDomain domain, Category parent, CategoryGroup requested) {
 		if (parent == null) {
-			if (domain == CategoryDomain.MEDICAL && requested == null) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "의료 대카테고리는 성형 또는 시술 그룹이 필요합니다.");
-			}
 			return requested;
 		}
 		if (requested != null && requested != parent.groupCode()) {

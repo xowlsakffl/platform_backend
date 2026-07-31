@@ -10,40 +10,41 @@ import org.springframework.stereotype.Component;
 @Component
 public class MediaCollectionPolicy {
 
-	public static final String HOSPITAL_LOGO = "logo";
-	public static final String HOSPITAL_GALLERY = "gallery";
-	public static final String HOSPITAL_BUSINESS_REGISTRATION_FILE = "business_registration_file";
+	public static final String PARTNER_LOGO = "logo";
+	public static final String PARTNER_MAIN_IMAGE = "main_image";
+	public static final String PARTNER_INTERIOR_IMAGE = "interior_image";
+	public static final String PARTNER_BUSINESS_REGISTRATION_FILE = "business_registration_file";
 	public static final String CATEGORY_ICON = "icon";
-	public static final String DOCTOR_PROFILE_IMAGE = "profile_image";
-	public static final String DOCTOR_LICENSE_IMAGE = "license_image";
-	public static final String DOCTOR_SPECIALIST_CERTIFICATE_IMAGE = "specialist_certificate_image";
+	public static final String SPECIALIST_PROFILE_IMAGE = "profile_image";
+	public static final String SPECIALIST_LICENSE_IMAGE = "license_image";
+	public static final String SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE = "specialist_certificate_image";
 
 	private static final long CATEGORY_ICON_MAX_SIZE = 5L * 1024 * 1024;
-	private static final long HOSPITAL_LOGO_MAX_SIZE = 5L * 1024 * 1024;
-	private static final long HOSPITAL_GALLERY_MAX_SIZE = 10L * 1024 * 1024;
-	private static final long HOSPITAL_DOCUMENT_MAX_SIZE = 10L * 1024 * 1024;
-	private static final long DOCTOR_PROFILE_MAX_SIZE = 5L * 1024 * 1024;
-	private static final long DOCTOR_DOCUMENT_MAX_SIZE = 10L * 1024 * 1024;
+	private static final long PARTNER_LOGO_MAX_SIZE = 5L * 1024 * 1024;
+	private static final long PARTNER_IMAGE_MAX_SIZE = 10L * 1024 * 1024;
+	private static final long PARTNER_DOCUMENT_MAX_SIZE = 10L * 1024 * 1024;
+	private static final long SPECIALIST_PROFILE_MAX_SIZE = 5L * 1024 * 1024;
+	private static final long SPECIALIST_DOCUMENT_MAX_SIZE = 10L * 1024 * 1024;
 	private static final Set<String> APP_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
-	private static final Set<String> HOSPITAL_GALLERY_TYPES = Set.of("image/jpeg", "image/png");
+	private static final Set<String> PARTNER_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 	private static final Set<String> DOCUMENT_TYPES = Set.of(
 		"image/jpeg",
 		"image/png",
 		"image/webp",
 		"application/pdf"
 	);
-	private static final Set<String> DOCTOR_COLLECTIONS = Set.of(
-		DOCTOR_PROFILE_IMAGE,
-		DOCTOR_LICENSE_IMAGE,
-		DOCTOR_SPECIALIST_CERTIFICATE_IMAGE
+	private static final Set<String> SPECIALIST_COLLECTIONS = Set.of(
+		SPECIALIST_PROFILE_IMAGE,
+		SPECIALIST_LICENSE_IMAGE,
+		SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE
 	);
 
 	public void validateCollection(MediaOwnerType ownerType, String collection) {
 		boolean valid = switch (ownerType) {
-			case HOSPITAL -> Set.of(HOSPITAL_LOGO, HOSPITAL_GALLERY).contains(collection);
-			case HOSPITAL_BUSINESS_REGISTRATION -> HOSPITAL_BUSINESS_REGISTRATION_FILE.equals(collection);
+			case PARTNER -> Set.of(PARTNER_LOGO, PARTNER_MAIN_IMAGE, PARTNER_INTERIOR_IMAGE).contains(collection);
+			case PARTNER_BUSINESS_REGISTRATION -> PARTNER_BUSINESS_REGISTRATION_FILE.equals(collection);
 			case CATEGORY -> CATEGORY_ICON.equals(collection);
-			case DOCTOR -> DOCTOR_COLLECTIONS.contains(collection);
+			case SPECIALIST -> SPECIALIST_COLLECTIONS.contains(collection);
 		};
 		if (!valid) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "해당 도메인에서 사용할 수 없는 미디어 컬렉션입니다.");
@@ -53,34 +54,34 @@ public class MediaCollectionPolicy {
 	public void validateFile(MediaOwnerType ownerType, String collection, StoredMediaFile file) {
 		validateCollection(ownerType, collection);
 		switch (ownerType) {
-			case HOSPITAL -> validateHospitalFile(collection, file);
-			case HOSPITAL_BUSINESS_REGISTRATION -> requireTypeAndSize(
+			case PARTNER -> validatePartnerFile(collection, file);
+			case PARTNER_BUSINESS_REGISTRATION -> requireTypeAndSize(
 				file,
 				DOCUMENT_TYPES,
-				HOSPITAL_DOCUMENT_MAX_SIZE,
+				PARTNER_DOCUMENT_MAX_SIZE,
 				"사업자등록증은 JPG, PNG, WebP, PDF 10MB 이하만 가능합니다."
 			);
 			case CATEGORY -> validateCategoryIcon(file);
-			case DOCTOR -> validateDoctorFile(collection, file);
+			case SPECIALIST -> validateSpecialistFile(collection, file);
 		}
 	}
 
-	private void validateHospitalFile(String collection, StoredMediaFile file) {
-		if (HOSPITAL_LOGO.equals(collection)) {
-			requireTypeAndSize(file, APP_IMAGE_TYPES, HOSPITAL_LOGO_MAX_SIZE, "병원 로고는 JPG, PNG, WebP 5MB 이하만 가능합니다.");
+	private void validatePartnerFile(String collection, StoredMediaFile file) {
+		if (PARTNER_LOGO.equals(collection)) {
+			requireTypeAndSize(file, APP_IMAGE_TYPES, PARTNER_LOGO_MAX_SIZE, "파트너 로고는 JPG, PNG, WebP 5MB 이하만 가능합니다.");
 			if (file.width() == null || file.height() == null || !file.width().equals(file.height())) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "병원 로고는 1:1 비율이어야 합니다.");
+				throw new ApiException(ErrorCode.INVALID_REQUEST, "파트너 로고는 1:1 비율이어야 합니다.");
 			}
 			return;
 		}
 		requireTypeAndSize(
 			file,
-			HOSPITAL_GALLERY_TYPES,
-			HOSPITAL_GALLERY_MAX_SIZE,
-			"병원 대표/내부 이미지는 JPG, PNG 10MB 이하만 가능합니다."
+			PARTNER_IMAGE_TYPES,
+			PARTNER_IMAGE_MAX_SIZE,
+			"파트너 대표/내부 이미지는 JPG, PNG 10MB 이하만 가능합니다."
 		);
 		if (file.width() == null || file.height() == null || file.width() != 760 || file.height() != 490) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "병원 대표/내부 이미지는 760x490 크기여야 합니다.");
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "파트너 대표/내부 이미지는 760x490 크기여야 합니다.");
 		}
 	}
 
@@ -88,24 +89,24 @@ public class MediaCollectionPolicy {
 		requireTypeAndSize(file, APP_IMAGE_TYPES, CATEGORY_ICON_MAX_SIZE, "카테고리 아이콘은 JPG, PNG, WebP 5MB 이하만 가능합니다.");
 	}
 
-	private void validateDoctorFile(String collection, StoredMediaFile file) {
-		if (DOCTOR_PROFILE_IMAGE.equals(collection)) {
+	private void validateSpecialistFile(String collection, StoredMediaFile file) {
+		if (SPECIALIST_PROFILE_IMAGE.equals(collection)) {
 			requireTypeAndSize(
 				file,
 				APP_IMAGE_TYPES,
-				DOCTOR_PROFILE_MAX_SIZE,
-				"의료진 프로필은 JPG, PNG, WebP 5MB 이하만 가능합니다."
+				SPECIALIST_PROFILE_MAX_SIZE,
+				"스페셜리스트 프로필은 JPG, PNG, WebP 5MB 이하만 가능합니다."
 			);
 			if (file.width() == null || file.height() == null || !file.width().equals(file.height())) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "의료진 프로필 이미지는 1:1 비율이어야 합니다.");
+				throw new ApiException(ErrorCode.INVALID_REQUEST, "스페셜리스트 프로필 이미지는 1:1 비율이어야 합니다.");
 			}
 			return;
 		}
 		requireTypeAndSize(
 			file,
 			DOCUMENT_TYPES,
-			DOCTOR_DOCUMENT_MAX_SIZE,
-			"의료진 증빙 파일은 JPG, PNG, WebP, PDF 10MB 이하만 가능합니다."
+			SPECIALIST_DOCUMENT_MAX_SIZE,
+			"스페셜리스트 증빙 파일은 JPG, PNG, WebP, PDF 10MB 이하만 가능합니다."
 		);
 	}
 

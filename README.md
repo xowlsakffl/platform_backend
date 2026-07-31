@@ -39,10 +39,10 @@ cd /home/medi/medi_backend
 ```text
 MySQL: localhost:3306 / database=medi / username=medi / password=medi
 Redis: localhost:6379 / password=myStrongRedisPassword
-API:   http://localhost:8080
+API:   http://localhost:8081
 ```
 
-환경 변수 목록은 [.env.example](./.env.example)을 따른다. 로컬 CORS 기본 허용 origin은 `localhost:3000`, `3001`, `3002`다.
+환경 변수 목록은 [.env.example](./.env.example)을 따른다. 로컬 CORS 기본 허용 origin은 `localhost:4001`, `4002`, `4003`, `4004`다.
 
 ## 최초 Staff 계정
 
@@ -57,21 +57,57 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 
 기본 역할은 `platform.super_admin`이다. 계정 생성 뒤 `STAFF_BOOTSTRAP_ENABLED`를 제거하거나 `false`로 바꾼다.
 
+## 로컬 일반 직원 샘플 계정
+
+`local` 프로필에서는 담당 직원 지정 권한이 없는 `platform.staff` 역할의 비교용 계정을 자동 생성한다.
+
+- 이메일: `staff@medi.local`
+- 비밀번호: `Medi1234!`
+- 역할: `platform.staff`
+- 파트너 목록 조회와 미지정 파트너의 자기 담당 등록은 가능
+- 다른 직원 지정·변경과 직원 선택 목록 조회는 불가
+
+환경 변수 `STAFF_SAMPLE_BOOTSTRAP_ENABLED=false`로 생성을 끌 수 있다. 동일 이메일 계정이 이미 있으면 비밀번호는 변경하지 않고 `platform.staff` 역할만 확인한다.
+
+## 로컬 파트너 샘플 데이터
+
+영구 기준 데이터는 Flyway migration으로 관리하고, 화면 개발용 파트너 데이터는 `local` 프로필의 부트스트랩에서 생성한다. 로컬에서는 기본 활성화되며 같은 파트너명, 계정 이메일·닉네임 또는 사업자등록번호가 있으면 중복 생성하지 않는다.
+
+- 가상 파트너 8곳과 각 파트너의 1:1 파트너 관리자 계정
+- 신청·승인·반려 승인상태와 정상·운영중지·탈퇴 운영상태
+- 연락처, 사업자 정보, 파트너 특징, 1뎁스 파트너 분류
+- 계정: `partner01@medi.local` ~ `partner08@medi.local`
+- 공통 비밀번호: `Medi1234!`
+- 미디어 파일은 생성하지 않음
+
+환경 변수로 실행 여부와 공통 비밀번호를 바꿀 수 있다.
+
+```bash
+PARTNER_SAMPLE_BOOTSTRAP_ENABLED=true \
+PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
+./gradlew bootRun
+```
+
+샘플이 이미 생성된 뒤 비밀번호 설정만 바꿔도 기존 계정 비밀번호는 변경하지 않는다. 다시 생성하려면 해당 샘플 데이터를 직접 정리해야 한다.
+
 ## 현재 구현 범위
 
 - 공통 API 응답, 페이지네이션, 예외 처리, 요청 추적
-- Staff, Hospital, Beauty, User 이메일 로그인·내 정보·로그아웃
-- JWT 인증과 Redis 기반 로그아웃 토큰 폐기
-- Staff 역할·권한 검사와 Hospital 소유권 검사
-- Hospital Staff 목록·상세·등록·부분수정·상태·검수·삭제·이력·요약
-- 병원 연락처, 사업자 정보, 특징 12개, 통역 가능 언어 5개
+- Staff, Partner, Beauty, User 이메일 로그인·내 정보·현재/전체 로그아웃
+- 15분 JWT 액세스 토큰과 MySQL 기반 회전형 리프레시 세션
+- HttpOnly 보안 쿠키, Redis 로그인 제한·로그아웃 토큰 폐기
+- 네 Actor 비밀번호 찾기·일회용 재설정 링크·변경 후 전체 세션 폐기
+- Staff 역할·권한 검사와 Partner 소유권 검사
+- Partner Staff 목록·상세·등록·부분수정·로그인·승인·운영상태 변경·삭제·이력·요약
+- 파트너별 내부 담당 직원 지정·변경·해제, 일반 직원 자기 담당 등록·해제
+- 파트너 연락처, 사업자 정보, 특징 12개
 - Category Staff 관리 API와 사용처 selector
-- Hospital Medical 3단계 카테고리 기준 데이터
-- Doctor Staff 관리 API와 Hospital 자기 병원 관리 API
-- Hospital, Category, Doctor 미디어 저장·교체·조회·삭제 연동
-- 앱 공개용 Category 아이콘과 승인·노출 Doctor 프로필 조회
+- BEAUTY 1뎁스 파트너 분류 기준 데이터
+- Specialist Staff 관리 API와 Partner 자기 스페셜리스트 관리 API
+- Partner, Category, Specialist 미디어 저장·교체·조회·삭제 연동
+- 앱 공개용 Category 아이콘과 승인·노출 Specialist 프로필 조회
 
-이벤트, 후기, 평가 작성, 채팅, 알림, 신고, 큐, 스케줄러는 아직 구현 범위가 아니다. 현재 Hospital·Doctor 응답의 이벤트/후기 집계값은 관련 도메인 이식 전까지 `0`이다.
+이벤트, 후기, 평가 작성, 채팅, 알림, 신고, 큐, 스케줄러는 아직 구현 범위가 아니다. 현재 Partner·Specialist 응답의 이벤트/후기 집계값은 관련 도메인 이식 전까지 `0`이다.
 
 ## 검증 기준
 

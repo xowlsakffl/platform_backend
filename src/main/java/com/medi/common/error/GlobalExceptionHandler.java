@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.security.access.AccessDeniedException;
@@ -46,6 +47,18 @@ class GlobalExceptionHandler {
 	@ExceptionHandler(ApiException.class)
 	ResponseEntity<ApiResponse.Failure> handleApiException(ApiException exception, HttpServletRequest request) {
 		return error(exception.errorCode(), exception.getMessage(), exception.details(), request);
+	}
+
+	@ExceptionHandler(RateLimitException.class)
+	ResponseEntity<ApiResponse.Failure> handleRateLimitException(
+		RateLimitException exception,
+		HttpServletRequest request
+	) {
+		ApiError error = ApiError.of(exception.errorCode(), exception.getMessage(), exception.details());
+		return ResponseEntity
+			.status(exception.errorCode().httpStatus())
+			.header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))
+			.body(ApiResponse.error(error, RequestTrace.traceId(request)));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

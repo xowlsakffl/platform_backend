@@ -1,13 +1,29 @@
 package com.medi.common.security;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties(prefix = "app.auth.jwt")
+@Validated
 public class JwtProperties {
 
+	@NotBlank
 	private String issuer = "medi_backend";
-	private String secret = "local-medi-auth-secret-change-before-production";
-	private long accessTokenTtlSeconds = 7200;
+
+	@NotBlank
+	private String audience = "medi-api";
+
+	@NotBlank
+	@Size(min = 32)
+	private String secret;
+
+	@Min(300)
+	@Max(3600)
+	private long accessTokenTtlSeconds = 900;
 
 	public String issuer() {
 		return issuer;
@@ -15,6 +31,14 @@ public class JwtProperties {
 
 	public void setIssuer(String issuer) {
 		this.issuer = issuer;
+	}
+
+	public String audience() {
+		return audience;
+	}
+
+	public void setAudience(String audience) {
+		this.audience = audience;
 	}
 
 	public String secret() {

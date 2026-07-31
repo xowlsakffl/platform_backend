@@ -16,9 +16,9 @@ public class OwnershipPolicy {
 		this.permissionService = permissionService;
 	}
 
-	public void requireHospitalOwner(AuthenticatedActor actor, Long hospitalId) {
-		permissionService.requireActor(actor, AccountActorType.HOSPITAL);
-		if (!Objects.equals(actor.hospitalId(), hospitalId)) {
+	public void requirePartnerOwner(AuthenticatedActor actor, Long partnerId) {
+		permissionService.requireActor(actor, AccountActorType.PARTNER);
+		if (!Objects.equals(actor.partnerId(), partnerId)) {
 			throw new ApiException(ErrorCode.FORBIDDEN);
 		}
 	}
