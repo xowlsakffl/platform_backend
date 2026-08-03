@@ -1,4 +1,4 @@
-# Medi Backend 작업 기준
+# Platform Backend 작업 기준
 
 이 파일은 백엔드 작업의 에이전트 진입 문서다.
 
@@ -14,15 +14,14 @@
 
 1. 사용자가 명시적으로 확정한 정책
 2. 이 저장소의 최신 문서
-3. 이식 기준 구현의 실제 비즈니스 동작
-4. 현재 코드
+3. 현재 코드의 실제 비즈니스 동작
 
-외부 프레임워크의 파일 구조를 복사하지 않는다. Request 검증, 권한, 상태 전이, 트랜잭션, 조회 조건, 응답 조립, 삭제 부수 효과가 Spring Boot 구조에서 빠짐없이 동작하게 옮긴다.
+정책과 코드가 충돌하면 임의로 기존 동작을 유지하지 않고 최신 확정 정책을 기준으로 영향 범위를 확인한다. Request 검증, 권한, 상태 전이, 트랜잭션, 조회 조건, 응답 조립, 삭제 부수 효과를 함께 점검한다.
 
-## 도메인 이식 절차
+## 도메인 구현 절차
 
-1. 기준 구현의 Controller, Request, Action, Query, DTO, Policy, Model, migration을 모두 확인한다.
-2. 사용자가 확정한 변경 정책을 분리한다.
+1. 관련 문서, Controller, Request, Command/Query, DTO, Policy, Entity, migration을 확인한다.
+2. 확정 정책과 현재 구현의 차이 및 영향 범위를 정리한다.
 3. 현재 문서에 상태, 권한, 입력, 공개 범위, 삭제 정책을 반영한다.
 4. HTTP Request와 Bean Validation을 구현한다.
 5. application의 Command/Query, Service, Result를 구현한다.
@@ -41,7 +40,7 @@
 - infrastructure는 JPA, Redis, 파일 저장소 같은 외부 연동을 담당한다.
 - `package-info.java`는 만들지 않는다.
 - 테스트 코드는 현재 단계에서 추가하지 않는다.
-- 인증 변경은 네 Actor의 경로, 세션 만료, 쿠키 경로, CORS를 함께 점검한다.
+- 인증 변경은 `Staff`, `Partner`, `User` 세 Actor의 경로, 세션 만료, 쿠키 경로, CORS를 함께 점검한다.
 - 웹 access token과 인증 사용자 정보는 브라우저 영구 저장소에 기록하지 않는다.
 - refresh token 원문은 DB와 로그에 남기지 않고 HttpOnly 쿠키로만 전달한다.
 
@@ -63,7 +62,7 @@
 
 ## 변경 안전성
 
-- 파트너·의료진·카테고리·미디어 변경은 하나의 트랜잭션 경계를 검토한다.
+- Partner·Specialist·Category·Media 변경은 하나의 트랜잭션 경계를 검토한다.
 - 미디어 신규 파일은 롤백 시 삭제하고, 교체된 파일은 DB 커밋 뒤 삭제한다.
 - soft delete 대상의 연결 미디어와 카테고리 할당, 운영 이력 부수 효과를 함께 점검한다.
 - 목록의 파생 집계값을 임의 상수로 추가하지 않는다. 의존 도메인이 없으면 미구현 사실을 문서화한다.

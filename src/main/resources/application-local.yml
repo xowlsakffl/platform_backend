@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/medi?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:medi}
-    password: ${DB_PASSWORD:medi}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:platform}
+    password: ${DB_PASSWORD:platform}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -20,26 +20,32 @@ spring:
 app:
   auth:
     jwt:
-      secret: ${AUTH_JWT_SECRET:medi-local-development-jwt-secret-change-me-2026}
+      secret: ${AUTH_JWT_SECRET:platform-local-development-jwt-secret-change-me-2026}
     session:
       cookie-secure: ${AUTH_COOKIE_SECURE:false}
     password-reset:
       mail-mode: ${PASSWORD_RESET_MAIL_MODE:log}
-      mail-from-address: ${MAIL_FROM_ADDRESS:no-reply@medi.local}
+      mail-from-address: ${MAIL_FROM_ADDRESS:no-reply@platform.local}
       staff-url: ${PASSWORD_RESET_STAFF_URL:http://localhost:4001/password/reset}
       partner-url: ${PASSWORD_RESET_PARTNER_URL:http://localhost:4003/password/reset}
-      beauty-url: ${PASSWORD_RESET_BEAUTY_URL:http://localhost:4004/password/reset}
       user-url: ${PASSWORD_RESET_USER_URL:http://localhost:4002/password/reset}
   bootstrap:
+    staff:
+      enabled: ${STAFF_BOOTSTRAP_ENABLED:true}
+      email: ${STAFF_BOOTSTRAP_EMAIL:admin@platform.local}
+      password: ${STAFF_BOOTSTRAP_PASSWORD:Platform1234!}
+      name: ${STAFF_BOOTSTRAP_NAME:최고 관리자}
+      nickname: ${STAFF_BOOTSTRAP_NICKNAME:platform_admin}
+      role: ${STAFF_BOOTSTRAP_ROLE:platform.super_admin}
     staff-sample:
       enabled: ${STAFF_SAMPLE_BOOTSTRAP_ENABLED:true}
-      email: ${STAFF_SAMPLE_BOOTSTRAP_EMAIL:staff@medi.local}
-      password: ${STAFF_SAMPLE_BOOTSTRAP_PASSWORD:Medi1234!}
+      email: ${STAFF_SAMPLE_BOOTSTRAP_EMAIL:staff@platform.local}
+      password: ${STAFF_SAMPLE_BOOTSTRAP_PASSWORD:Platform1234!}
       name: ${STAFF_SAMPLE_BOOTSTRAP_NAME:일반 직원}
-      nickname: ${STAFF_SAMPLE_BOOTSTRAP_NICKNAME:medi_staff}
+      nickname: ${STAFF_SAMPLE_BOOTSTRAP_NICKNAME:platform_staff}
     partner-sample:
       enabled: ${PARTNER_SAMPLE_BOOTSTRAP_ENABLED:true}
-      password: ${PARTNER_SAMPLE_BOOTSTRAP_PASSWORD:Medi1234!}
+      password: ${PARTNER_SAMPLE_BOOTSTRAP_PASSWORD:Platform1234!}
 
 management:
   health:

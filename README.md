@@ -1,6 +1,8 @@
-# medi_backend
+# platform_backend
 
-성형·뷰티 플랫폼의 Spring Boot 백엔드 단일 애플리케이션이다. 프론트엔드 저장소와 분리해 운영하며, 백엔드는 도메인 기준 패키지를 가진 모듈형 모놀리스로 개발한다.
+반영구, 에스테틱, 미용실, 왁싱, 타투, 네일아트, 마사지 등을 다루는 K-뷰티 플랫폼의 Spring Boot 백엔드 단일 애플리케이션이다. 프론트엔드 저장소와 분리해 운영하며, 백엔드는 도메인 기준 패키지를 가진 모듈형 모놀리스로 개발한다.
+
+MVP는 유저가 Partner, Specialist, Event를 탐색하고 상담/예약을 요청하는 흐름까지 제공한다. 앱 내 결제와 정산은 현재 범위에 포함하지 않는다.
 
 ## 기술 기준
 
@@ -12,6 +14,7 @@
 ## 문서
 
 - [작업 기준](./AGENTS.md)
+- [K-Beauty 플랫폼 MVP 기획](./docs/k-beauty-platform-mvp-plan.md)
 - [문서 인덱스](./docs/README.md)
 - [아키텍처와 디렉터리](./docs/architecture.md)
 - [API 응답과 예외](./docs/api-response.md)
@@ -30,14 +33,14 @@ Docker 없이 WSL의 MySQL과 Redis를 사용한다.
 ```bash
 sudo service mysql start
 sudo service redis-server start
-cd /home/medi/medi_backend
+cd /home/platform/platform_backend
 ./gradlew bootRun
 ```
 
 기본 로컬 연결값은 다음과 같다.
 
 ```text
-MySQL: localhost:3306 / database=medi / username=medi / password=medi
+MySQL: localhost:3306 / database=platform / username=platform / password=platform
 Redis: localhost:6379 / password=myStrongRedisPassword
 API:   http://localhost:8081
 ```
@@ -50,7 +53,7 @@ API:   http://localhost:8081
 
 ```bash
 STAFF_BOOTSTRAP_ENABLED=true \
-STAFF_BOOTSTRAP_EMAIL=admin@medi.local \
+STAFF_BOOTSTRAP_EMAIL=admin@platform.local \
 STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 ./gradlew bootRun
 ```
@@ -61,8 +64,8 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 
 `local` 프로필에서는 담당 직원 지정 권한이 없는 `platform.staff` 역할의 비교용 계정을 자동 생성한다.
 
-- 이메일: `staff@medi.local`
-- 비밀번호: `Medi1234!`
+- 이메일: `staff@platform.local`
+- 비밀번호: `Platform1234!`
 - 역할: `platform.staff`
 - 파트너 목록 조회와 미지정 파트너의 자기 담당 등록은 가능
 - 다른 직원 지정·변경과 직원 선택 목록 조회는 불가
@@ -76,8 +79,8 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 - 가상 파트너 8곳과 각 파트너의 1:1 파트너 관리자 계정
 - 신청·승인·반려 승인상태와 정상·운영중지·탈퇴 운영상태
 - 연락처, 사업자 정보, 파트너 특징, 1뎁스 파트너 분류
-- 계정: `partner01@medi.local` ~ `partner08@medi.local`
-- 공통 비밀번호: `Medi1234!`
+- 계정: `partner01@platform.local` ~ `partner08@platform.local`
+- 공통 비밀번호: `Platform1234!`
 - 미디어 파일은 생성하지 않음
 
 환경 변수로 실행 여부와 공통 비밀번호를 바꿀 수 있다.
@@ -93,21 +96,21 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 ## 현재 구현 범위
 
 - 공통 API 응답, 페이지네이션, 예외 처리, 요청 추적
-- Staff, Partner, Beauty, User 이메일 로그인·내 정보·현재/전체 로그아웃
+- Staff, Partner, User 이메일 로그인·내 정보·현재/전체 로그아웃
 - 15분 JWT 액세스 토큰과 MySQL 기반 회전형 리프레시 세션
 - HttpOnly 보안 쿠키, Redis 로그인 제한·로그아웃 토큰 폐기
-- 네 Actor 비밀번호 찾기·일회용 재설정 링크·변경 후 전체 세션 폐기
+- 세 Actor 비밀번호 찾기·일회용 재설정 링크·변경 후 전체 세션 폐기
 - Staff 역할·권한 검사와 Partner 소유권 검사
-- Partner Staff 목록·상세·등록·부분수정·로그인·승인·운영상태 변경·삭제·이력·요약
+- Staff용 Partner 목록·상세·등록·부분수정·승인·운영상태 변경·삭제·이력·요약
 - 파트너별 내부 담당 직원 지정·변경·해제, 일반 직원 자기 담당 등록·해제
 - 파트너 연락처, 사업자 정보, 특징 12개
 - Category Staff 관리 API와 사용처 selector
-- BEAUTY 1뎁스 파트너 분류 기준 데이터
+- PARTNER 1뎁스 파트너 분류 기준 데이터
 - Specialist Staff 관리 API와 Partner 자기 스페셜리스트 관리 API
 - Partner, Category, Specialist 미디어 저장·교체·조회·삭제 연동
 - 앱 공개용 Category 아이콘과 승인·노출 Specialist 프로필 조회
 
-이벤트, 후기, 평가 작성, 채팅, 알림, 신고, 큐, 스케줄러는 아직 구현 범위가 아니다. 현재 Partner·Specialist 응답의 이벤트/후기 집계값은 관련 도메인 이식 전까지 `0`이다.
+이벤트, 후기, 평가 작성, 채팅, 알림, 신고, 큐, 스케줄러는 아직 구현 범위가 아니다. 현재 Partner·Specialist 응답의 이벤트/후기 집계값은 관련 도메인이 구현될 때까지 `0`이다.
 
 ## 검증 기준
 

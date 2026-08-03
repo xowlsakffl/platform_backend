@@ -1,4 +1,4 @@
-Project medi_backend {
+Project platform_backend {
   database_type: 'MySQL'
   Note: '현재 Flyway V1~V13 기준. 실행 기준은 src/main/resources/db/migration이다.'
 }
@@ -120,21 +120,6 @@ Table account_partners {
   deleted_at timestamp
 }
 
-Table account_beauties {
-  id bigint [pk, increment]
-  beauty_id bigint [unique]
-  name varchar(255) [not null]
-  nickname varchar(255) [not null, unique]
-  email varchar(255) [not null, unique]
-  phone varchar(50)
-  email_verified_at timestamp
-  password varchar(255) [not null]
-  status varchar(20) [not null, default: 'SUSPENDED']
-  last_login_at timestamp
-  created_at timestamp [not null]
-  updated_at timestamp [not null]
-  deleted_at timestamp
-}
 
 Table account_users {
   id bigint [pk, increment]
@@ -167,10 +152,10 @@ Table partners {
   id bigint [pk, increment]
   name varchar(255) [not null, unique]
   description text
-  instagram_link varchar(500)
-  kakao_link varchar(500)
+  industry varchar(40)
   road_address varchar(255)
   jibun_address varchar(255)
+  detail_address varchar(255)
   latitude varchar(50)
   longitude varchar(50)
   operating_hours_notice text
@@ -205,9 +190,9 @@ Table partner_contacts {
 Table partner_business_registrations {
   id bigint [pk, increment]
   partner_id bigint [not null]
-  business_number varchar(20) [not null, unique]
-  company_name varchar(255) [not null]
-  ceo_name varchar(100) [not null]
+  business_number varchar(20) [unique]
+  company_name varchar(255)
+  ceo_name varchar(100)
   business_type varchar(100)
   business_item varchar(100)
   business_address varchar(255)
@@ -244,6 +229,62 @@ Table partner_feature_assignments {
   }
 }
 
+Table partner_hashtags {
+  id bigint [pk, increment]
+  partner_id bigint [not null]
+  value varchar(30) [not null]
+  sort_order tinyint [not null, default: 0]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (partner_id, value) [unique]
+  }
+}
+
+Table partner_links {
+  id bigint [pk, increment]
+  partner_id bigint [not null]
+  link_type varchar(40) [not null]
+  url varchar(1000) [not null]
+  sort_order tinyint [not null, default: 0]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (partner_id, link_type) [unique]
+  }
+}
+
+Table partner_options {
+  id bigint [pk, increment]
+  partner_id bigint [not null]
+  name varchar(120) [not null]
+  description varchar(1000)
+  price decimal(12,2)
+  price_type varchar(20) [not null]
+  duration_minutes int
+  is_visible boolean [not null, default: true]
+  sort_order int [not null, default: 0]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp
+}
+
+Table specialist_options {
+  id bigint [pk, increment]
+  specialist_id bigint [not null]
+  partner_option_id bigint [not null]
+  price_override decimal(12,2)
+  price_type_override varchar(20)
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (specialist_id, partner_option_id) [unique]
+  }
+}
+
 Table partner_specialists {
   id bigint [pk, increment]
   partner_id bigint [not null]
@@ -252,7 +293,7 @@ Table partner_specialists {
   gender varchar(20)
   position varchar(50)
   career_started_at date
-  license_number varchar(100) [not null, unique]
+  license_number varchar(100) [unique]
   specialist_field varchar(80) [not null]
   educations json
   careers json
@@ -352,7 +393,12 @@ Ref: partner_contacts.partner_id > partners.id [delete: cascade]
 Ref: partner_business_registrations.partner_id > partners.id [delete: cascade]
 Ref: partner_feature_assignments.partner_id > partners.id [delete: cascade]
 Ref: partner_feature_assignments.partner_feature_id > partner_features.id [delete: restrict]
+Ref: partner_hashtags.partner_id > partners.id [delete: cascade]
+Ref: partner_links.partner_id > partners.id [delete: cascade]
+Ref: partner_options.partner_id > partners.id [delete: cascade]
 Ref: partner_specialists.partner_id > partners.id [delete: cascade]
+Ref: specialist_options.specialist_id > partner_specialists.id [delete: cascade]
+Ref: specialist_options.partner_option_id > partner_options.id [delete: cascade]
 Ref: categories.parent_id > categories.id
 Ref: category_assignments.category_id > categories.id [delete: restrict]
 Ref: operation_history_changes.operation_history_id > operation_histories.id [delete: cascade]

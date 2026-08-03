@@ -1,1 +1,1 @@
--- Legacy placeholder. Beauty category seed is managed by V11.
+-- Legacy placeholder. Partner category seed is managed by V11.

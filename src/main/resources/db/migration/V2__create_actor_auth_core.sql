@@ -66,28 +66,6 @@ CREATE TABLE account_staff_roles (
     CONSTRAINT fk_account_staff_roles_role FOREIGN KEY (staff_role_id) REFERENCES staff_roles (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='내부 운영자 계정 역할 연결 테이블';
 
-CREATE TABLE account_beauties (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    beauty_id BIGINT NULL,
-    name VARCHAR(255) NOT NULL,
-    nickname VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NULL,
-    email_verified_at TIMESTAMP(6) NULL,
-    password VARCHAR(255) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'SUSPENDED',
-    last_login_at TIMESTAMP(6) NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-    deleted_at TIMESTAMP(6) NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY account_beauties_beauty_id_unique (beauty_id),
-    UNIQUE KEY account_beauties_nickname_unique (nickname),
-    UNIQUE KEY account_beauties_email_unique (email),
-    INDEX account_beauties_status_index (status),
-    INDEX account_beauties_login_status_beauty_idx (last_login_at, status, beauty_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='뷰티 파트너 계정 테이블';
-
 CREATE TABLE account_users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -138,10 +116,6 @@ INSERT INTO staff_permissions (code, display_name) VALUES
     ('platform.partner.delete', '파트너 삭제'),
     ('platform.partner_entry.show', '입점신청 조회'),
     ('platform.partner_entry.update', '입점신청 수정'),
-    ('platform.beauty.show', '뷰티 조회'),
-    ('platform.beauty.create', '뷰티 등록'),
-    ('platform.beauty.update', '뷰티 수정'),
-    ('platform.beauty.delete', '뷰티 삭제'),
     ('platform.user.show', '회원 조회'),
     ('platform.user.status.update', '회원 상태 수정'),
     ('platform.staff.show', '직원 조회'),

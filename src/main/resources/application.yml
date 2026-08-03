@@ -1,6 +1,6 @@
 spring:
   application:
-    name: medi_backend
+    name: platform_backend
   profiles:
     default: local
   data:
@@ -52,8 +52,8 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4001,http://localhost:4002,http://localhost:4003,http://localhost:4004,http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003,http://127.0.0.1:4004}
   auth:
     jwt:
-      issuer: ${AUTH_JWT_ISSUER:medi_backend}
-      audience: ${AUTH_JWT_AUDIENCE:medi-api}
+      issuer: ${AUTH_JWT_ISSUER:platform_backend}
+      audience: ${AUTH_JWT_AUDIENCE:platform-api}
       secret: ${AUTH_JWT_SECRET}
       access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
     session:
@@ -65,8 +65,6 @@ app:
       staff-persistent-ttl-seconds: ${AUTH_STAFF_PERSISTENT_SESSION_TTL_SECONDS:604800}
       partner-ttl-seconds: ${AUTH_PARTNER_SESSION_TTL_SECONDS:43200}
       partner-persistent-ttl-seconds: ${AUTH_PARTNER_PERSISTENT_SESSION_TTL_SECONDS:2592000}
-      beauty-ttl-seconds: ${AUTH_BEAUTY_SESSION_TTL_SECONDS:43200}
-      beauty-persistent-ttl-seconds: ${AUTH_BEAUTY_PERSISTENT_SESSION_TTL_SECONDS:2592000}
       user-ttl-seconds: ${AUTH_USER_SESSION_TTL_SECONDS:86400}
       user-persistent-ttl-seconds: ${AUTH_USER_PERSISTENT_SESSION_TTL_SECONDS:7776000}
       cleanup-cron: ${AUTH_SESSION_CLEANUP_CRON:0 20 4 * * *}
@@ -86,11 +84,10 @@ app:
       submit-window-seconds: ${AUTH_PASSWORD_RESET_SUBMIT_WINDOW_SECONDS:900}
       mail-mode: ${PASSWORD_RESET_MAIL_MODE:smtp}
       mail-from-address: ${MAIL_FROM_ADDRESS}
-      mail-from-name: ${MAIL_FROM_NAME:Medi}
-      service-name: ${SERVICE_NAME:Medi}
+      mail-from-name: ${MAIL_FROM_NAME:Platform}
+      service-name: ${SERVICE_NAME:Platform}
       staff-url: ${PASSWORD_RESET_STAFF_URL}
       partner-url: ${PASSWORD_RESET_PARTNER_URL}
-      beauty-url: ${PASSWORD_RESET_BEAUTY_URL}
       user-url: ${PASSWORD_RESET_USER_URL}
   cache:
     staff-summary-ttl-seconds: ${STAFF_SUMMARY_CACHE_TTL_SECONDS:300}
@@ -99,7 +96,7 @@ app:
       enabled: ${STAFF_BOOTSTRAP_ENABLED:false}
       email: ${STAFF_BOOTSTRAP_EMAIL:}
       password: ${STAFF_BOOTSTRAP_PASSWORD:}
-      name: ${STAFF_BOOTSTRAP_NAME:Medi Admin}
+      name: ${STAFF_BOOTSTRAP_NAME:Platform Admin}
       nickname: ${STAFF_BOOTSTRAP_NICKNAME:admin}
       role: ${STAFF_BOOTSTRAP_ROLE:platform.super_admin}
     partner-sample:

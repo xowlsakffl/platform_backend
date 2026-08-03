@@ -18,11 +18,10 @@ HTTP
 ## 패키지 구조
 
 ```text
-src/main/java/com/medi/
+src/main/java/com/platform/
   adapter/in/web/
     staff/       내부 운영자 API
     partner/    파트너 파트너 API
-    beauty/      뷰티 파트너 API
     user/        사용자 앱 API
   application/
     auth/        인증·권한 유스케이스
@@ -90,7 +89,6 @@ Actor 분리는 같은 엔티티를 중복 구현한다는 뜻이 아니다. Spe
 |---|---|
 | Staff | 파트너·카테고리·스페셜리스트 관리, 검수, 증빙 조회 |
 | Partner | 자기 파트너의 스페셜리스트 관리와 증빙 조회 |
-| Beauty | 이메일 인증 기반만 구현 |
 | User | 이메일 인증과 공개 미디어 조회만 구현 |
 
 ## 트랜잭션 기준

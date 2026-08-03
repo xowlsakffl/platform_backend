@@ -28,7 +28,7 @@ category_assignments
   is_primary
 ```
 
-뷰티 카테고리의 domain은 `BEAUTY`다. `category_usages`는 사용하지 않는다.
+파트너 카테고리의 domain은 `PARTNER`다. `category_usages`는 사용하지 않는다.
 
 `category_assignments`의 대상은 다음 네 종류다.
 
@@ -55,7 +55,7 @@ MVP 기준 파트너 분류는 1뎁스만 seed한다. `group_code`는 확장 호
 대카테고리(depth=1) > 중카테고리(depth=2) > 소카테고리(depth=3)
 ```
 
-- 뷰티 대카테고리는 `BEAUTY`, `ACTIVE`, `depth=1`이어야 한다.
+- 뷰티 대카테고리는 `PARTNER`, `ACTIVE`, `depth=1`이어야 한다.
 - 하위 카테고리는 상위 카테고리의 그룹을 상속한다.
 - `full_path`는 그룹명을 제외한 `대 > 중 > 소` 형식이다.
 - 같은 그룹의 루트 또는 같은 부모 아래에서 이름을 중복할 수 없다.
@@ -76,7 +76,7 @@ MVP 파트너 분류는 다음 7개다.
 마사지
 ```
 
-전체 명칭, 계층, 순서의 실행 기준은 `V11__reseed_beauty_categories.sql`이다.
+전체 명칭, 계층, 순서의 실행 기준은 `V11__reseed_partner_categories.sql`이다.
 
 ## 코드 규칙
 
@@ -92,8 +92,8 @@ KB_ESTHETIC          에스테틱
 
 ## 선택과 검색
 
-- 파트너와 스페셜리스트 저장 시 `BEAUTY`, `ACTIVE`, `depth=1`을 모두 검증한다.
-- 이벤트와 후기 저장 시에도 같은 `BEAUTY` 트리를 사용하되, 2~3뎁스 시술 옵션 확장 뒤 `depth=3` 검증을 적용한다.
+- 파트너와 스페셜리스트 저장 시 `PARTNER`, `ACTIVE`, `depth=1`을 모두 검증한다.
+- 이벤트와 후기 저장 시에도 같은 `PARTNER` 트리를 사용하되, 2~3뎁스 시술 옵션 확장 뒤 `depth=3` 검증을 적용한다.
 - 대·중카테고리로 이벤트나 후기를 검색하면 해당 카테고리의 활성 하위 소카테고리 할당까지 포함해야 한다.
 - 하위 조회가 생기면 domain, group, full path를 함께 사용한다.
 

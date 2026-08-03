@@ -1,0 +1,175 @@
+package com.platform.adapter.in.web.staff.partner.request;
+
+import com.platform.common.web.multipart.MultipartMediaFileSource;
+import com.platform.application.partner.command.PartnerBusinessRegistrationCommand;
+import com.platform.application.partner.command.PartnerContactSetCommand;
+import com.platform.application.partner.command.UpdatePartnerCommand;
+import com.platform.domain.partner.PartnerAllowStatus;
+import com.platform.domain.partner.PartnerStatus;
+import com.platform.domain.partner.PartnerIndustry;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import org.springframework.web.bind.annotation.BindParam;
+import org.springframework.web.multipart.MultipartFile;
+
+public record PartnerUpdateForStaffRequest(
+	@Size(max = 2000) String description,
+	PartnerIndustry industry,
+	@BindParam("road_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String roadAddress,
+	@BindParam("jibun_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String jibunAddress,
+	@BindParam("detail_address") @Size(max = 255) String detailAddress,
+	@DecimalMin("-90") @DecimalMax("90") String latitude,
+	@DecimalMin("-180") @DecimalMax("180") String longitude,
+	@BindParam("operating_hours_notice") @Size(max = 5000) String operatingHoursNotice,
+	@BindParam("operation_hours") Object operationHours,
+	@Size(max = 5000) String direction,
+	@BindParam("allow_status") PartnerAllowStatus allowStatus,
+	PartnerStatus status,
+	@BindParam("representative_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String representativePhone,
+	@BindParam("sms_sender_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String smsSenderPhone,
+	@BindParam("call_receiver_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String callReceiverPhone,
+	@BindParam("consultation_receiver_phones[]") @Size(max = 3)
+	List<@Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String> consultationReceiverPhones,
+	@BindParam("event_notice_receiver_phones[]") @Size(max = 3)
+	List<@Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String> eventNoticeReceiverPhones,
+	@BindParam("notice_marketing_emails[]") @Size(max = 3)
+	List<@Email @Size(max = 255) String> noticeMarketingEmails,
+	@BindParam("business_number") @Size(max = 20) String businessNumber,
+	@BindParam("company_name") @Size(max = 255) String companyName,
+	@BindParam("ceo_name") @Size(max = 100) String ceoName,
+	@BindParam("business_type") @Size(max = 100) String businessType,
+	@BindParam("business_item") @Size(max = 100) String businessItem,
+	@BindParam("business_address") @Size(max = 255) String businessAddress,
+	@BindParam("business_address_detail") @Size(max = 255) String businessAddressDetail,
+	@BindParam("settlement_bank_name") @Size(max = 50) String settlementBankName,
+	@BindParam("settlement_account_number") @Size(max = 50)
+	@Pattern(regexp = "^(?:|[0-9\\-\\s]{2,50})$") String settlementAccountNumber,
+	@BindParam("settlement_account_holder") @Size(max = 100) String settlementAccountHolder,
+	@BindParam("tax_invoice_email") @Email @Size(max = 255) String taxInvoiceEmail,
+	@BindParam("issued_at") LocalDate issuedAt,
+	@BindParam("feature_ids[]") @Size(min = 1, max = 100) Set<@Positive Long> featureIds,
+	MultipartFile logo,
+	@BindParam("existing_logo_id") @Positive Long existingLogoId,
+	@BindParam("main_image") MultipartFile mainImage,
+	@BindParam("existing_main_image_id") @Positive Long existingMainImageId,
+	@BindParam("interior_images[]") @Size(max = 5) List<MultipartFile> interiorImages,
+	@BindParam("existing_interior_image_ids[]") @Size(max = 5) List<@Positive Long> existingInteriorImageIds,
+	@BindParam("interior_image_order[]") @Size(max = 5)
+	List<@Pattern(regexp = "^(existing|new):[0-9]+$") String> interiorImageOrder,
+	@BindParam("business_registration_file") MultipartFile businessRegistrationFile,
+	@BindParam("existing_business_registration_file_id") @Positive Long existingBusinessRegistrationFileId
+) {
+
+	public UpdatePartnerCommand toCommand(Set<String> requestFields) {
+		Set<String> fields = normalizeFields(requestFields);
+		return new UpdatePartnerCommand(
+			description,
+			industry,
+			roadAddress,
+			jibunAddress,
+			detailAddress,
+			latitude,
+			longitude,
+			operatingHoursNotice,
+			operationHours,
+			direction,
+			allowStatus,
+			status,
+			contactsOrNull(fields),
+			businessRegistrationOrNull(fields),
+			fields.contains("feature_ids") ? PartnerRequestSupport.ids(featureIds) : null,
+			MultipartMediaFileSource.from(logo),
+			existingLogoId,
+			MultipartMediaFileSource.from(mainImage),
+			existingMainImageId,
+			interiorImages == null ? List.of() : interiorImages.stream().map(MultipartMediaFileSource::from).toList(),
+			existingInteriorImageIds,
+			interiorImageOrder,
+			MultipartMediaFileSource.from(businessRegistrationFile),
+			existingBusinessRegistrationFileId,
+			fields
+		);
+	}
+
+	private PartnerContactSetCommand contactsOrNull(Set<String> fields) {
+		if (Set.of(
+			"representative_phone",
+			"sms_sender_phone",
+			"call_receiver_phone",
+			"consultation_receiver_phones",
+			"event_notice_receiver_phones",
+			"notice_marketing_emails"
+		).stream().noneMatch(fields::contains)) {
+			return null;
+		}
+		return new PartnerContactSetCommand(
+			representativePhone,
+			smsSenderPhone,
+			callReceiverPhone,
+			PartnerRequestSupport.list(consultationReceiverPhones),
+			PartnerRequestSupport.list(eventNoticeReceiverPhones),
+			PartnerRequestSupport.list(noticeMarketingEmails)
+		);
+	}
+
+	private PartnerBusinessRegistrationCommand businessRegistrationOrNull(Set<String> fields) {
+		if (Set.of(
+			"business_number",
+			"company_name",
+			"ceo_name",
+			"business_type",
+			"business_item",
+			"business_address",
+			"business_address_detail",
+			"settlement_bank_name",
+			"settlement_account_number",
+			"settlement_account_holder",
+			"tax_invoice_email",
+			"issued_at"
+		).stream().noneMatch(fields::contains)) {
+			return null;
+		}
+		return new PartnerBusinessRegistrationCommand(
+			businessNumber,
+			companyName,
+			ceoName,
+			businessType,
+			businessItem,
+			businessAddress,
+			businessAddressDetail,
+			settlementBankName,
+			settlementAccountNumber,
+			settlementAccountHolder,
+			taxInvoiceEmail,
+			issuedAt
+		);
+	}
+
+	private Set<String> normalizeFields(Set<String> requestFields) {
+		Set<String> fields = new LinkedHashSet<>();
+		for (String field : requestFields) {
+			fields.add(field.endsWith("[]") ? field.substring(0, field.length() - 2) : field);
+		}
+		if (logo != null && !logo.isEmpty()) {
+			fields.add("logo");
+		}
+		if (mainImage != null && !mainImage.isEmpty()) {
+			fields.add("main_image");
+		}
+		if (interiorImages != null && interiorImages.stream().anyMatch(file -> file != null && !file.isEmpty())) {
+			fields.add("interior_images");
+		}
+		if (businessRegistrationFile != null && !businessRegistrationFile.isEmpty()) {
+			fields.add("business_registration_file");
+		}
+		return Set.copyOf(fields);
+	}
+}

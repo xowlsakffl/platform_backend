@@ -90,9 +90,9 @@ Partner Actor가 신규 등록하면 검수 상태는 `PENDING`이다. Partner A
 
 ## Category
 
-- 도메인: `PARTNER_EVALUATION`, `TALK`, `BEAUTY`, `FAQ`
+- 도메인: `PARTNER_EVALUATION`, `TALK`, `PARTNER`, `FAQ`
 - 상태: `ACTIVE`, `INACTIVE`
-- MVP 기준 뷰티 카테고리는 `BEAUTY` domain의 1뎁스 파트너 분류다.
+- MVP 기준 파트너 카테고리는 `PARTNER` domain의 1뎁스 파트너 분류다.
 - 파트너·스페셜리스트는 1뎁스, 이벤트·후기는 3뎁스 카테고리를 복수 선택한다.
 - 파트너에 연결한 1뎁스 카테고리는 화면에서 `파트너 분류`로 부르며 대표 분류를 지정하지 않는다.
 - 같은 그룹의 루트와 같은 부모 아래 이름, 도메인 내 code는 중복할 수 없다.

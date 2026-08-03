@@ -44,7 +44,6 @@ WHERE r.name IN ('platform.staff', 'platform.dev')
     'common.profile.update',
     'platform.partner.show',
     'platform.partner_entry.show',
-    'platform.beauty.show',
     'platform.agency.show',
     'platform.user.show',
     'platform.specialist.show',

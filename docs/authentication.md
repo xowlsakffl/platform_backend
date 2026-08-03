@@ -6,7 +6,6 @@
 |---|---|---|---|
 | Staff | `/api/v1/staff` | `account_staffs` | 이메일·비밀번호 |
 | Partner | `/api/v1/partner` | `account_partners` | 이메일·비밀번호 |
-| Beauty | `/api/v1/beauty` | `account_beauties` | 이메일·비밀번호 |
 | User | `/api/v1/user` | `account_users` | 이메일·비밀번호 |
 
 각 Actor는 다음 인증 API를 독립적으로 제공한다.
@@ -41,7 +40,6 @@
 |---|---:|---:|
 | Staff | 8시간 | 7일 |
 | Partner | 12시간 | 30일 |
-| Beauty | 12시간 | 30일 |
 | User | 24시간 | 90일 |
 
 ## 웹 저장과 갱신
@@ -59,13 +57,12 @@
 Actor별 쿠키 이름과 경로를 분리한다.
 
 ```text
-medi_refresh_staff     /api/v1/staff/auth
-medi_refresh_partner  /api/v1/partner/auth
-medi_refresh_beauty    /api/v1/beauty/auth
-medi_refresh_user      /api/v1/user/auth
+platform_refresh_staff     /api/v1/staff/auth
+platform_refresh_partner  /api/v1/partner/auth
+platform_refresh_user      /api/v1/user/auth
 ```
 
-쿠키는 `HttpOnly`, `SameSite=Strict`가 기본이며 운영에서는 `Secure=true`가 필수다. 로그인·갱신·로그아웃·비밀번호 재설정 관련 `POST` 요청은 추가로 `X-Auth-Request: medi-web` 헤더를 요구한다. 이 헤더는 인증 비밀값이 아니라 브라우저의 단순 cross-site form 요청을 차단하는 보조 장치다. CORS는 명시된 origin과 credential 요청만 허용한다.
+쿠키는 `HttpOnly`, `SameSite=Strict`가 기본이며 운영에서는 `Secure=true`가 필수다. 로그인·갱신·로그아웃·비밀번호 재설정 관련 `POST` 요청은 추가로 `X-Auth-Request: platform-web` 헤더를 요구한다. 이 헤더는 인증 비밀값이 아니라 브라우저의 단순 cross-site form 요청을 차단하는 보조 장치다. CORS는 명시된 origin과 credential 요청만 허용한다.
 
 운영 웹과 API는 같은 site의 HTTPS 도메인으로 배포하는 것을 기본으로 한다. 서로 다른 site에 배포해야 하면 `SameSite=None; Secure`로 바꾸고 별도의 CSRF 토큰 방식을 추가 검토해야 한다.
 
@@ -130,7 +127,7 @@ account_staffs
   -> staff_permissions
 ```
 
-권한 코드는 Controller에서 직접 비교하지 않고 application의 `PermissionService`를 사용한다. Partner, Beauty, User는 인증 계정의 소유 리소스 ID를 기준으로 `OwnershipPolicy`를 적용한다.
+권한 코드는 Controller에서 직접 비교하지 않고 application의 `PermissionService`를 사용한다. Partner, User는 인증 계정의 소유 리소스 ID를 기준으로 `OwnershipPolicy`를 적용한다.
 
 파트너 상태 변경 권한은 다음처럼 분리한다.
 
