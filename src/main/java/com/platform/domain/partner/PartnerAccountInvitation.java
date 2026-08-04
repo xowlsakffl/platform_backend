@@ -30,9 +30,6 @@ public class PartnerAccountInvitation extends BaseTimeEntity {
 	@Column(nullable = false)
 	private String email;
 
-	@Column(name = "recipient_name")
-	private String recipientName;
-
 	@Column(name = "token_hash", nullable = false, unique = true, length = 64)
 	private String tokenHash;
 
@@ -61,7 +58,6 @@ public class PartnerAccountInvitation extends BaseTimeEntity {
 	public static PartnerAccountInvitation create(
 		Partner partner,
 		String email,
-		String recipientName,
 		String tokenHash,
 		LocalDateTime expiresAt,
 		Long createdByStaffId
@@ -69,23 +65,10 @@ public class PartnerAccountInvitation extends BaseTimeEntity {
 		PartnerAccountInvitation invitation = new PartnerAccountInvitation();
 		invitation.partner = Objects.requireNonNull(partner);
 		invitation.email = Objects.requireNonNull(email);
-		invitation.recipientName = recipientName;
 		invitation.tokenHash = Objects.requireNonNull(tokenHash);
 		invitation.expiresAt = Objects.requireNonNull(expiresAt);
 		invitation.createdByStaffId = createdByStaffId;
 		return invitation;
-	}
-
-	public void reissue(String tokenHash, LocalDateTime expiresAt, Long staffId) {
-		if (status == PartnerAccountInvitationStatus.ACCEPTED) {
-			throw new IllegalStateException("An accepted invitation cannot be reissued.");
-		}
-		this.tokenHash = Objects.requireNonNull(tokenHash);
-		this.expiresAt = Objects.requireNonNull(expiresAt);
-		this.createdByStaffId = staffId;
-		this.status = PartnerAccountInvitationStatus.PENDING;
-		this.sentAt = null;
-		this.canceledAt = null;
 	}
 
 	public void markSent(LocalDateTime sentAt) {
@@ -115,13 +98,6 @@ public class PartnerAccountInvitation extends BaseTimeEntity {
 		return !expiresAt.isAfter(now);
 	}
 
-	public PartnerAccountInvitationStatus effectiveStatus(LocalDateTime now) {
-		if (status == PartnerAccountInvitationStatus.PENDING && isExpired(now)) {
-			return PartnerAccountInvitationStatus.EXPIRED;
-		}
-		return status;
-	}
-
 	public Long id() {
 		return id;
 	}
@@ -136,10 +112,6 @@ public class PartnerAccountInvitation extends BaseTimeEntity {
 
 	public String email() {
 		return email;
-	}
-
-	public String recipientName() {
-		return recipientName;
 	}
 
 	public String tokenHash() {

@@ -27,16 +27,16 @@ class PartnerAccountInvitationTests {
 	}
 
 	@Test
-	void pendingInvitationBecomesEffectivelyExpiredWithoutChangingStoredStatus() {
+	void pendingInvitationCanExpireWithoutChangingStoredStatus() {
 		LocalDateTime now = LocalDateTime.now();
 		PartnerAccountInvitation invitation = invitation(now.minusSeconds(1));
 
 		assertThat(invitation.status()).isEqualTo(PartnerAccountInvitationStatus.PENDING);
-		assertThat(invitation.effectiveStatus(now)).isEqualTo(PartnerAccountInvitationStatus.EXPIRED);
+		assertThat(invitation.isExpired(now)).isTrue();
 	}
 
 	@Test
-	void acceptedInvitationCannotBeCanceledOrReissued() {
+	void acceptedInvitationCannotBeCanceled() {
 		LocalDateTime now = LocalDateTime.now();
 		PartnerAccountInvitation invitation = invitation(now.plusHours(1));
 		invitation.accept(now);
@@ -44,15 +44,12 @@ class PartnerAccountInvitationTests {
 		assertThat(invitation.status()).isEqualTo(PartnerAccountInvitationStatus.ACCEPTED);
 		assertThatThrownBy(() -> invitation.cancel(now.plusMinutes(1)))
 			.isInstanceOf(IllegalStateException.class);
-		assertThatThrownBy(() -> invitation.reissue("new-hash", now.plusHours(2), 1L))
-			.isInstanceOf(IllegalStateException.class);
 	}
 
 	private PartnerAccountInvitation invitation(LocalDateTime expiresAt) {
 		return PartnerAccountInvitation.create(
 			Partner.createDraft("Partner"),
 			"owner@example.com",
-			"Owner",
 			"token-hash",
 			expiresAt,
 			1L

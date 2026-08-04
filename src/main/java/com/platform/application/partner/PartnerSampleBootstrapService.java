@@ -10,6 +10,7 @@ import com.platform.domain.category.Category;
 import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.category.CategoryDomain;
 import com.platform.domain.partner.Partner;
+import com.platform.domain.partner.PartnerAccountInvitation;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerBusinessRegistration;
 import com.platform.domain.partner.PartnerContact;
@@ -20,10 +21,12 @@ import com.platform.domain.partner.PartnerStatus;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.account.AccountStaffRepository;
 import com.platform.infrastructure.persistence.category.CategoryRepository;
+import com.platform.infrastructure.persistence.partner.PartnerAccountInvitationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -48,66 +51,90 @@ public class PartnerSampleBootstrapService {
 	private static final List<PartnerSample> SAMPLES = List.of(
 		new PartnerSample(
 			"[샘플] 강남 라움헤어", "서울 강남구 테헤란로 101", "8층", "37.4981", "127.0276",
-			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
-			"김강남", "partner01@platform.local", "medi_partner_01", "1209900001",
+			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			"김강남", "partner01@platform.local", "platform_partner_01", "1209900001",
 			"KB_HAIR_SALON",
 			List.of("PARKING", "PRIVATE_ROOM", "AFTERCARE", "RESERVATION_ONLY"),
 			true
 		),
 		new PartnerSample(
 			"[샘플] 신사 누아네일", "서울 강남구 도산대로 202", "4층", "37.5193", "127.0231",
-			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
-			"이신사", "partner02@platform.local", "medi_partner_02", "1209900002",
+			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			"이신사", "partner02@platform.local", "platform_partner_02", "1209900002",
 			"KB_NAIL",
 			List.of("NIGHT_OPERATION", "AFTERCARE", "STATION_WITHIN_5_MINUTES"),
 			true
 		),
 		new PartnerSample(
 			"[샘플] 청담 벨라왁싱", "서울 강남구 압구정로 303", "2층", "37.5250", "127.0472",
-			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
-			"박청담", "partner03@platform.local", "medi_partner_03", "1209900003",
+			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			"박청담", "partner03@platform.local", "platform_partner_03", "1209900003",
 			"KB_WAXING",
 			List.of("PRIVATE_ROOM", "AFTERCARE", "PARKING"),
 			false
 		),
 		new PartnerSample(
 			"[샘플] 홍대 잉크스튜디오", "서울 마포구 양화로 404", "6층", "37.5563", "126.9237",
-			PartnerAllowStatus.REJECTED, PartnerStatus.ACTIVE, AccountPartnerStatus.BLOCKED,
-			"최홍대", "partner04@platform.local", "medi_partner_04", "1209900004",
+			PartnerAllowStatus.REJECTED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_BLOCKED,
+			"최홍대", "partner04@platform.local", "platform_partner_04", "1209900004",
 			"KB_TATTOO",
 			List.of("AFTERCARE", "WOMEN_SPECIALIST", "STATION_WITHIN_5_MINUTES"),
 			false
 		),
 		new PartnerSample(
 			"[샘플] 분당 온에스테틱", "경기 성남시 분당구 판교역로 505", "5층", "37.3947", "127.1112",
-			PartnerAllowStatus.APPROVED, PartnerStatus.SUSPENDED, AccountPartnerStatus.ACTIVE,
-			"정분당", "partner05@platform.local", "medi_partner_05", "1209900005",
+			PartnerAllowStatus.APPROVED, PartnerStatus.SUSPENDED, SampleAccountState.CONNECTED_ACTIVE,
+			"정분당", "partner05@platform.local", "platform_partner_05", "1209900005",
 			"KB_ESTHETIC",
 			List.of("LOCKER", "AFTERCARE", "PARKING"),
 			true
 		),
 		new PartnerSample(
 			"[샘플] 잠실 브로우랩", "서울 송파구 올림픽로 606", "3층", "37.5133", "127.1002",
-			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
-			"한잠실", "partner06@platform.local", "medi_partner_06", "1209900006",
+			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			"한잠실", "partner06@platform.local", "platform_partner_06", "1209900006",
 			"KB_SEMI_PERMANENT",
 			List.of("NIGHT_OPERATION", "WOMEN_SPECIALIST", "PARKING"),
 			false
 		),
 		new PartnerSample(
 			"[샘플] 부산 릴렉스마사지", "부산 부산진구 중앙대로 707", "7층", "35.1579", "129.0590",
-			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
-			"오부산", "partner07@platform.local", "medi_partner_07", "1209900007",
+			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			"오부산", "partner07@platform.local", "platform_partner_07", "1209900007",
 			"KB_MASSAGE",
 			List.of("PRIVATE_ROOM", "RESERVATION_ONLY", "AFTERCARE", "WEEKEND_OPERATION"),
 			true
 		),
 		new PartnerSample(
 			"[샘플] 대구 포쉬네일", "대구 중구 동성로 808", "9층", "35.8690", "128.5940",
-			PartnerAllowStatus.APPROVED, PartnerStatus.WITHDRAWN, AccountPartnerStatus.ACTIVE,
-			"임대구", "partner08@platform.local", "medi_partner_08", "1209900008",
+			PartnerAllowStatus.APPROVED, PartnerStatus.WITHDRAWN, SampleAccountState.CONNECTED_ACTIVE,
+			"임대구", "partner08@platform.local", "platform_partner_08", "1209900008",
 			"KB_NAIL",
 			List.of("AFTERCARE", "STATION_WITHIN_5_MINUTES"),
+			false
+		),
+		new PartnerSample(
+			"[샘플] 성수 아이래쉬", "서울 성동구 연무장길 909", "3층", "37.5445", "127.0561",
+			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.NOT_INVITED,
+			"윤성수", "partner09@platform.local", "platform_partner_09", "1209900009",
+			"KB_EYELASH",
+			List.of("RESERVATION_ONLY", "STATION_WITHIN_5_MINUTES"),
+			false
+		),
+		new PartnerSample(
+			"[샘플] 여의도 메이크업룸", "서울 영등포구 국제금융로 1010", "10층", "37.5249", "126.9252",
+			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.INVITED,
+			"서여의", "partner10@platform.local", "platform_partner_10", "1209900010",
+			"KB_MAKEUP",
+			List.of("RESERVATION_ONLY", "WEEKEND_OPERATION"),
+			false
+		),
+		new PartnerSample(
+			"[샘플] 수원 스칼프케어", "경기 수원시 팔달구 효원로 1111", "5층", "37.2636", "127.0286",
+			PartnerAllowStatus.REJECTED, PartnerStatus.SUSPENDED, SampleAccountState.EXPIRED,
+			"문수원", "partner11@platform.local", "platform_partner_11", "1209900011",
+			"KB_SCALP_CARE",
+			List.of("PRIVATE_ROOM", "PARKING", "AFTERCARE"),
 			false
 		)
 	);
@@ -116,6 +143,7 @@ public class PartnerSampleBootstrapService {
 	private final CategoryRepository categoryRepository;
 	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
+	private final PartnerAccountInvitationRepository invitationRepository;
 	private final PartnerFeatureRepository featureRepository;
 	private final AccountPartnerRepository accountPartnerRepository;
 	private final AccountStaffRepository accountStaffRepository;
@@ -126,6 +154,7 @@ public class PartnerSampleBootstrapService {
 		CategoryRepository categoryRepository,
 		CategoryAssignmentService categoryAssignmentService,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
+		PartnerAccountInvitationRepository invitationRepository,
 		PartnerFeatureRepository featureRepository,
 		AccountPartnerRepository accountPartnerRepository,
 		AccountStaffRepository accountStaffRepository,
@@ -135,6 +164,7 @@ public class PartnerSampleBootstrapService {
 		this.categoryRepository = categoryRepository;
 		this.categoryAssignmentService = categoryAssignmentService;
 		this.businessRegistrationRepository = businessRegistrationRepository;
+		this.invitationRepository = invitationRepository;
 		this.featureRepository = featureRepository;
 		this.accountPartnerRepository = accountPartnerRepository;
 		this.accountStaffRepository = accountStaffRepository;
@@ -163,6 +193,7 @@ public class PartnerSampleBootstrapService {
 				if (existingPartner.assignedStaff() == null && defaultAssignedStaff != null) {
 					existingPartner.assignStaff(defaultAssignedStaff);
 				}
+				ensureAccountState(index + 1, existingPartner, sample, encodedPassword, defaultAssignedStaff);
 				continue;
 			}
 			if (alreadyExists(sample)) {
@@ -172,6 +203,10 @@ public class PartnerSampleBootstrapService {
 			createdCount++;
 		}
 		return createdCount;
+	}
+
+	public int sampleCount() {
+		return SAMPLES.size();
 	}
 
 	private void createSample(
@@ -195,6 +230,7 @@ public class PartnerSampleBootstrapService {
 			sample.allowStatus(),
 			sample.partnerStatus()
 		);
+		partner.changeAccountInvitationEmail(sample.email());
 		partner.replaceContacts(createContacts(sequence, sample.email()));
 		partner.replaceBusinessRegistration(createBusinessRegistration(sequence, sample));
 		partner.replaceFeatures(resolveCodes(sample.featureCodes(), features));
@@ -202,19 +238,68 @@ public class PartnerSampleBootstrapService {
 
 		Partner savedPartner = partnerRepository.saveAndFlush(partner);
 		ensureCategory(savedPartner, sample, categories);
+		ensureAccountState(sequence, savedPartner, sample, encodedPassword, assignedStaff);
+	}
+
+	private void ensureAccountState(
+		int sequence,
+		Partner partner,
+		PartnerSample sample,
+		String encodedPassword,
+		AccountStaff assignedStaff
+	) {
+		if (accountPartnerRepository.existsByPartner_IdAndDeletedAtIsNull(partner.id())) {
+			return;
+		}
+		if (sample.accountState().isConnected()) {
+			createAccount(sequence, partner, sample, encodedPassword);
+			return;
+		}
+		if (sample.accountState() == SampleAccountState.NOT_INVITED
+			|| !invitationRepository.findByPartner_IdOrderByCreatedAtDescIdDesc(partner.id()).isEmpty()) {
+			return;
+		}
+		createInvitation(sequence, partner, sample, assignedStaff);
+	}
+
+	private void createAccount(
+		int sequence,
+		Partner partner,
+		PartnerSample sample,
+		String encodedPassword
+	) {
 		AccountPartner account = AccountPartner.create(
-			savedPartner,
+			partner,
 			sample.managerName(),
 			sample.nickname(),
 			sample.email(),
 			"010-9200-%04d".formatted(sequence),
 			encodedPassword,
-			sample.accountStatus()
+			sample.accountState().accountStatus()
 		);
 		if (sample.loggedIn()) {
 			account.markLoggedIn();
 		}
 		accountPartnerRepository.save(account);
+	}
+
+	private void createInvitation(
+		int sequence,
+		Partner partner,
+		PartnerSample sample,
+		AccountStaff assignedStaff
+	) {
+		LocalDateTime now = LocalDateTime.now();
+		boolean expired = sample.accountState() == SampleAccountState.EXPIRED;
+		PartnerAccountInvitation invitation = PartnerAccountInvitation.create(
+			partner,
+			sample.email(),
+			"%064x".formatted(sequence),
+			expired ? now.minusDays(1) : now.plusDays(7),
+			assignedStaff == null ? null : assignedStaff.id()
+		);
+		invitation.markSent(expired ? now.minusDays(8) : now.minusMinutes(10));
+		invitationRepository.save(invitation);
 	}
 
 	private boolean alreadyExists(PartnerSample sample) {
@@ -314,7 +399,7 @@ public class PartnerSampleBootstrapService {
 		String longitude,
 		PartnerAllowStatus allowStatus,
 		PartnerStatus partnerStatus,
-		AccountPartnerStatus accountStatus,
+		SampleAccountState accountState,
 		String managerName,
 		String email,
 		String nickname,
@@ -323,5 +408,27 @@ public class PartnerSampleBootstrapService {
 		List<String> featureCodes,
 		boolean loggedIn
 	) {
+	}
+
+	private enum SampleAccountState {
+		CONNECTED_ACTIVE(AccountPartnerStatus.ACTIVE),
+		CONNECTED_BLOCKED(AccountPartnerStatus.BLOCKED),
+		NOT_INVITED(null),
+		INVITED(null),
+		EXPIRED(null);
+
+		private final AccountPartnerStatus accountStatus;
+
+		SampleAccountState(AccountPartnerStatus accountStatus) {
+			this.accountStatus = accountStatus;
+		}
+
+		boolean isConnected() {
+			return accountStatus != null;
+		}
+
+		AccountPartnerStatus accountStatus() {
+			return accountStatus;
+		}
 	}
 }

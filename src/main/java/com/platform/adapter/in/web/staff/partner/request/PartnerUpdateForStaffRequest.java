@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.BindParam;
 import org.springframework.web.multipart.MultipartFile;
 
 public record PartnerUpdateForStaffRequest(
+	@BindParam("account_invitation_email") @Email @Size(max = 255) String accountInvitationEmail,
 	@Size(max = 2000) String description,
 	@BindParam("category_id") @Positive Long categoryId,
 	@BindParam("road_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String roadAddress,
@@ -70,6 +71,7 @@ public record PartnerUpdateForStaffRequest(
 	public UpdatePartnerCommand toCommand(Set<String> requestFields) {
 		Set<String> fields = normalizeFields(requestFields);
 		return new UpdatePartnerCommand(
+			accountInvitationEmail,
 			description,
 			categoryId,
 			roadAddress,

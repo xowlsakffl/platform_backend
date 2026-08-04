@@ -14,7 +14,7 @@ MVP는 유저가 Partner, Specialist, Event를 탐색하고 상담/예약을 요
 ## 문서
 
 - [작업 기준](./AGENTS.md)
-- [K-Beauty 플랫폼 MVP 기획](./docs/k-beauty-platform-mvp-plan.md)
+- [플랫폼 MVP 기획](./docs/platform-mvp-plan.md)
 - [문서 인덱스](./docs/README.md)
 - [아키텍처와 디렉터리](./docs/architecture.md)
 - [API 응답과 예외](./docs/api-response.md)
@@ -76,10 +76,11 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 
 영구 기준 데이터는 Flyway migration으로 관리하고, 화면 개발용 파트너 데이터는 `local` 프로필의 부트스트랩에서 생성한다. 로컬에서는 기본 활성화되며 같은 파트너명, 계정 이메일·닉네임 또는 사업자등록번호가 있으면 중복 생성하지 않는다.
 
-- 가상 파트너 8곳과 각 파트너의 1:1 파트너 관리자 계정
+- 가상 파트너 11곳: 연결 8곳, 미초대 1곳, 초대 발송 1곳, 초대 만료 1곳
 - 신청·승인·반려 승인상태와 정상·운영중지·탈퇴 운영상태
 - 연락처, 사업자 정보, 파트너 특징, 1뎁스 파트너 분류
-- 계정: `partner01@platform.local` ~ `partner08@platform.local`
+- 연결 계정: `partner01@platform.local` ~ `partner08@platform.local`
+- 초대 대상 이메일: `partner09@platform.local` ~ `partner11@platform.local`
 - 공통 비밀번호: `Platform1234!`
 - 미디어 파일은 생성하지 않음
 
@@ -104,7 +105,7 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 - Staff용 Partner 목록·상세·등록·부분수정·승인·운영상태 변경·삭제·이력·요약
 - 파트너별 내부 담당 직원 지정·변경·해제, 일반 직원 자기 담당 등록·해제
 - 파트너 연락처, 사업자 정보, 특징 12개
-- 직접 입점과 내부관리자 업체 등록경로, 일회용 파트너 계정 초대 링크
+- 직접 입점과 내부관리자 업체 등록경로, append-only 파트너 계정 초대 이력·일회용 초대 링크
 - Category Staff 관리 API와 사용처 selector
 - PARTNER 1뎁스 파트너 분류 기준 데이터
 - Specialist Staff 관리 API와 Partner 자기 스페셜리스트 관리 API
@@ -115,10 +116,10 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 
 ## 검증 기준
 
-현재 단계에서는 테스트 코드를 추가하지 않는다. 변경 후 다음 순서로 검증한다.
+변경 범위에 맞는 단위·통합 테스트를 추가하고 다음 순서로 검증한다.
 
 ```bash
-./gradlew compileJava
-./gradlew build -x test
+./gradlew test
+./gradlew build
 ./gradlew bootRun
 ```

@@ -8,6 +8,7 @@ import java.util.List;
 
 public record CreatePartnerCommand(
 	String name,
+	String accountInvitationEmail,
 	String description,
 	Long categoryId,
 	String roadAddress,

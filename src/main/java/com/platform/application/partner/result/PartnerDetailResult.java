@@ -11,6 +11,7 @@ import java.util.List;
 public record PartnerDetailResult(
 	Long id,
 	String name,
+	@JsonProperty("account_invitation_email") String accountInvitationEmail,
 	String description,
 	@JsonProperty("road_address") String roadAddress,
 	@JsonProperty("jibun_address") String jibunAddress,

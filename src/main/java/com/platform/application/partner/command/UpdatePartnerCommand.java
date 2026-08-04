@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.List;
 
 public record UpdatePartnerCommand(
+	String accountInvitationEmail,
 	String description,
 	Long categoryId,
 	String roadAddress,

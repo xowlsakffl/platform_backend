@@ -15,15 +15,13 @@ public class LoggingPartnerAccountInvitationMailSender implements PartnerAccount
 	@Override
 	public void send(
 		String recipient,
-		String recipientName,
 		String partnerName,
 		String setupUrl,
 		long expireHours
 	) {
 		log.info(
-			"Local partner account invitation recipient={}, recipientName={}, partner={}, expires={}h, url={}",
+			"Local partner account invitation recipient={}, partner={}, expires={}h, url={}",
 			recipient,
-			recipientName,
 			partnerName,
 			expireHours,
 			setupUrl

@@ -144,7 +144,9 @@ public class PartnerOnboardingService {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Nickname is already in use.");
 		}
 
-		Partner partner = partnerRepository.saveAndFlush(Partner.createDraft(partnerName));
+		Partner partner = Partner.createDraft(partnerName);
+		partner.changeAccountInvitationEmail(email);
+		partner = partnerRepository.saveAndFlush(partner);
 		AccountPartner account = accountPartnerRepository.saveAndFlush(AccountPartner.create(
 			partner,
 			managerName,

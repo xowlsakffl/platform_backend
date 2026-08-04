@@ -35,7 +35,7 @@ public record PartnerListForStaffRequest(
 	String updatedStartDate,
 	@BindParam("updated_end_date")
 	String updatedEndDate,
-	@Pattern(regexp = "id|name|allow_status|status|created_at")
+	@Pattern(regexp = "id|name|region|allow_status|status|created_at")
 	String sort,
 	@Pattern(regexp = "asc|desc") String direction,
 	@Min(1)

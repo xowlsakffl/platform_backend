@@ -27,7 +27,11 @@ class PartnerSampleBootstrapConfig {
 	) {
 		return args -> {
 			int createdCount = bootstrapService.ensureSamples(properties.password());
-			log.info("파트너 샘플 데이터 초기화를 완료했습니다. 생성: {}, 유지: {}", createdCount, 8 - createdCount);
+			log.info(
+				"파트너 샘플 데이터 초기화를 완료했습니다. 생성: {}, 유지: {}",
+				createdCount,
+				bootstrapService.sampleCount() - createdCount
+			);
 		};
 	}
 }

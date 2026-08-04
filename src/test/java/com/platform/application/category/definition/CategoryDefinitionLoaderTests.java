@@ -23,10 +23,13 @@ class CategoryDefinitionLoaderTests {
 			.toList();
 
 		assertThat(catalog.tree().domain()).isEqualTo(CategoryDomain.PARTNER);
-		assertThat(roots).hasSize(11);
-		assertThat(options).hasSize(55);
-		assertThat(catalog.categoriesForUsage(CategoryUsageType.PARTNER_CATEGORY)).hasSize(11);
-		assertThat(catalog.categoriesForUsage(CategoryUsageType.PARTNER_OPTION_CATEGORY)).hasSize(55);
+		assertThat(roots).hasSize(10);
+		assertThat(options).hasSize(54);
+		assertThat(catalog.categoriesForUsage(CategoryUsageType.PARTNER_CATEGORY))
+			.hasSize(10)
+			.extracting(CategoryNodeDefinition::code)
+			.doesNotContain("KB_OTHER");
+		assertThat(catalog.categoriesForUsage(CategoryUsageType.PARTNER_OPTION_CATEGORY)).hasSize(54);
 		assertThat(Stream.concat(roots.stream(), options.stream()).map(CategoryNodeDefinition::code))
 			.doesNotHaveDuplicates();
 	}

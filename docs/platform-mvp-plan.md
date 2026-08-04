@@ -1,4 +1,4 @@
-# K-Beauty Platform MVP Plan
+# Platform MVP Plan
 
 ## 1. 목표
 
@@ -58,9 +58,13 @@ DRAFT -> PENDING -> APPROVED
 
 스태프가 업체를 대신 등록할 때는 `Partner`만 먼저 생성하고 `AccountPartner`는 생성하지 않는다. `Partner.registration_source`는 `STAFF_CREATED`로 기록하고 생성한 스태프 ID를 보관한다.
 
+스태프는 업체 등록 시 로그인 계정 담당자용 `Partner.account_invitation_email`을 별도로 입력한다. 마케팅 안내 이메일과 세금계산서 이메일은 이 값의 대체 수단으로 사용하지 않는다. 계정 초대 폼은 이 이메일을 기본값으로 제공하며, 발송 시 다른 이메일로 수정할 수 있다.
+
 스태프가 업체 담당자 이메일로 계정 초대 링크를 보내면 담당자가 링크에서 이름, 표시명, 전화번호와 비밀번호를 입력한다. 초대 이메일이 로그인 아이디이며 수락 시점에 `AccountPartner`를 생성해 기존 `Partner`와 연결한다. 임시 비밀번호나 비밀번호가 설정된 가계정은 발급하지 않는다.
 
-초대 링크는 72시간 동안 유효하고 한 번만 사용할 수 있다. 재발송하면 기존 토큰은 즉시 무효화한다. 원본 토큰은 저장하지 않고 SHA-256 해시만 저장한다.
+초대 링크는 72시간 동안 유효하고 한 번만 사용할 수 있다. 원본 토큰은 저장하지 않고 SHA-256 해시만 저장한다.
+
+`partner_account_invitations`는 현재 초대상태만 저장하는 테이블이 아니라 초대 이력의 원본이다. 최초 발송과 재발송은 각각 새 행으로 추가한다. 신규 메일 발송에 성공한 뒤 아직 유효한 기존 초대를 `CANCELED`로 전환해 토큰을 무효화하고 이력 화면에는 `무효처리`로 표시한다. 메일 발송이 실패하면 신규 초대만 무효화하며 기존 유효 링크는 유지한다. 이미 만료된 초대는 `PENDING` 상태와 지난 `expires_at`을 그대로 보존하고 이력 화면에서 `초대 만료`로 계산한다. 수동 취소 API는 제공하지 않는다. 향후 추가할 종합 운영 이력은 업체 전반의 변경 추적용으로 분리하며, 초대 상세 이력은 이 테이블을 기준으로 조회한다.
 
 초대 수락은 `Partner.allow_status`를 변경하지 않는다. `DRAFT` 업체는 계정 연결 후 정보를 완성해 제출할 수 있고, 스태프가 검증까지 마친 `APPROVED` 업체는 계정 연결 후 바로 관리할 수 있다.
 
@@ -69,9 +73,10 @@ DRAFT -> PENDING -> APPROVED
 ```text
 NOT_INVITED
 INVITED
-EXPIRED
 CONNECTED
 ```
+
+`초대 만료`는 별도의 계정 연결상태가 아니라 `INVITED`와 `expires_at`을 기준으로 프론트에서 표시한다.
 
 ## 4. 업체정보
 
@@ -248,11 +253,13 @@ PATCH  /api/v1/staff/partners/{id}/account-status
 스태프 계정 초대관리:
 
 ```text
+GET    /api/v1/staff/partner-account-invitations
 GET    /api/v1/staff/partners/{partnerId}/account-invitations
 POST   /api/v1/staff/partners/{partnerId}/account-invitations
 POST   /api/v1/staff/partners/{partnerId}/account-invitations/{id}/resend
-DELETE /api/v1/staff/partners/{partnerId}/account-invitations/{id}
 ```
+
+목록 API는 최신순 초대 이력을 반환한다. 재발송 API 응답의 ID는 기존 초대 ID가 아니라 새로 생성된 초대 이력 ID다.
 
 초대 확인 및 계정 생성:
 

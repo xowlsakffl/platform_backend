@@ -35,6 +35,9 @@ public class Partner extends BaseTimeEntity {
 	@Column(nullable = false, unique = true)
 	private String name;
 
+	@Column(name = "account_invitation_email")
+	private String accountInvitationEmail;
+
 	@Column(columnDefinition = "text")
 	private String description;
 
@@ -46,6 +49,9 @@ public class Partner extends BaseTimeEntity {
 
 	@Column(name = "detail_address")
 	private String detailAddress;
+
+	@Column(name = "region_sort_key")
+	private String regionSortKey;
 
 	private String latitude;
 
@@ -146,6 +152,7 @@ public class Partner extends BaseTimeEntity {
 		this.description = description;
 		this.roadAddress = roadAddress;
 		this.jibunAddress = jibunAddress;
+		refreshRegionSortKey();
 		this.latitude = latitude;
 		this.longitude = longitude;
 		this.operatingHoursNotice = operatingHoursNotice;
@@ -170,6 +177,7 @@ public class Partner extends BaseTimeEntity {
 		this.description = description;
 		this.roadAddress = roadAddress;
 		this.jibunAddress = jibunAddress;
+		refreshRegionSortKey();
 		this.latitude = latitude;
 		this.longitude = longitude;
 		this.operatingHoursNotice = operatingHoursNotice;
@@ -204,6 +212,7 @@ public class Partner extends BaseTimeEntity {
 		this.roadAddress = roadAddress;
 		this.jibunAddress = jibunAddress;
 		this.detailAddress = detailAddress;
+		refreshRegionSortKey();
 		this.latitude = latitude;
 		this.longitude = longitude;
 		this.operatingHoursNotice = operatingHoursNotice;
@@ -217,6 +226,33 @@ public class Partner extends BaseTimeEntity {
 
 	public void changeDetailAddress(String detailAddress) {
 		this.detailAddress = detailAddress;
+	}
+
+	public void changeAccountInvitationEmail(String accountInvitationEmail) {
+		this.accountInvitationEmail = accountInvitationEmail;
+	}
+
+	private void refreshRegionSortKey() {
+		String address = hasText(roadAddress) ? roadAddress.trim() : trimToNull(jibunAddress);
+		if (address == null) {
+			this.regionSortKey = null;
+			return;
+		}
+		String[] parts = address.split("\\s+");
+		if (parts.length < 2) {
+			this.regionSortKey = address;
+			return;
+		}
+		int length = parts.length >= 3 && parts[1].endsWith("시") && parts[2].endsWith("구") ? 3 : 2;
+		this.regionSortKey = String.join(" ", java.util.Arrays.copyOf(parts, length));
+	}
+
+	private boolean hasText(String value) {
+		return value != null && !value.isBlank();
+	}
+
+	private String trimToNull(String value) {
+		return hasText(value) ? value.trim() : null;
 	}
 
 	public void replaceContacts(Set<PartnerContact> contacts) {
@@ -260,6 +296,10 @@ public class Partner extends BaseTimeEntity {
 		return name;
 	}
 
+	public String accountInvitationEmail() {
+		return accountInvitationEmail;
+	}
+
 	public String description() {
 		return description;
 	}
@@ -274,6 +314,10 @@ public class Partner extends BaseTimeEntity {
 
 	public String detailAddress() {
 		return detailAddress;
+	}
+
+	public String regionSortKey() {
+		return regionSortKey;
 	}
 
 	public String latitude() {

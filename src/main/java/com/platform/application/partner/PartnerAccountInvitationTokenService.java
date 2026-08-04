@@ -45,15 +45,13 @@ public class PartnerAccountInvitationTokenService {
 	public IssuedPartnerAccountInvitation issue(
 		Long staffId,
 		Long partnerId,
-		String email,
-		String recipientName
+		String email
 	) {
 		Partner partner = lockInvitablePartner(partnerId);
 		assertAccountNotConnected(partnerId);
 		assertEmailAvailable(email);
 		LocalDateTime now = LocalDateTime.now();
 		assertNoOtherActiveInvitation(email, partnerId, null, now);
-		cancelPendingInvitations(partnerId, now);
 
 		String rawToken = tokenCodec.newRawToken();
 		String tokenHash = tokenCodec.hash(rawToken);
@@ -61,7 +59,6 @@ public class PartnerAccountInvitationTokenService {
 			PartnerAccountInvitation.create(
 				partner,
 				email,
-				recipientName,
 				tokenHash,
 				now.plusSeconds(properties.tokenTtlSeconds()),
 				staffId
@@ -87,23 +84,26 @@ public class PartnerAccountInvitationTokenService {
 
 		String rawToken = tokenCodec.newRawToken();
 		String tokenHash = tokenCodec.hash(rawToken);
-		invitation.reissue(tokenHash, now.plusSeconds(properties.tokenTtlSeconds()), staffId);
-		invitationRepository.saveAndFlush(invitation);
-		return new IssuedPartnerAccountInvitation(
-			invitation.id(),
-			partner.id(),
-			partner.name(),
-			invitation.email(),
-			invitation.recipientName(),
-			rawToken,
-			tokenHash
+		PartnerAccountInvitation reissuedInvitation = invitationRepository.saveAndFlush(
+			PartnerAccountInvitation.create(
+				partner,
+				invitation.email(),
+				tokenHash,
+				now.plusSeconds(properties.tokenTtlSeconds()),
+				staffId
+			)
 		);
+		return issued(reissuedInvitation, rawToken, tokenHash);
 	}
 
 	@Transactional
-	public PartnerAccountInvitation markSent(IssuedPartnerAccountInvitation issued) {
+	public PartnerAccountInvitation markSentAndCancelPrevious(IssuedPartnerAccountInvitation issued) {
+		lockInvitablePartner(issued.partnerId());
+		assertAccountNotConnected(issued.partnerId());
 		PartnerAccountInvitation invitation = lockIssued(issued);
-		invitation.markSent(LocalDateTime.now());
+		LocalDateTime now = LocalDateTime.now();
+		invitation.markSent(now);
+		cancelPendingInvitations(issued.partnerId(), invitation.id(), now);
 		return invitationRepository.saveAndFlush(invitation);
 	}
 
@@ -113,21 +113,6 @@ public class PartnerAccountInvitationTokenService {
 			.filter(invitation -> constantTimeEquals(invitation.tokenHash(), issued.tokenHash()))
 			.filter(invitation -> invitation.status() == PartnerAccountInvitationStatus.PENDING)
 			.ifPresent(invitation -> invitation.cancel(LocalDateTime.now()));
-	}
-
-	@Transactional
-	public PartnerAccountInvitation cancel(Long partnerId, Long invitationId) {
-		lockInvitablePartner(partnerId);
-		PartnerAccountInvitation invitation = invitationRepository
-			.findForUpdateByIdAndPartner_Id(invitationId, partnerId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Invitation not found."));
-		if (invitation.status() == PartnerAccountInvitationStatus.ACCEPTED) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "An accepted invitation cannot be canceled.");
-		}
-		if (invitation.status() != PartnerAccountInvitationStatus.CANCELED) {
-			invitation.cancel(LocalDateTime.now());
-		}
-		return invitation;
 	}
 
 	private Partner lockInvitablePartner(Long partnerId) {
@@ -167,12 +152,15 @@ public class PartnerAccountInvitationTokenService {
 		}
 	}
 
-	private void cancelPendingInvitations(Long partnerId, LocalDateTime now) {
+	private void cancelPendingInvitations(Long partnerId, Long currentInvitationId, LocalDateTime now) {
 		List<PartnerAccountInvitation> invitations = invitationRepository.findByPartner_IdAndStatus(
 			partnerId,
 			PartnerAccountInvitationStatus.PENDING
 		);
-		invitations.forEach(invitation -> invitation.cancel(now));
+		invitations.stream()
+			.filter(invitation -> !invitation.id().equals(currentInvitationId))
+			.filter(invitation -> !invitation.isExpired(now))
+			.forEach(invitation -> invitation.cancel(now));
 	}
 
 	private PartnerAccountInvitation lockIssued(IssuedPartnerAccountInvitation issued) {
@@ -192,7 +180,6 @@ public class PartnerAccountInvitationTokenService {
 			invitation.partnerId(),
 			invitation.partner().name(),
 			invitation.email(),
-			invitation.recipientName(),
 			rawToken,
 			tokenHash
 		);

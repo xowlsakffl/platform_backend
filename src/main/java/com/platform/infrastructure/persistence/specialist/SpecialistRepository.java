@@ -1,14 +1,26 @@
 package com.platform.infrastructure.persistence.specialist;
 
 import com.platform.domain.specialist.Specialist;
+import com.platform.infrastructure.persistence.partner.PartnerResourceCount;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 
 public interface SpecialistRepository extends JpaRepository<Specialist, Long>, JpaSpecificationExecutor<Specialist> {
+
+	@Query("""
+		select specialist.partner.id as partnerId, count(specialist.id) as itemCount
+		from Specialist specialist
+		where specialist.partner.id in :partnerIds
+		  and specialist.deletedAt is null
+		group by specialist.partner.id
+		""")
+	List<PartnerResourceCount> countActiveByPartnerIds(Collection<Long> partnerIds);
 
 	Optional<Specialist> findByIdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(Long id);
 

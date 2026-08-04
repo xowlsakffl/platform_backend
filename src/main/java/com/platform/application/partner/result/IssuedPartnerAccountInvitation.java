@@ -5,7 +5,6 @@ public record IssuedPartnerAccountInvitation(
 	Long partnerId,
 	String partnerName,
 	String email,
-	String recipientName,
 	String rawToken,
 	String tokenHash
 ) {

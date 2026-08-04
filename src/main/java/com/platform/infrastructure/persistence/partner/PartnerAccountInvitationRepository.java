@@ -6,11 +6,24 @@ import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.domain.Specification;
 
-public interface PartnerAccountInvitationRepository extends JpaRepository<PartnerAccountInvitation, Long> {
+public interface PartnerAccountInvitationRepository extends
+	JpaRepository<PartnerAccountInvitation, Long>,
+	JpaSpecificationExecutor<PartnerAccountInvitation> {
+
+	@Override
+	@EntityGraph(attributePaths = "partner")
+	Page<PartnerAccountInvitation> findAll(
+		Specification<PartnerAccountInvitation> specification,
+		Pageable pageable
+	);
 
 	@EntityGraph(attributePaths = "partner")
 	List<PartnerAccountInvitation> findByPartner_IdOrderByCreatedAtDescIdDesc(Long partnerId);

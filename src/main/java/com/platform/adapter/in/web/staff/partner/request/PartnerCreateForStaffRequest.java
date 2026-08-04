@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public record PartnerCreateForStaffRequest(
 	@NotBlank @Size(max = 255) String name,
+	@BindParam("account_invitation_email") @NotBlank @Email @Size(max = 255) String accountInvitationEmail,
 	@Size(max = 2000) String description,
 	@BindParam("category_id") @NotNull @Positive Long categoryId,
 	@BindParam("road_address") @NotBlank @Size(max = 255) String roadAddress,
@@ -76,6 +77,7 @@ public record PartnerCreateForStaffRequest(
 	public CreatePartnerCommand toCommand() {
 		return new CreatePartnerCommand(
 			name,
+			accountInvitationEmail,
 			description,
 			categoryId,
 			roadAddress,

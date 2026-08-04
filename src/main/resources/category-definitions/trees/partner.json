@@ -125,14 +125,6 @@
         { "name": "탈모관리", "code": "KB_SCALP_HAIR_LOSS", "sort_order": 3 },
         { "name": "기타", "code": "KB_SCALP_CARE_OTHER", "sort_order": 99 }
       ]
-    },
-    {
-      "name": "기타",
-      "code": "KB_OTHER",
-      "sort_order": 99,
-      "children": [
-        { "name": "기타", "code": "KB_OTHER_GENERAL", "sort_order": 99 }
-      ]
     }
   ]
 }
