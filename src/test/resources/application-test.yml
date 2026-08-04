@@ -19,6 +19,8 @@ management:
       enabled: false
 
 app:
+  category-definitions:
+    sync-enabled: false
   auth:
     jwt:
       secret: test-jwt-secret-test-jwt-secret-test-jwt-secret

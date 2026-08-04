@@ -19,7 +19,7 @@ import jakarta.persistence.UniqueConstraint;
 	name = "category_usages",
 	uniqueConstraints = @UniqueConstraint(
 		name = "category_usages_usage_category_unique",
-		columnNames = {"usage", "category_id"}
+		columnNames = {"usage_code", "category_id"}
 	)
 )
 public class CategoryUsage extends BaseTimeEntity {
@@ -28,7 +28,7 @@ public class CategoryUsage extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(nullable = false, length = 60)
+	@Column(name = "usage_code", nullable = false, length = 60)
 	@Enumerated(EnumType.STRING)
 	private CategoryUsageType usage;
 
@@ -56,6 +56,11 @@ public class CategoryUsage extends BaseTimeEntity {
 		this.category = category;
 		this.sortOrder = sortOrder;
 		this.status = status == null ? CategoryStatus.ACTIVE : status;
+	}
+
+	public void synchronize(int sortOrder, CategoryStatus status) {
+		this.sortOrder = sortOrder;
+		this.status = status;
 	}
 
 	public CategoryUsageType usage() {

@@ -1,0 +1,138 @@
+{
+  "domain": "PARTNER",
+  "group_code": "TREATMENT",
+  "categories": [
+    {
+      "name": "반영구",
+      "code": "KB_SEMI_PERMANENT",
+      "sort_order": 1,
+      "children": [
+        { "name": "눈썹", "code": "KB_SEMI_PERMANENT_BROW", "sort_order": 1 },
+        { "name": "아이라인", "code": "KB_SEMI_PERMANENT_EYELINE", "sort_order": 2 },
+        { "name": "입술", "code": "KB_SEMI_PERMANENT_LIP", "sort_order": 3 },
+        { "name": "헤어라인", "code": "KB_SEMI_PERMANENT_HAIRLINE", "sort_order": 4 },
+        { "name": "두피", "code": "KB_SEMI_PERMANENT_SCALP", "sort_order": 5 },
+        { "name": "기타", "code": "KB_SEMI_PERMANENT_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "에스테틱",
+      "code": "KB_ESTHETIC",
+      "sort_order": 2,
+      "children": [
+        { "name": "피부관리", "code": "KB_ESTHETIC_SKIN", "sort_order": 1 },
+        { "name": "여드름관리", "code": "KB_ESTHETIC_ACNE", "sort_order": 2 },
+        { "name": "리프팅관리", "code": "KB_ESTHETIC_LIFTING", "sort_order": 3 },
+        { "name": "바디관리", "code": "KB_ESTHETIC_BODY", "sort_order": 4 },
+        { "name": "웨딩관리", "code": "KB_ESTHETIC_WEDDING", "sort_order": 5 },
+        { "name": "기타", "code": "KB_ESTHETIC_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "미용실",
+      "code": "KB_HAIR_SALON",
+      "sort_order": 3,
+      "children": [
+        { "name": "커트", "code": "KB_HAIR_CUT", "sort_order": 1 },
+        { "name": "펌", "code": "KB_HAIR_PERM", "sort_order": 2 },
+        { "name": "염색", "code": "KB_HAIR_COLOR", "sort_order": 3 },
+        { "name": "클리닉", "code": "KB_HAIR_CLINIC", "sort_order": 4 },
+        { "name": "스타일링", "code": "KB_HAIR_STYLING", "sort_order": 5 },
+        { "name": "기타", "code": "KB_HAIR_SALON_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "왁싱",
+      "code": "KB_WAXING",
+      "sort_order": 4,
+      "children": [
+        { "name": "페이스왁싱", "code": "KB_WAXING_FACE", "sort_order": 1 },
+        { "name": "바디왁싱", "code": "KB_WAXING_BODY", "sort_order": 2 },
+        { "name": "브라질리언왁싱", "code": "KB_WAXING_BRAZILIAN", "sort_order": 3 },
+        { "name": "남성왁싱", "code": "KB_WAXING_MEN", "sort_order": 4 },
+        { "name": "슈가링", "code": "KB_WAXING_SUGARING", "sort_order": 5 },
+        { "name": "기타", "code": "KB_WAXING_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "타투",
+      "code": "KB_TATTOO",
+      "sort_order": 5,
+      "children": [
+        { "name": "미니타투", "code": "KB_TATTOO_MINI", "sort_order": 1 },
+        { "name": "레터링", "code": "KB_TATTOO_LETTERING", "sort_order": 2 },
+        { "name": "일러스트", "code": "KB_TATTOO_ILLUSTRATION", "sort_order": 3 },
+        { "name": "커버업", "code": "KB_TATTOO_COVER_UP", "sort_order": 4 },
+        { "name": "기타", "code": "KB_TATTOO_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "네일아트",
+      "code": "KB_NAIL",
+      "sort_order": 6,
+      "children": [
+        { "name": "젤네일", "code": "KB_NAIL_GEL", "sort_order": 1 },
+        { "name": "네일아트", "code": "KB_NAIL_ART", "sort_order": 2 },
+        { "name": "연장", "code": "KB_NAIL_EXTENSION", "sort_order": 3 },
+        { "name": "페디큐어", "code": "KB_NAIL_PEDICURE", "sort_order": 4 },
+        { "name": "네일케어", "code": "KB_NAIL_CARE", "sort_order": 5 },
+        { "name": "기타", "code": "KB_NAIL_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "마사지",
+      "code": "KB_MASSAGE",
+      "sort_order": 7,
+      "children": [
+        { "name": "아로마마사지", "code": "KB_MASSAGE_AROMA", "sort_order": 1 },
+        { "name": "스포츠마사지", "code": "KB_MASSAGE_SPORTS", "sort_order": 2 },
+        { "name": "림프마사지", "code": "KB_MASSAGE_LYMPH", "sort_order": 3 },
+        { "name": "산전·산후마사지", "code": "KB_MASSAGE_MATERNITY", "sort_order": 4 },
+        { "name": "기타", "code": "KB_MASSAGE_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "속눈썹",
+      "code": "KB_EYELASH",
+      "sort_order": 8,
+      "children": [
+        { "name": "속눈썹연장", "code": "KB_EYELASH_EXTENSION", "sort_order": 1 },
+        { "name": "속눈썹펌·리프트", "code": "KB_EYELASH_PERM", "sort_order": 2 },
+        { "name": "속눈썹틴팅", "code": "KB_EYELASH_TINT", "sort_order": 3 },
+        { "name": "속눈썹케어", "code": "KB_EYELASH_CARE", "sort_order": 4 },
+        { "name": "기타", "code": "KB_EYELASH_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "메이크업",
+      "code": "KB_MAKEUP",
+      "sort_order": 9,
+      "children": [
+        { "name": "데일리메이크업", "code": "KB_MAKEUP_DAILY", "sort_order": 1 },
+        { "name": "웨딩메이크업", "code": "KB_MAKEUP_WEDDING", "sort_order": 2 },
+        { "name": "프로필메이크업", "code": "KB_MAKEUP_PROFILE", "sort_order": 3 },
+        { "name": "무대메이크업", "code": "KB_MAKEUP_STAGE", "sort_order": 4 },
+        { "name": "기타", "code": "KB_MAKEUP_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "두피케어",
+      "code": "KB_SCALP_CARE",
+      "sort_order": 10,
+      "children": [
+        { "name": "두피스케일링", "code": "KB_SCALP_SCALING", "sort_order": 1 },
+        { "name": "헤드스파", "code": "KB_SCALP_HEAD_SPA", "sort_order": 2 },
+        { "name": "탈모관리", "code": "KB_SCALP_HAIR_LOSS", "sort_order": 3 },
+        { "name": "기타", "code": "KB_SCALP_CARE_OTHER", "sort_order": 99 }
+      ]
+    },
+    {
+      "name": "기타",
+      "code": "KB_OTHER",
+      "sort_order": 99,
+      "children": [
+        { "name": "기타", "code": "KB_OTHER_GENERAL", "sort_order": 99 }
+      ]
+    }
+  ]
+}

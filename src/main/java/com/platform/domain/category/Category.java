@@ -105,6 +105,32 @@ public class Category extends BaseTimeEntity {
 		this.groupCode = groupCode;
 	}
 
+	public void synchronizeDefinition(
+		Category parent,
+		byte depth,
+		CategoryGroup groupCode,
+		String name,
+		String code,
+		String fullPath,
+		int sortOrder,
+		CategoryStatus status,
+		boolean menuVisible
+	) {
+		this.parent = parent;
+		this.depth = depth;
+		this.groupCode = groupCode;
+		this.name = name;
+		this.code = code;
+		this.fullPath = fullPath;
+		this.sortOrder = sortOrder;
+		this.status = status;
+		this.menuVisible = menuVisible;
+	}
+
+	public void changeStatus(CategoryStatus status) {
+		this.status = status;
+	}
+
 	public Long id() {
 		return id;
 	}

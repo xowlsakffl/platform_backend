@@ -199,6 +199,7 @@ public class CategoryForStaffService {
 	@Transactional
 	public CategoryResult create(AuthenticatedActor actor, CreateCategoryCommand command) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.CATEGORY_MANAGE);
+		requireMutableDomain(command.domain());
 		String name = required(command.name(), "카테고리명은 필수입니다.");
 		Category parent = findParent(command.domain(), command.parentId());
 		if (parent != null && parent.depth() >= MAX_DEPTH) {
@@ -241,6 +242,7 @@ public class CategoryForStaffService {
 	public CategoryResult update(AuthenticatedActor actor, Long id, UpdateCategoryCommand command) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.CATEGORY_MANAGE);
 		Category category = findLockedCategory(id);
+		requireDefinitionFieldsMutable(category, command);
 		Map<String, String> before = capture(category);
 		String oldPath = category.fullPath();
 		CategoryGroup oldGroup = category.groupCode();
@@ -291,6 +293,7 @@ public class CategoryForStaffService {
 	public CategoryDeletedResult delete(AuthenticatedActor actor, Long id) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.CATEGORY_MANAGE);
 		Category category = findLockedCategory(id);
+		requireMutableDomain(category.domain());
 		if (categoryRepository.existsByParent_Id(id)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "하위 카테고리가 있어 삭제할 수 없습니다.");
 		}
@@ -535,6 +538,30 @@ public class CategoryForStaffService {
 	private Category findLockedCategory(Long id) {
 		return categoryRepository.findForUpdateById(id)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다."));
+	}
+
+	private void requireMutableDomain(CategoryDomain domain) {
+		if (domain == CategoryDomain.PARTNER) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"업체 카테고리는 JSON 정의 파일에서 관리합니다."
+			);
+		}
+	}
+
+	private void requireDefinitionFieldsMutable(Category category, UpdateCategoryCommand command) {
+		if (category.domain() != CategoryDomain.PARTNER) {
+			return;
+		}
+		boolean definitionChangeRequested = command.name() != null
+			|| command.codeSpecified()
+			|| command.groupCodeSpecified()
+			|| command.sortOrder() != null
+			|| command.status() != null
+			|| command.menuVisible() != null;
+		if (definitionChangeRequested) {
+			requireMutableDomain(category.domain());
+		}
 	}
 
 	private MediaResult icon(Long categoryId) {
