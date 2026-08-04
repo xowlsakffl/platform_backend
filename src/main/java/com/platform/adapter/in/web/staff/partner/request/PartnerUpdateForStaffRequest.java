@@ -6,7 +6,6 @@ import com.platform.application.partner.command.PartnerContactSetCommand;
 import com.platform.application.partner.command.UpdatePartnerCommand;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerStatus;
-import com.platform.domain.partner.PartnerIndustry;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -22,7 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public record PartnerUpdateForStaffRequest(
 	@Size(max = 2000) String description,
-	PartnerIndustry industry,
+	@BindParam("category_id") @Positive Long categoryId,
 	@BindParam("road_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String roadAddress,
 	@BindParam("jibun_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String jibunAddress,
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
@@ -72,7 +71,7 @@ public record PartnerUpdateForStaffRequest(
 		Set<String> fields = normalizeFields(requestFields);
 		return new UpdatePartnerCommand(
 			description,
-			industry,
+			categoryId,
 			roadAddress,
 			jibunAddress,
 			detailAddress,

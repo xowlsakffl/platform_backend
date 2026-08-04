@@ -38,10 +38,6 @@ public class Partner extends BaseTimeEntity {
 	@Column(columnDefinition = "text")
 	private String description;
 
-	@Enumerated(EnumType.STRING)
-	@Column(length = 40)
-	private PartnerIndustry industry;
-
 	@Column(name = "road_address")
 	private String roadAddress;
 
@@ -81,6 +77,13 @@ public class Partner extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private PartnerStatus status = PartnerStatus.ACTIVE;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "registration_source", nullable = false, length = 30)
+	private PartnerRegistrationSource registrationSource = PartnerRegistrationSource.STAFF_CREATED;
+
+	@Column(name = "created_by_staff_id")
+	private Long createdByStaffId;
+
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
@@ -109,7 +112,7 @@ public class Partner extends BaseTimeEntity {
 	}
 
 	public static Partner createDraft(String name) {
-		return new Partner(
+		Partner partner = new Partner(
 			name,
 			null,
 			null,
@@ -122,6 +125,8 @@ public class Partner extends BaseTimeEntity {
 			PartnerAllowStatus.DRAFT,
 			PartnerStatus.ACTIVE
 		);
+		partner.registrationSource = PartnerRegistrationSource.SELF_ONBOARDING;
+		return partner;
 	}
 
 	public Partner(
@@ -185,7 +190,6 @@ public class Partner extends BaseTimeEntity {
 	public void updateOnboardingProfile(
 		String name,
 		String description,
-		PartnerIndustry industry,
 		String roadAddress,
 		String jibunAddress,
 		String detailAddress,
@@ -197,7 +201,6 @@ public class Partner extends BaseTimeEntity {
 	) {
 		this.name = name;
 		this.description = description;
-		this.industry = industry;
 		this.roadAddress = roadAddress;
 		this.jibunAddress = jibunAddress;
 		this.detailAddress = detailAddress;
@@ -210,10 +213,6 @@ public class Partner extends BaseTimeEntity {
 
 	public void changeAllowStatus(PartnerAllowStatus allowStatus) {
 		this.allowStatus = allowStatus;
-	}
-
-	public void changeIndustry(PartnerIndustry industry) {
-		this.industry = industry;
 	}
 
 	public void changeDetailAddress(String detailAddress) {
@@ -244,6 +243,11 @@ public class Partner extends BaseTimeEntity {
 		this.assignedStaff = assignedStaff;
 	}
 
+	public void markStaffCreated(Long staffId) {
+		this.registrationSource = PartnerRegistrationSource.STAFF_CREATED;
+		this.createdByStaffId = staffId;
+	}
+
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
 	}
@@ -258,10 +262,6 @@ public class Partner extends BaseTimeEntity {
 
 	public String description() {
 		return description;
-	}
-
-	public PartnerIndustry industry() {
-		return industry;
 	}
 
 	public String roadAddress() {
@@ -314,6 +314,14 @@ public class Partner extends BaseTimeEntity {
 
 	public PartnerStatus status() {
 		return status;
+	}
+
+	public PartnerRegistrationSource registrationSource() {
+		return registrationSource;
+	}
+
+	public Long createdByStaffId() {
+		return createdByStaffId;
 	}
 
 	public LocalDateTime deletedAt() {

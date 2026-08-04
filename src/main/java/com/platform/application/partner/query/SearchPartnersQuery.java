@@ -3,7 +3,7 @@ package com.platform.application.partner.query;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.account.AccountPartnerStatus;
 import com.platform.domain.partner.PartnerStatus;
-import com.platform.domain.partner.PartnerIndustry;
+import com.platform.domain.partner.PartnerRegistrationSource;
 import java.util.List;
 
 public record SearchPartnersQuery(
@@ -11,7 +11,8 @@ public record SearchPartnersQuery(
 	List<PartnerStatus> status,
 	List<AccountPartnerStatus> accountStatus,
 	List<PartnerAllowStatus> allowStatus,
-	List<PartnerIndustry> industries,
+	List<Long> categoryIds,
+	List<PartnerRegistrationSource> registrationSources,
 	Boolean dormant,
 	String startDate,
 	String endDate,

@@ -7,6 +7,8 @@ import com.platform.application.auth.AuthSessionService;
 import com.platform.application.auth.PermissionService;
 import com.platform.application.cache.StaffSummaryCache;
 import com.platform.application.cache.StaffSummaryCacheInvalidator;
+import com.platform.application.category.CategoryAssignmentService;
+import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.application.specialist.SpecialistLifecycleService;
 import com.platform.application.specialist.result.SpecialistFieldResult;
 import com.platform.application.partner.command.CreatePartnerCommand;
@@ -21,6 +23,7 @@ import com.platform.application.partner.query.GetPartnerForStaffQuery;
 import com.platform.application.partner.query.SearchPartnerOperationHistoriesForStaffQuery;
 import com.platform.application.partner.result.DuplicateCheckResult;
 import com.platform.application.partner.result.PartnerAccountResult;
+import com.platform.application.partner.result.PartnerAccountInvitationResult;
 import com.platform.application.partner.result.PartnerAssignedStaffResult;
 import com.platform.application.partner.result.PartnerAllowStatusBulkUpdateResult;
 import com.platform.application.partner.result.PartnerBusinessRegistrationResult;
@@ -51,8 +54,12 @@ import com.platform.domain.account.AccountPartner;
 import com.platform.domain.account.AccountPartnerStatus;
 import com.platform.domain.account.AccountActorType;
 import com.platform.domain.account.AccountStaff;
+import com.platform.domain.category.CategoryAssignment;
+import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.partner.Partner;
 import com.platform.domain.partner.PartnerAllowStatus;
+import com.platform.domain.partner.PartnerAccountInvitation;
+import com.platform.domain.partner.PartnerAccountLinkStatus;
 import com.platform.domain.partner.PartnerBusinessRegistration;
 import com.platform.domain.partner.PartnerContact;
 import com.platform.domain.partner.PartnerContactType;
@@ -66,6 +73,7 @@ import com.platform.domain.operationhistory.OperationHistory;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.account.AccountStaffRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
+import com.platform.infrastructure.persistence.partner.PartnerAccountInvitationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerHashtagRepository;
 import com.platform.infrastructure.persistence.partner.PartnerLinkRepository;
@@ -110,9 +118,11 @@ public class PartnerForStaffService {
 	private static final String ACTION_DELETED = "ACTION_DELETED";
 	private final PermissionService permissionService;
 	private final AuthSessionService authSessionService;
+	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
 	private final AccountPartnerRepository accountPartnerRepository;
 	private final AccountStaffRepository accountStaffRepository;
+	private final PartnerAccountInvitationRepository invitationRepository;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final PartnerFeatureRepository featureRepository;
 	private final PartnerHashtagRepository hashtagRepository;
@@ -131,9 +141,11 @@ public class PartnerForStaffService {
 	public PartnerForStaffService(
 		PermissionService permissionService,
 		AuthSessionService authSessionService,
+		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
 		AccountPartnerRepository accountPartnerRepository,
 		AccountStaffRepository accountStaffRepository,
+		PartnerAccountInvitationRepository invitationRepository,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		PartnerFeatureRepository featureRepository,
 		PartnerHashtagRepository hashtagRepository,
@@ -151,9 +163,11 @@ public class PartnerForStaffService {
 	) {
 		this.permissionService = permissionService;
 		this.authSessionService = authSessionService;
+		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
 		this.accountPartnerRepository = accountPartnerRepository;
 		this.accountStaffRepository = accountStaffRepository;
+		this.invitationRepository = invitationRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.featureRepository = featureRepository;
 		this.hashtagRepository = hashtagRepository;
@@ -180,6 +194,12 @@ public class PartnerForStaffService {
 		);
 		Page<Partner> page = partnerRepository.findAll(specification(condition), pageable);
 		Map<Long, AccountPartner> accounts = accountsByPartnerIds(page.getContent());
+		Map<Long, PartnerAccountInvitation> invitations = latestInvitationsByPartnerIds(page.getContent());
+		Map<Long, List<CategoryReferenceResult>> categories = categoryAssignmentService.referencesByTargetIds(
+			CategoryAssignmentTarget.PARTNER,
+			page.getContent().stream().map(Partner::id).toList()
+		);
+		LocalDateTime now = LocalDateTime.now();
 		Map<Long, MediaResult> logos = mediaReadService.primaries(
 			MediaOwnerType.PARTNER,
 			page.getContent().stream().map(Partner::id).collect(Collectors.toSet()),
@@ -189,7 +209,10 @@ public class PartnerForStaffService {
 		return PaginatedResponse.from(page, partner -> toListItem(
 			partner,
 			accounts.get(partner.id()),
-			logos.get(partner.id())
+			logos.get(partner.id()),
+			categories.getOrDefault(partner.id(), List.of()),
+			invitations.get(partner.id()),
+			now
 		));
 	}
 
@@ -277,13 +300,18 @@ public class PartnerForStaffService {
 			command.allowStatus(),
 			command.status()
 		);
-		partner.changeIndustry(command.industry());
 		partner.changeDetailAddress(trimToNull(command.detailAddress()));
+		partner.markStaffCreated(actor.accountId());
 		partner.replaceContacts(buildContacts(requireContacts(command.contacts()), true));
 		partner.replaceBusinessRegistration(toBusinessRegistration(businessCommand, businessNumber));
 		partner.replaceFeatures(loadFeatures(command.featureIds()));
 
 		Partner saved = partnerRepository.saveAndFlush(partner);
+		categoryAssignmentService.replacePrimary(
+			CategoryAssignmentTarget.PARTNER,
+			saved.id(),
+			command.categoryId()
+		);
 		mediaCommandService.synchronizeSingle(
 			MediaOwnerType.PARTNER,
 			saved.id(),
@@ -377,8 +405,13 @@ public class PartnerForStaffService {
 		Partner saved = partnerRepository.saveAndFlush(partner);
 		revokePartnerAccountSessionsWhenWithdrawn(saved, statusBeforeUpdate);
 
-		if (command.specified("industry")) {
-			saved.changeIndustry(command.industry());
+		if (command.specified("category_id")) {
+			optionService.validatePartnerCategoryChange(saved.id(), command.categoryId());
+			categoryAssignmentService.replacePrimary(
+				CategoryAssignmentTarget.PARTNER,
+				saved.id(),
+				command.categoryId()
+			);
 		}
 		if (command.specified("detail_address")) {
 			saved.changeDetailAddress(trimToNull(command.detailAddress()));
@@ -705,8 +738,21 @@ public class PartnerForStaffService {
 			} else {
 				predicates.add(criteriaBuilder.notEqual(root.get("allowStatus"), PartnerAllowStatus.DRAFT));
 			}
-			if (condition.industries() != null && !condition.industries().isEmpty()) {
-				predicates.add(root.get("industry").in(condition.industries()));
+			if (condition.categoryIds() != null && !condition.categoryIds().isEmpty()) {
+				var categorySubquery = query.subquery(Long.class);
+				var assignment = categorySubquery.from(CategoryAssignment.class);
+				categorySubquery.select(assignment.get("id")).where(
+					criteriaBuilder.equal(
+						assignment.get("categorizableType"),
+						CategoryAssignmentTarget.PARTNER.code()
+					),
+					criteriaBuilder.equal(assignment.get("categorizableId"), root.get("id")),
+					assignment.get("category").get("id").in(condition.categoryIds())
+				);
+				predicates.add(criteriaBuilder.exists(categorySubquery));
+			}
+			if (condition.registrationSources() != null && !condition.registrationSources().isEmpty()) {
+				predicates.add(root.get("registrationSource").in(condition.registrationSources()));
 			}
 			if (Boolean.TRUE.equals(condition.dormant())) {
 				var accountJoin = root.join("accountPartner", JoinType.INNER);
@@ -937,7 +983,10 @@ public class PartnerForStaffService {
 	private PartnerListItemResult toListItem(
 		Partner partner,
 		AccountPartner account,
-		MediaResult logo
+		MediaResult logo,
+		List<CategoryReferenceResult> categories,
+		PartnerAccountInvitation invitation,
+		LocalDateTime now
 	) {
 		return new PartnerListItemResult(
 			partner.id(),
@@ -948,7 +997,12 @@ public class PartnerForStaffService {
 			logo,
 			accountResponse(account),
 			assignedStaffResponse(partner.assignedStaff()),
-			partner.industry() == null ? null : partner.industry().name()
+			categories,
+			partner.registrationSource().name(),
+			accountLinkStatus(account, invitation, now).name(),
+			invitation == null ? null : invitation.email(),
+			invitation == null ? null : invitation.sentAt(),
+			invitation == null ? null : invitation.expiresAt()
 		);
 	}
 
@@ -960,6 +1014,8 @@ public class PartnerForStaffService {
 		Partner partner,
 		Set<String> include
 	) {
+		PartnerAccountInvitation latestInvitation = latestInvitation(partner.id());
+		LocalDateTime now = LocalDateTime.now();
 		return new PartnerDetailResult(
 			partner.id(),
 			partner.name(),
@@ -1002,8 +1058,7 @@ public class PartnerForStaffService {
 			include.contains("business_registration")
 				? businessRegistrationResponse(partner.businessRegistration())
 				: null,
-			partner.industry() == null ? null : partner.industry().name(),
-			partner.industry() == null ? null : partner.industry().label(),
+			categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id()),
 			partner.detailAddress(),
 			hashtagRepository.findByPartner_IdOrderBySortOrderAscIdAsc(partner.id())
 				.stream().map(PartnerHashtag::value).toList(),
@@ -1011,7 +1066,11 @@ public class PartnerForStaffService {
 				.stream()
 				.map(link -> new PartnerLinkResult(link.id(), link.type().name(), link.url(), link.sortOrder()))
 				.toList(),
-			optionService.listByPartnerId(partner.id())
+			optionService.listByPartnerId(partner.id()),
+			partner.registrationSource().name(),
+			partner.createdByStaffId(),
+			accountLinkStatus(partner.accountPartner(), latestInvitation, now).name(),
+			latestInvitation == null ? null : invitationResponse(latestInvitation, now)
 		);
 	}
 
@@ -1191,10 +1250,73 @@ public class PartnerForStaffService {
 			.collect(Collectors.toMap(AccountPartner::partnerId, account -> account));
 	}
 
+	private Map<Long, PartnerAccountInvitation> latestInvitationsByPartnerIds(List<Partner> partners) {
+		List<Long> partnerIds = partners.stream().map(Partner::id).toList();
+		if (partnerIds.isEmpty()) {
+			return Map.of();
+		}
+		return invitationRepository.findByPartner_IdInOrderByCreatedAtDescIdDesc(partnerIds)
+			.stream()
+			.collect(Collectors.toMap(
+				PartnerAccountInvitation::partnerId,
+				invitation -> invitation,
+				(first, ignored) -> first,
+				LinkedHashMap::new
+			));
+	}
+
+	private PartnerAccountInvitation latestInvitation(Long partnerId) {
+		return invitationRepository.findByPartner_IdOrderByCreatedAtDescIdDesc(partnerId)
+			.stream()
+			.findFirst()
+			.orElse(null);
+	}
+
+	private PartnerAccountLinkStatus accountLinkStatus(
+		AccountPartner account,
+		PartnerAccountInvitation invitation,
+		LocalDateTime now
+	) {
+		if (account != null) {
+			return PartnerAccountLinkStatus.CONNECTED;
+		}
+		if (invitation == null) {
+			return PartnerAccountLinkStatus.NOT_INVITED;
+		}
+		return switch (invitation.effectiveStatus(now)) {
+			case PENDING -> PartnerAccountLinkStatus.INVITED;
+			case EXPIRED -> PartnerAccountLinkStatus.EXPIRED;
+			case ACCEPTED -> PartnerAccountLinkStatus.CONNECTED;
+			case CANCELED -> PartnerAccountLinkStatus.NOT_INVITED;
+		};
+	}
+
+	private PartnerAccountInvitationResult invitationResponse(
+		PartnerAccountInvitation invitation,
+		LocalDateTime now
+	) {
+		return new PartnerAccountInvitationResult(
+			invitation.id(),
+			invitation.partnerId(),
+			invitation.email(),
+			invitation.recipientName(),
+			invitation.effectiveStatus(now).name(),
+			invitation.expiresAt(),
+			invitation.sentAt(),
+			invitation.acceptedAt(),
+			invitation.canceledAt(),
+			invitation.createdByStaffId(),
+			invitation.createdAt(),
+			invitation.updatedAt()
+		);
+	}
+
 	private Map<String, String> capture(Partner partner) {
 		Map<String, String> values = new LinkedHashMap<>();
 		values.put("description", partner.description());
-		values.put("industry", partner.industry() == null ? null : partner.industry().name());
+		values.put("categories", writeInternalJson(
+			categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id())
+		));
 		values.put("road_address", partner.roadAddress());
 		values.put("jibun_address", partner.jibunAddress());
 		values.put("detail_address", partner.detailAddress());

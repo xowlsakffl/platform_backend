@@ -22,10 +22,12 @@ import com.platform.domain.category.Category;
 import com.platform.domain.category.CategoryDomain;
 import com.platform.domain.category.CategoryGroup;
 import com.platform.domain.category.CategoryStatus;
+import com.platform.domain.category.CategoryUsage;
 import com.platform.domain.operationhistory.OperationHistory;
 import com.platform.domain.media.MediaOwnerType;
 import com.platform.infrastructure.persistence.category.CategoryAssignmentRepository;
 import com.platform.infrastructure.persistence.category.CategoryRepository;
+import com.platform.infrastructure.persistence.category.CategoryUsageRepository;
 import com.platform.infrastructure.persistence.operationhistory.OperationHistoryRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -55,6 +57,7 @@ public class CategoryForStaffService {
 	private final PermissionService permissionService;
 	private final CategoryRepository categoryRepository;
 	private final CategoryAssignmentRepository categoryAssignmentRepository;
+	private final CategoryUsageRepository categoryUsageRepository;
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final MediaCommandService mediaCommandService;
 	private final MediaReadService mediaReadService;
@@ -64,6 +67,7 @@ public class CategoryForStaffService {
 		PermissionService permissionService,
 		CategoryRepository categoryRepository,
 		CategoryAssignmentRepository categoryAssignmentRepository,
+		CategoryUsageRepository categoryUsageRepository,
 		OperationHistoryRepository operationHistoryRepository,
 		MediaCommandService mediaCommandService,
 		MediaReadService mediaReadService,
@@ -72,6 +76,7 @@ public class CategoryForStaffService {
 		this.permissionService = permissionService;
 		this.categoryRepository = categoryRepository;
 		this.categoryAssignmentRepository = categoryAssignmentRepository;
+		this.categoryUsageRepository = categoryUsageRepository;
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.mediaCommandService = mediaCommandService;
 		this.mediaReadService = mediaReadService;
@@ -118,6 +123,17 @@ public class CategoryForStaffService {
 			condition.domain(),
 			Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.asc("id"))
 		);
+		Map<Long, Integer> usageOrder = condition.usage() == null
+			? Map.of()
+			: categoryUsageRepository
+				.findByUsageAndStatusOrderBySortOrderAscIdAsc(condition.usage(), CategoryStatus.ACTIVE)
+				.stream()
+				.collect(Collectors.toMap(
+					usage -> usage.category().id(),
+					CategoryUsage::sortOrder,
+					(first, ignored) -> first,
+					LinkedHashMap::new
+				));
 		Long parentId = resolveParentId(condition);
 		boolean parentFilterRequested = condition.parentId() != null || hasText(condition.parentCode());
 		if (parentFilterRequested && parentId == null) {
@@ -128,6 +144,7 @@ public class CategoryForStaffService {
 			? Set.of(CategoryStatus.ACTIVE)
 			: Set.copyOf(condition.status());
 		List<Category> selected = all.stream()
+			.filter(category -> condition.usage() == null || usageOrder.containsKey(category.id()))
 			.filter(category -> statuses.contains(category.status()))
 			.filter(category -> condition.groupCode() == null || category.groupCode() == condition.groupCode())
 			.filter(category -> condition.menuVisible() == null || category.menuVisible() == condition.menuVisible())
@@ -136,11 +153,15 @@ public class CategoryForStaffService {
 				category,
 				parentId,
 				parentFilterRequested,
-				condition.depth() != null,
+				condition.depth() != null || condition.usage() != null,
 				keyword
 			))
 			.filter(category -> matchesKeyword(category, keyword))
-			.sorted(selectorComparator(condition))
+			.sorted(condition.usage() == null
+				? selectorComparator(condition)
+				: Comparator
+					.comparingInt((Category category) -> usageOrder.get(category.id()))
+					.thenComparing(Category::id))
 			.toList();
 		if (keyword != null) {
 			selected = selected.stream().limit(clamp(condition.perPage(), 1, 100)).toList();
@@ -275,6 +296,9 @@ public class CategoryForStaffService {
 		}
 		if (categoryAssignmentRepository.existsByCategory_Id(id)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "연결된 데이터가 있어 삭제할 수 없습니다.");
+		}
+		if (categoryUsageRepository.existsByCategory_Id(id)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "사용 중인 카테고리라 삭제할 수 없습니다.");
 		}
 		recordHistory(actor, category, "DELETED", null, capture(category), Map.of());
 		mediaLifecycleService.softDeleteOwnedMedia(MediaOwnerType.CATEGORY, category.id());

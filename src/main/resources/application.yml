@@ -91,6 +91,13 @@ app:
       user-url: ${PASSWORD_RESET_USER_URL}
   cache:
     staff-summary-ttl-seconds: ${STAFF_SUMMARY_CACHE_TTL_SECONDS:300}
+  partner-account-invitation:
+    token-ttl-seconds: ${PARTNER_ACCOUNT_INVITATION_TOKEN_TTL_SECONDS:259200}
+    frontend-url: ${PARTNER_ACCOUNT_INVITATION_URL:http://localhost:4003/account/setup}
+    mail-mode: ${PARTNER_ACCOUNT_INVITATION_MAIL_MODE:${PASSWORD_RESET_MAIL_MODE:smtp}}
+    mail-from-address: ${MAIL_FROM_ADDRESS:no-reply@platform.local}
+    mail-from-name: ${MAIL_FROM_NAME:Platform}
+    service-name: ${SERVICE_NAME:Platform}
   bootstrap:
     staff:
       enabled: ${STAFF_BOOTSTRAP_ENABLED:false}

@@ -32,7 +32,7 @@ MVP의 범위는 업체·전문가·이벤트 탐색과 상담/예약 요청 접
 
 ## 3. 입점 흐름
 
-가입 요청에서 `AccountPartner`와 `Partner`를 한 트랜잭션으로 생성한다. 최초 `Partner.allow_status`는 `DRAFT`다.
+직접 입점 요청에서는 `AccountPartner`와 `Partner`를 한 트랜잭션으로 생성한다. 최초 `Partner.allow_status`는 `DRAFT`다.
 
 ```text
 DRAFT -> PENDING -> APPROVED
@@ -54,13 +54,32 @@ DRAFT -> PENDING -> APPROVED
 - `Partner.status`: 업체 운영상태
 - `AccountPartner.status`: 파트너 계정상태
 
+### 내부관리자 등록
+
+스태프가 업체를 대신 등록할 때는 `Partner`만 먼저 생성하고 `AccountPartner`는 생성하지 않는다. `Partner.registration_source`는 `STAFF_CREATED`로 기록하고 생성한 스태프 ID를 보관한다.
+
+스태프가 업체 담당자 이메일로 계정 초대 링크를 보내면 담당자가 링크에서 이름, 표시명, 전화번호와 비밀번호를 입력한다. 초대 이메일이 로그인 아이디이며 수락 시점에 `AccountPartner`를 생성해 기존 `Partner`와 연결한다. 임시 비밀번호나 비밀번호가 설정된 가계정은 발급하지 않는다.
+
+초대 링크는 72시간 동안 유효하고 한 번만 사용할 수 있다. 재발송하면 기존 토큰은 즉시 무효화한다. 원본 토큰은 저장하지 않고 SHA-256 해시만 저장한다.
+
+초대 수락은 `Partner.allow_status`를 변경하지 않는다. `DRAFT` 업체는 계정 연결 후 정보를 완성해 제출할 수 있고, 스태프가 검증까지 마친 `APPROVED` 업체는 계정 연결 후 바로 관리할 수 있다.
+
+계정 연결상태는 업체 검수상태와 별도로 다음과 같이 계산한다.
+
+```text
+NOT_INVITED
+INVITED
+EXPIRED
+CONNECTED
+```
+
 ## 4. 업체정보
 
 ### 기본정보
 
 - 업체명
 - 상세 설명: 최대 2,000자
-- 대표 업종 하나
+- 대표 업체 카테고리 하나
 - 도로명 주소, 지번 주소, 상세 주소
 - 위도, 경도
 - 요일별 운영시간 JSON
@@ -70,20 +89,22 @@ DRAFT -> PENDING -> APPROVED
 - 해시태그: 최대 10개, 업체 내 중복 금지
 - 로고, 대표 이미지, 내부 이미지
 
-업종 코드:
+업체 분류와 옵션 분류는 공통 `Category` 트리를 사용한다.
 
 ```text
-SEMI_PERMANENT
-ESTHETIC
-HAIR_SALON
-WAXING
-TATTOO
-NAIL_SHOP
-MASSAGE
-OTHER
+미용실                     depth=1
+├─ 커트                    depth=2
+├─ 펌
+├─ 염색
+└─ 클리닉
 ```
 
-업체에는 공통 카테고리를 연결하지 않고 `industry`를 사용한다.
+- `CategoryUsage.PARTNER_CATEGORY`: 업체가 선택할 수 있는 1단계 카테고리
+- `CategoryUsage.PARTNER_OPTION_CATEGORY`: 가격 옵션이 선택할 수 있는 2단계 카테고리
+- `CategoryAssignment.PARTNER`: 업체와 대표 카테고리 연결
+- `CategoryAssignment.PARTNER_OPTION`: 가격 옵션과 옵션 카테고리 연결
+
+`CategoryUsage`는 기능별 선택 가능 목록이고, 실제 데이터 연결은 폴리모픽 `CategoryAssignment`가 담당한다. `Partner`에는 별도 `industry` 컬럼을 두지 않는다.
 
 ### 부가정보
 
@@ -119,6 +140,7 @@ SMART_STORE
 필드:
 
 - 옵션명
+- 옵션 카테고리
 - 설명
 - 업체 기본 가격
 - 가격 표시 방식
@@ -135,6 +157,8 @@ INQUIRE
 ```
 
 옵션은 전문가를 연결하지 않아도 유효하다. 사용자는 업체 화면에서 전문가를 지정하지 않고 옵션만 선택해 상담/예약을 요청할 수 있다.
+
+옵션 카테고리는 업체가 선택한 1단계 카테고리의 활성 하위 카테고리만 선택할 수 있다. 파트너가 옵션 카테고리를 자유 입력으로 생성하지는 않는다.
 
 전문가가 수행 가능한 옵션은 `SpecialistOption`으로 연결한다. 전문가별 가격이 다르면 `price_override`를 사용하고, 가격 표시 방식도 다르면 `price_type_override`를 사용한다. 오버라이드가 없으면 업체 기본 가격을 사용한다.
 
@@ -214,24 +238,41 @@ DELETE /api/v1/partner/options/{id}
 
 ```text
 GET    /api/v1/staff/partners
+POST   /api/v1/staff/partners
 GET    /api/v1/staff/partners/{id}
 PATCH  /api/v1/staff/partners/{id}/allow-status
 PATCH  /api/v1/staff/partners/{id}/status
 PATCH  /api/v1/staff/partners/{id}/account-status
 ```
 
+스태프 계정 초대관리:
+
+```text
+GET    /api/v1/staff/partners/{partnerId}/account-invitations
+POST   /api/v1/staff/partners/{partnerId}/account-invitations
+POST   /api/v1/staff/partners/{partnerId}/account-invitations/{id}/resend
+DELETE /api/v1/staff/partners/{partnerId}/account-invitations/{id}
+```
+
+초대 확인 및 계정 생성:
+
+```text
+GET  /api/v1/partner/account-invitations/verify?token={token}
+POST /api/v1/partner/account-invitations/accept
+```
+
 ## 10. 입점 제출 필수조건
 
 - 업체명
 - 상세 설명
-- 업종
+- 업체 카테고리
 - 도로명·지번 주소
 - 위도·경도
 - 요일별 운영시간
 - 대표 연락처
 - 대표 이미지
 - 사업자등록 필수정보와 증빙 파일
-- 가격 옵션 최소 1개
+- 카테고리가 지정된 가격 옵션 최소 1개
 
 부가정보, 외부 링크, 해시태그와 내부 이미지는 선택값이다. 가격을 확정할 수 없는 옵션은 `INQUIRE`를 사용한다.
 

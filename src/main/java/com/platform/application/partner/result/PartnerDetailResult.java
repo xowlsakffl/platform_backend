@@ -1,6 +1,7 @@
 package com.platform.application.partner.result;
 
 import com.platform.application.media.result.MediaResult;
+import com.platform.application.category.result.CategoryReferenceResult;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDateTime;
@@ -35,11 +36,14 @@ public record PartnerDetailResult(
 	@JsonProperty("account_partner") PartnerAccountResult accountPartner,
 	List<PartnerSpecialistForStaffResult> specialists,
 	@JsonProperty("business_registration") PartnerBusinessRegistrationResult businessRegistration,
-	String industry,
-	@JsonProperty("industry_label") String industryLabel,
+	List<CategoryReferenceResult> categories,
 	@JsonProperty("detail_address") String detailAddress,
 	List<String> hashtags,
 	List<PartnerLinkResult> links,
-	List<PartnerOptionResult> options
+	List<PartnerOptionResult> options,
+	@JsonProperty("registration_source") String registrationSource,
+	@JsonProperty("created_by_staff_id") Long createdByStaffId,
+	@JsonProperty("account_link_status") String accountLinkStatus,
+	@JsonProperty("latest_account_invitation") PartnerAccountInvitationResult latestAccountInvitation
 ) {
 }

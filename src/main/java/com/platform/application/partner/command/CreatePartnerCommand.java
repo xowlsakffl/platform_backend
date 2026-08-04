@@ -3,14 +3,13 @@ package com.platform.application.partner.command;
 import com.platform.application.media.storage.MediaFileSource;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerStatus;
-import com.platform.domain.partner.PartnerIndustry;
 import java.util.Set;
 import java.util.List;
 
 public record CreatePartnerCommand(
 	String name,
 	String description,
-	PartnerIndustry industry,
+	Long categoryId,
 	String roadAddress,
 	String jibunAddress,
 	String detailAddress,

@@ -10,6 +10,12 @@ public interface CategoryAssignmentRepository extends JpaRepository<CategoryAssi
 
 	boolean existsByCategory_Id(Long categoryId);
 
+	boolean existsByCategorizableTypeAndCategorizableIdAndCategory_Id(
+		String categorizableType,
+		Long categorizableId,
+		Long categoryId
+	);
+
 	void deleteByCategorizableTypeAndCategorizableId(String categorizableType, Long categorizableId);
 
 	@EntityGraph(attributePaths = "category")

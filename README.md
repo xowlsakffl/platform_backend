@@ -104,6 +104,7 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 - Staff용 Partner 목록·상세·등록·부분수정·승인·운영상태 변경·삭제·이력·요약
 - 파트너별 내부 담당 직원 지정·변경·해제, 일반 직원 자기 담당 등록·해제
 - 파트너 연락처, 사업자 정보, 특징 12개
+- 직접 입점과 내부관리자 업체 등록경로, 일회용 파트너 계정 초대 링크
 - Category Staff 관리 API와 사용처 selector
 - PARTNER 1뎁스 파트너 분류 기준 데이터
 - Specialist Staff 관리 API와 Partner 자기 스페셜리스트 관리 API

@@ -1,21 +1,25 @@
 package com.platform.application.partner;
 
 import com.platform.common.error.InternalApplicationException;
+import com.platform.application.category.CategoryAssignmentService;
 import com.platform.domain.account.AccountPartner;
 import com.platform.domain.account.AccountPartnerStatus;
 import com.platform.domain.account.AccountStaff;
 import com.platform.domain.account.AccountStaffStatus;
+import com.platform.domain.category.Category;
+import com.platform.domain.category.CategoryAssignmentTarget;
+import com.platform.domain.category.CategoryDomain;
 import com.platform.domain.partner.Partner;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerBusinessRegistration;
 import com.platform.domain.partner.PartnerContact;
 import com.platform.domain.partner.PartnerContactType;
 import com.platform.domain.partner.PartnerFeature;
-import com.platform.domain.partner.PartnerIndustry;
 import com.platform.domain.partner.PartnerFeatureStatus;
 import com.platform.domain.partner.PartnerStatus;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.account.AccountStaffRepository;
+import com.platform.infrastructure.persistence.category.CategoryRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
@@ -46,7 +50,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 강남 라움헤어", "서울 강남구 테헤란로 101", "8층", "37.4981", "127.0276",
 			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
 			"김강남", "partner01@platform.local", "medi_partner_01", "1209900001",
-			PartnerIndustry.HAIR_SALON,
+			"KB_HAIR_SALON",
 			List.of("PARKING", "PRIVATE_ROOM", "AFTERCARE", "RESERVATION_ONLY"),
 			true
 		),
@@ -54,7 +58,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 신사 누아네일", "서울 강남구 도산대로 202", "4층", "37.5193", "127.0231",
 			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
 			"이신사", "partner02@platform.local", "medi_partner_02", "1209900002",
-			PartnerIndustry.NAIL_SHOP,
+			"KB_NAIL",
 			List.of("NIGHT_OPERATION", "AFTERCARE", "STATION_WITHIN_5_MINUTES"),
 			true
 		),
@@ -62,7 +66,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 청담 벨라왁싱", "서울 강남구 압구정로 303", "2층", "37.5250", "127.0472",
 			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
 			"박청담", "partner03@platform.local", "medi_partner_03", "1209900003",
-			PartnerIndustry.WAXING,
+			"KB_WAXING",
 			List.of("PRIVATE_ROOM", "AFTERCARE", "PARKING"),
 			false
 		),
@@ -70,7 +74,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 홍대 잉크스튜디오", "서울 마포구 양화로 404", "6층", "37.5563", "126.9237",
 			PartnerAllowStatus.REJECTED, PartnerStatus.ACTIVE, AccountPartnerStatus.BLOCKED,
 			"최홍대", "partner04@platform.local", "medi_partner_04", "1209900004",
-			PartnerIndustry.TATTOO,
+			"KB_TATTOO",
 			List.of("AFTERCARE", "WOMEN_SPECIALIST", "STATION_WITHIN_5_MINUTES"),
 			false
 		),
@@ -78,7 +82,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 분당 온에스테틱", "경기 성남시 분당구 판교역로 505", "5층", "37.3947", "127.1112",
 			PartnerAllowStatus.APPROVED, PartnerStatus.SUSPENDED, AccountPartnerStatus.ACTIVE,
 			"정분당", "partner05@platform.local", "medi_partner_05", "1209900005",
-			PartnerIndustry.ESTHETIC,
+			"KB_ESTHETIC",
 			List.of("LOCKER", "AFTERCARE", "PARKING"),
 			true
 		),
@@ -86,7 +90,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 잠실 브로우랩", "서울 송파구 올림픽로 606", "3층", "37.5133", "127.1002",
 			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
 			"한잠실", "partner06@platform.local", "medi_partner_06", "1209900006",
-			PartnerIndustry.SEMI_PERMANENT,
+			"KB_SEMI_PERMANENT",
 			List.of("NIGHT_OPERATION", "WOMEN_SPECIALIST", "PARKING"),
 			false
 		),
@@ -94,7 +98,7 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 부산 릴렉스마사지", "부산 부산진구 중앙대로 707", "7층", "35.1579", "129.0590",
 			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, AccountPartnerStatus.ACTIVE,
 			"오부산", "partner07@platform.local", "medi_partner_07", "1209900007",
-			PartnerIndustry.MASSAGE,
+			"KB_MASSAGE",
 			List.of("PRIVATE_ROOM", "RESERVATION_ONLY", "AFTERCARE", "WEEKEND_OPERATION"),
 			true
 		),
@@ -102,13 +106,15 @@ public class PartnerSampleBootstrapService {
 			"[샘플] 대구 포쉬네일", "대구 중구 동성로 808", "9층", "35.8690", "128.5940",
 			PartnerAllowStatus.APPROVED, PartnerStatus.WITHDRAWN, AccountPartnerStatus.ACTIVE,
 			"임대구", "partner08@platform.local", "medi_partner_08", "1209900008",
-			PartnerIndustry.NAIL_SHOP,
+			"KB_NAIL",
 			List.of("AFTERCARE", "STATION_WITHIN_5_MINUTES"),
 			false
 		)
 	);
 
 	private final PartnerRepository partnerRepository;
+	private final CategoryRepository categoryRepository;
+	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final PartnerFeatureRepository featureRepository;
 	private final AccountPartnerRepository accountPartnerRepository;
@@ -117,6 +123,8 @@ public class PartnerSampleBootstrapService {
 
 	public PartnerSampleBootstrapService(
 		PartnerRepository partnerRepository,
+		CategoryRepository categoryRepository,
+		CategoryAssignmentService categoryAssignmentService,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		PartnerFeatureRepository featureRepository,
 		AccountPartnerRepository accountPartnerRepository,
@@ -124,6 +132,8 @@ public class PartnerSampleBootstrapService {
 		PasswordEncoder passwordEncoder
 	) {
 		this.partnerRepository = partnerRepository;
+		this.categoryRepository = categoryRepository;
+		this.categoryAssignmentService = categoryAssignmentService;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.featureRepository = featureRepository;
 		this.accountPartnerRepository = accountPartnerRepository;
@@ -138,6 +148,7 @@ public class PartnerSampleBootstrapService {
 		}
 
 		Map<String, PartnerFeature> features = loadFeatures();
+		Map<String, Category> categories = loadCategories();
 		AccountStaff defaultAssignedStaff = accountStaffRepository
 			.findFirstByStatusAndDeletedAtIsNullOrderByIdAsc(AccountStaffStatus.ACTIVE)
 			.orElse(null);
@@ -148,6 +159,7 @@ public class PartnerSampleBootstrapService {
 			PartnerSample sample = SAMPLES.get(index);
 			Partner existingPartner = partnerRepository.findByName(sample.name()).orElse(null);
 			if (existingPartner != null) {
+				ensureCategory(existingPartner, sample, categories);
 				if (existingPartner.assignedStaff() == null && defaultAssignedStaff != null) {
 					existingPartner.assignStaff(defaultAssignedStaff);
 				}
@@ -156,7 +168,7 @@ public class PartnerSampleBootstrapService {
 			if (alreadyExists(sample)) {
 				continue;
 			}
-			createSample(index + 1, sample, encodedPassword, defaultAssignedStaff, features);
+			createSample(index + 1, sample, encodedPassword, defaultAssignedStaff, features, categories);
 			createdCount++;
 		}
 		return createdCount;
@@ -167,7 +179,8 @@ public class PartnerSampleBootstrapService {
 		PartnerSample sample,
 		String encodedPassword,
 		AccountStaff assignedStaff,
-		Map<String, PartnerFeature> features
+		Map<String, PartnerFeature> features,
+		Map<String, Category> categories
 	) {
 		Partner partner = new Partner(
 			sample.name(),
@@ -182,13 +195,13 @@ public class PartnerSampleBootstrapService {
 			sample.allowStatus(),
 			sample.partnerStatus()
 		);
-		partner.changeIndustry(sample.industry());
 		partner.replaceContacts(createContacts(sequence, sample.email()));
 		partner.replaceBusinessRegistration(createBusinessRegistration(sequence, sample));
 		partner.replaceFeatures(resolveCodes(sample.featureCodes(), features));
 		partner.assignStaff(assignedStaff);
 
 		Partner savedPartner = partnerRepository.saveAndFlush(partner);
+		ensureCategory(savedPartner, sample, categories);
 		AccountPartner account = AccountPartner.create(
 			savedPartner,
 			sample.managerName(),
@@ -222,6 +235,25 @@ public class PartnerSampleBootstrapService {
 			.collect(Collectors.toMap(PartnerFeature::code, Function.identity()));
 		assertCodesFound("파트너 특징", codes, features.keySet());
 		return features;
+	}
+
+	private Map<String, Category> loadCategories() {
+		Set<String> codes = SAMPLES.stream()
+			.map(PartnerSample::categoryCode)
+			.collect(Collectors.toCollection(LinkedHashSet::new));
+		Map<String, Category> categories = categoryRepository.findByDomainAndCodeIn(CategoryDomain.PARTNER, codes)
+			.stream()
+			.collect(Collectors.toMap(Category::code, Function.identity()));
+		assertCodesFound("파트너 카테고리", codes, categories.keySet());
+		return categories;
+	}
+
+	private void ensureCategory(Partner partner, PartnerSample sample, Map<String, Category> categories) {
+		Category category = categories.get(sample.categoryCode());
+		if (categoryAssignmentService.isAssigned(CategoryAssignmentTarget.PARTNER, partner.id(), category.id())) {
+			return;
+		}
+		categoryAssignmentService.replacePrimary(CategoryAssignmentTarget.PARTNER, partner.id(), category.id());
 	}
 
 	private <T> Set<T> resolveCodes(List<String> codes, Map<String, T> values) {
@@ -287,7 +319,7 @@ public class PartnerSampleBootstrapService {
 		String email,
 		String nickname,
 		String businessNumber,
-		PartnerIndustry industry,
+		String categoryCode,
 		List<String> featureCodes,
 		boolean loggedIn
 	) {

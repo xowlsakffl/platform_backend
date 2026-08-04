@@ -1,6 +1,8 @@
 package com.platform.application.partner;
 
 import com.platform.application.auth.OwnershipPolicy;
+import com.platform.application.category.CategoryAssignmentService;
+import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.application.partner.command.SavePartnerOptionCommand;
 import com.platform.application.partner.command.SavePartnerOptionCommand.SpecialistPriceCommand;
 import com.platform.application.partner.result.PartnerOptionResult;
@@ -9,6 +11,8 @@ import com.platform.common.error.ApiException;
 import com.platform.common.error.ErrorCode;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.domain.partner.Partner;
+import com.platform.domain.category.Category;
+import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerOption;
 import com.platform.domain.partner.PartnerPriceType;
@@ -32,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerOptionForPartnerService {
 
 	private final OwnershipPolicy ownershipPolicy;
+	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
 	private final PartnerOptionRepository optionRepository;
 	private final SpecialistRepository specialistRepository;
@@ -39,12 +44,14 @@ public class PartnerOptionForPartnerService {
 
 	public PartnerOptionForPartnerService(
 		OwnershipPolicy ownershipPolicy,
+		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
 		PartnerOptionRepository optionRepository,
 		SpecialistRepository specialistRepository,
 		SpecialistOptionRepository specialistOptionRepository
 	) {
 		this.ownershipPolicy = ownershipPolicy;
+		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
 		this.optionRepository = optionRepository;
 		this.specialistRepository = specialistRepository;
@@ -63,10 +70,32 @@ public class PartnerOptionForPartnerService {
 			.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partnerId));
 	}
 
+	@Transactional(readOnly = true)
+	public void validatePartnerCategoryChange(Long partnerId, Long categoryId) {
+		categoryAssignmentService.requireSelectable(CategoryAssignmentTarget.PARTNER, categoryId);
+		List<PartnerOption> options = optionRepository
+			.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partnerId);
+		if (options.isEmpty()) {
+			return;
+		}
+		Map<Long, List<CategoryReferenceResult>> categoriesByOptionId = categoryAssignmentService
+			.referencesByTargetIds(CategoryAssignmentTarget.PARTNER_OPTION, options.stream().map(PartnerOption::id).toList());
+		boolean incompatible = options.stream().anyMatch(option -> {
+			List<CategoryReferenceResult> categories = categoriesByOptionId.getOrDefault(option.id(), List.of());
+			return categories.size() != 1 || !Objects.equals(categories.getFirst().parentId(), categoryId);
+		});
+		if (incompatible) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"Partner category cannot be changed while options belong to another category."
+			);
+		}
+	}
+
 	@Transactional
 	public PartnerOptionResult create(AuthenticatedActor actor, SavePartnerOptionCommand command) {
 		Partner partner = editablePartner(actor);
-		ValidatedOption value = validate(command);
+		ValidatedOption value = validate(partner, command);
 		PartnerOption option = optionRepository.saveAndFlush(new PartnerOption(
 			partner,
 			value.name(),
@@ -77,9 +106,14 @@ public class PartnerOptionForPartnerService {
 			value.visible(),
 			value.sortOrder()
 		));
+		categoryAssignmentService.replacePrimary(
+			CategoryAssignmentTarget.PARTNER_OPTION,
+			option.id(),
+			value.categoryId()
+		);
 		replaceSpecialists(partner, option, value.specialists());
 		return result(option, specialistOptionRepository
-			.findByPartnerOption_IdOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()));
+			.findByPartnerOption_IdOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()), optionCategory(option.id()));
 	}
 
 	@Transactional
@@ -92,7 +126,7 @@ public class PartnerOptionForPartnerService {
 		PartnerOption option = optionRepository
 			.findForUpdateByIdAndPartner_IdAndDeletedAtIsNull(optionId, partner.id())
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner option not found."));
-		ValidatedOption value = validate(command);
+		ValidatedOption value = validate(partner, command);
 		option.update(
 			value.name(),
 			value.description(),
@@ -103,9 +137,14 @@ public class PartnerOptionForPartnerService {
 			value.sortOrder()
 		);
 		optionRepository.saveAndFlush(option);
+		categoryAssignmentService.replacePrimary(
+			CategoryAssignmentTarget.PARTNER_OPTION,
+			option.id(),
+			value.categoryId()
+		);
 		replaceSpecialists(partner, option, value.specialists());
 		return result(option, specialistOptionRepository
-			.findByPartnerOption_IdOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()));
+			.findByPartnerOption_IdOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()), optionCategory(option.id()));
 	}
 
 	@Transactional
@@ -115,6 +154,7 @@ public class PartnerOptionForPartnerService {
 			.findForUpdateByIdAndPartner_IdAndDeletedAtIsNull(optionId, partner.id())
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner option not found."));
 		specialistOptionRepository.deleteByPartnerOption_Id(option.id());
+		categoryAssignmentService.deleteAll(CategoryAssignmentTarget.PARTNER_OPTION, option.id());
 		option.softDelete();
 		optionRepository.save(option);
 		return option.id();
@@ -137,7 +177,18 @@ public class PartnerOptionForPartnerService {
 		return partner;
 	}
 
-	private ValidatedOption validate(SavePartnerOptionCommand command) {
+	private ValidatedOption validate(Partner partner, SavePartnerOptionCommand command) {
+		Category category = categoryAssignmentService.requireSelectable(
+			CategoryAssignmentTarget.PARTNER_OPTION,
+			command.categoryId()
+		);
+		if (category.parentId() == null || !categoryAssignmentService.isAssigned(
+			CategoryAssignmentTarget.PARTNER,
+			partner.id(),
+			category.parentId()
+		)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "Option category must belong to the partner category.");
+		}
 		String name = trimToNull(command.name());
 		if (name == null) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Option name is required.");
@@ -161,6 +212,7 @@ public class PartnerOptionForPartnerService {
 			}
 		}
 		return new ValidatedOption(
+			category.id(),
 			name,
 			trimToNull(command.description()),
 			priceType == PartnerPriceType.INQUIRE ? null : command.price(),
@@ -226,14 +278,25 @@ public class PartnerOptionForPartnerService {
 				LinkedHashMap::new,
 				Collectors.toList()
 			));
+		Map<Long, List<CategoryReferenceResult>> categoriesByOptionId = categoryAssignmentService
+			.referencesByTargetIds(CategoryAssignmentTarget.PARTNER_OPTION, options.stream().map(PartnerOption::id).toList());
 		return options.stream()
-			.map(option -> result(option, byOptionId.getOrDefault(option.id(), List.of())))
+			.map(option -> result(
+				option,
+				byOptionId.getOrDefault(option.id(), List.of()),
+				categoriesByOptionId.getOrDefault(option.id(), List.of()).stream().findFirst().orElse(null)
+			))
 			.toList();
 	}
 
-	private PartnerOptionResult result(PartnerOption option, List<SpecialistOption> assignments) {
+	private PartnerOptionResult result(
+		PartnerOption option,
+		List<SpecialistOption> assignments,
+		CategoryReferenceResult category
+	) {
 		return new PartnerOptionResult(
 			option.id(),
+			category,
 			option.name(),
 			option.description(),
 			option.price(),
@@ -256,6 +319,13 @@ public class PartnerOptionForPartnerService {
 		);
 	}
 
+	private CategoryReferenceResult optionCategory(Long optionId) {
+		return categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER_OPTION, optionId)
+			.stream()
+			.findFirst()
+			.orElse(null);
+	}
+
 	private String trimToNull(String value) {
 		if (value == null) {
 			return null;
@@ -265,6 +335,7 @@ public class PartnerOptionForPartnerService {
 	}
 
 	private record ValidatedOption(
+		Long categoryId,
 		String name,
 		String description,
 		BigDecimal price,

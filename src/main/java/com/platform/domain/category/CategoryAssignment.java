@@ -23,9 +23,7 @@ import jakarta.persistence.UniqueConstraint;
 public class CategoryAssignment extends BaseTimeEntity {
 
 	public static final String PARTNER_TARGET_TYPE = CategoryAssignmentTarget.PARTNER.code();
-	public static final String SPECIALIST_TARGET_TYPE = CategoryAssignmentTarget.SPECIALIST.code();
-	public static final String EVENT_TARGET_TYPE = CategoryAssignmentTarget.EVENT.code();
-	public static final String REVIEW_TARGET_TYPE = CategoryAssignmentTarget.REVIEW.code();
+	public static final String PARTNER_OPTION_TARGET_TYPE = CategoryAssignmentTarget.PARTNER_OPTION.code();
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

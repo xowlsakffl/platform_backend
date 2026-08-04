@@ -18,6 +18,9 @@ spring:
     host: ${MAIL_HOST:localhost}
 
 app:
+  partner-account-invitation:
+    frontend-url: ${PARTNER_ACCOUNT_INVITATION_URL:http://localhost:4003/account/setup}
+    mail-mode: ${PARTNER_ACCOUNT_INVITATION_MAIL_MODE:log}
   auth:
     jwt:
       secret: ${AUTH_JWT_SECRET:platform-local-development-jwt-secret-change-me-2026}

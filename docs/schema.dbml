@@ -1,6 +1,6 @@
 Project platform_backend {
   database_type: 'MySQL'
-  Note: '현재 Flyway V1~V13 기준. 실행 기준은 src/main/resources/db/migration이다.'
+  Note: '현재 Flyway V1~V25 기준. 실행 기준은 src/main/resources/db/migration이다.'
 }
 
 Table auth_sessions {
@@ -152,7 +152,6 @@ Table partners {
   id bigint [pk, increment]
   name varchar(255) [not null, unique]
   description text
-  industry varchar(40)
   road_address varchar(255)
   jibun_address varchar(255)
   detail_address varchar(255)
@@ -166,10 +165,28 @@ Table partners {
   evaluation_average_rating decimal(2,1) [not null, default: 0.0]
   allow_status varchar(20) [not null, default: 'PENDING']
   status varchar(20) [not null, default: 'ACTIVE']
+  registration_source varchar(30) [not null, default: 'STAFF_CREATED']
+  created_by_staff_id bigint
   assigned_staff_id bigint
   created_at timestamp [not null]
   updated_at timestamp [not null]
   deleted_at timestamp
+}
+
+Table partner_account_invitations {
+  id bigint [pk, increment]
+  partner_id bigint [not null]
+  email varchar(255) [not null]
+  recipient_name varchar(255)
+  token_hash varchar(64) [not null, unique]
+  status varchar(20) [not null, default: 'PENDING']
+  expires_at timestamp [not null]
+  sent_at timestamp
+  accepted_at timestamp
+  canceled_at timestamp
+  created_by_staff_id bigint
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
 }
 
 Table partner_contacts {
@@ -340,6 +357,23 @@ Table category_assignments {
   }
 }
 
+Table category_usages {
+  id bigint [pk, increment]
+  usage varchar(60) [not null]
+  category_id bigint [not null]
+  sort_order int [not null, default: 0]
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (usage, category_id) [unique]
+    (usage, status, sort_order, id)
+  }
+
+  Note: 'PARTNER_CATEGORY와 PARTNER_OPTION_CATEGORY별 선택 가능 카테고리 목록'
+}
+
 Table media {
   id bigint [pk, increment]
   owner_type varchar(50) [not null]
@@ -388,7 +422,10 @@ Ref: staff_role_permissions.staff_permission_id > staff_permissions.id [delete: 
 Ref: account_staff_roles.account_staff_id > account_staffs.id [delete: cascade]
 Ref: account_staff_roles.staff_role_id > staff_roles.id [delete: cascade]
 Ref: account_partners.partner_id > partners.id [delete: cascade]
+Ref: partners.created_by_staff_id > account_staffs.id [delete: set null]
 Ref: partners.assigned_staff_id > account_staffs.id [delete: set null]
+Ref: partner_account_invitations.partner_id > partners.id [delete: cascade]
+Ref: partner_account_invitations.created_by_staff_id > account_staffs.id [delete: set null]
 Ref: partner_contacts.partner_id > partners.id [delete: cascade]
 Ref: partner_business_registrations.partner_id > partners.id [delete: cascade]
 Ref: partner_feature_assignments.partner_id > partners.id [delete: cascade]
@@ -401,4 +438,5 @@ Ref: specialist_options.specialist_id > partner_specialists.id [delete: cascade]
 Ref: specialist_options.partner_option_id > partner_options.id [delete: cascade]
 Ref: categories.parent_id > categories.id
 Ref: category_assignments.category_id > categories.id [delete: restrict]
+Ref: category_usages.category_id > categories.id [delete: restrict]
 Ref: operation_history_changes.operation_history_id > operation_histories.id [delete: cascade]

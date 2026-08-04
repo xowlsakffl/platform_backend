@@ -1,12 +1,14 @@
 package com.platform.application.partner.result;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.platform.application.category.result.CategoryReferenceResult;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public record PartnerOptionResult(
 	Long id,
+	CategoryReferenceResult category,
 	String name,
 	String description,
 	BigDecimal price,

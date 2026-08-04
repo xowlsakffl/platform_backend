@@ -2,7 +2,7 @@
 
 ## 목적
 
-파트너, 스페셜리스트, 이벤트, 후기는 하나의 공통 뷰티 카테고리 트리를 사용한다. 대상마다 별도 카테고리나 사용처 매핑을 만들지 않고, 같은 트리에서 선택 가능한 깊이만 다르게 제한한다.
+업체와 가격 옵션은 하나의 공통 카테고리 트리를 사용한다. 기능별로 별도 카테고리 테이블을 만들지 않는다.
 
 ## 모델
 
@@ -20,6 +20,13 @@ categories
   status
   is_menu_visible
 
+category_usages
+  id
+  usage
+  category_id
+  sort_order
+  status
+
 category_assignments
   id
   categorizable_type
@@ -28,98 +35,75 @@ category_assignments
   is_primary
 ```
 
-파트너 카테고리의 domain은 `PARTNER`다. `category_usages`는 사용하지 않는다.
+`CategoryUsage`와 `CategoryAssignment`의 역할은 다르다.
 
-`category_assignments`의 대상은 다음 네 종류다.
+- `CategoryUsage`: 특정 기능에서 선택 가능한 카테고리 목록과 노출 순서
+- `CategoryAssignment`: 업체나 옵션에 실제로 선택된 카테고리 연결
 
-| 대상 | 코드 | 선택 가능 깊이 | 복수 선택 |
-|---|---|---:|---:|
-| 파트너 | `PARTNER` | 1뎁스 대카테고리 | 가능 |
-| 스페셜리스트 | `SPECIALIST` | 1뎁스 대카테고리 | 가능 |
-| 이벤트 | `EVENT` | 3뎁스 소카테고리 | 가능 |
-| 후기 | `REVIEW` | 3뎁스 소카테고리 | 가능 |
+## 업체 트리
 
-이벤트와 후기 도메인을 구현할 때도 별도 카테고리 테이블을 만들지 않고 `category_assignments`를 사용한다.
-
-## 그룹과 계층
-
-MVP 기준 파트너 분류는 1뎁스만 seed한다. `group_code`는 확장 호환을 위해 `TREATMENT`를 사용한다.
-
-| 코드 | 표시명 |
-|---|---|
-| `TREATMENT` | 시술 |
-
-카테고리는 최대 3뎁스다.
+업체 카테고리 domain은 `PARTNER`다.
 
 ```text
-대카테고리(depth=1) > 중카테고리(depth=2) > 소카테고리(depth=3)
+업체 분류(depth=1) > 옵션 분류(depth=2)
 ```
 
-- 뷰티 대카테고리는 `PARTNER`, `ACTIVE`, `depth=1`이어야 한다.
-- 하위 카테고리는 상위 카테고리의 그룹을 상속한다.
-- `full_path`는 그룹명을 제외한 `대 > 중 > 소` 형식이다.
-- 같은 그룹의 루트 또는 같은 부모 아래에서 이름을 중복할 수 없다.
-- 같은 domain에서 code는 중복할 수 없다.
-- 상위 이름이나 그룹을 변경하면 하위 `full_path`와 그룹도 같은 트랜잭션에서 변경한다.
-
-## 기준 카테고리
-
-MVP 파트너 분류는 다음 7개다.
+예시:
 
 ```text
-반영구
-에스테틱
 미용실
-왁싱
-타투
+├─ 커트
+├─ 펌
+├─ 염색
+└─ 클리닉
+
 네일아트
-마사지
+├─ 젤네일
+├─ 네일아트
+├─ 연장
+└─ 페디큐어
 ```
 
-전체 명칭, 계층, 순서의 실행 기준은 `V11__reseed_partner_categories.sql`이다.
+## Usage
 
-## 코드 규칙
+| 코드 | 선택 대상 | 허용 깊이 |
+|---|---|---:|
+| `PARTNER_CATEGORY` | 업체 분류 | 1 |
+| `PARTNER_OPTION_CATEGORY` | 가격 옵션 분류 | 2 |
 
-카테고리 code는 표시명과 분리된 고정 식별자다.
+Staff selector는 `usage` 필터를 지원한다.
 
 ```text
-KB_HAIR_SALON        미용실
-KB_NAIL              네일아트
-KB_ESTHETIC          에스테틱
+GET /api/v1/staff/categories/selector?domain=PARTNER&usage=PARTNER_CATEGORY
+GET /api/v1/staff/categories/selector?domain=PARTNER&usage=PARTNER_OPTION_CATEGORY&parent_id={categoryId}
 ```
 
-초기 코드는 정의 순서로 부여하지만, 카테고리 이름이나 정렬 순서가 바뀌어도 기존 코드는 변경하거나 다른 카테고리에 재사용하지 않는다.
+파트너 selector는 로그인한 업체의 분류를 기준으로 옵션 카테고리를 제한한다.
 
-## 선택과 검색
+```text
+GET /api/v1/partner/categories?usage=PARTNER_CATEGORY
+GET /api/v1/partner/categories?usage=PARTNER_OPTION_CATEGORY
+```
 
-- 파트너와 스페셜리스트 저장 시 `PARTNER`, `ACTIVE`, `depth=1`을 모두 검증한다.
-- 이벤트와 후기 저장 시에도 같은 `PARTNER` 트리를 사용하되, 2~3뎁스 시술 옵션 확장 뒤 `depth=3` 검증을 적용한다.
-- 대·중카테고리로 이벤트나 후기를 검색하면 해당 카테고리의 활성 하위 소카테고리 할당까지 포함해야 한다.
-- 하위 조회가 생기면 domain, group, full path를 함께 사용한다.
+## Assignment
 
-## Staff API
-
-| method | path | 설명 |
+| 코드 | 연결 대상 | 선택 규칙 |
 |---|---|---|
-| GET | `/api/v1/staff/categories` | 관리 목록 |
-| GET | `/api/v1/staff/categories/selector` | 선택 UI 목록 |
-| GET | `/api/v1/staff/categories/{id}` | 상세 |
-| POST | `/api/v1/staff/categories` | 생성, JSON 또는 multipart |
-| PATCH | `/api/v1/staff/categories/{id}` | JSON 부분수정 |
-| POST | `/api/v1/staff/categories/{id}` | multipart 부분수정 |
-| DELETE | `/api/v1/staff/categories/{id}` | 삭제 |
+| `PARTNER` | 업체 | `PARTNER_CATEGORY`에 등록된 depth 1 카테고리 |
+| `PARTNER_OPTION` | 가격 옵션 | 업체 카테고리 아래의 `PARTNER_OPTION_CATEGORY` 카테고리 |
 
-권한은 `platform.category.manage`다.
+업체와 옵션은 MVP에서 각각 대표 카테고리 하나를 필수로 사용한다. 저장 시 기존 연결을 교체하고 `is_primary=true`로 기록한다.
 
-Selector는 domain, parent, depth, group, 상태, 메뉴 노출 여부와 검색어를 지원한다. 사용처별 `usage` 필터는 지원하지 않는다. parent나 depth가 없고 검색어도 없으면 루트만 반환한다.
+기존 가격 옵션은 마이그레이션 시 업체 분류 아래의 `기타` 옵션 분류로 연결한다. 옵션이 존재하는 업체의 분류를 변경하려면 옵션 분류를 먼저 정리해야 한다.
 
-## 쓰기와 삭제
+전문가, 이벤트, 후기에는 카테고리를 중복 연결하지 않는다. 전문가와 이벤트는 가격 옵션을 통해 카테고리를 확인하고, 후기는 상담·예약 결과를 통해 옵션 정보를 참조한다.
 
-- 생성·수정 시 활성 parent, 형제 이름, domain code, 그룹 상속을 검증한다.
-- 아이콘은 multipart에서 선택적으로 등록·교체한다.
-- 하위 카테고리 또는 `category_assignments`가 남아 있으면 삭제를 거부한다.
-- 생성·수정·삭제는 `OperationHistory`에 기록한다.
+## 삭제 정책
 
-## 아이콘 공개
+다음 조건 중 하나라도 해당하면 카테고리를 삭제할 수 없다.
 
-카테고리 아이콘은 Staff 원본 조회와 User 앱 공개 조회를 지원한다. User 경로는 카테고리가 `ACTIVE`이고 컬렉션이 `icon`일 때만 파일을 반환한다.
+- 활성 하위 카테고리가 존재한다.
+- `category_usages`에서 선택 가능 항목으로 사용 중이다.
+- `category_assignments`에서 업체나 옵션에 연결돼 있다.
+
+카테고리 이름이나 노출을 중단하려면 삭제 대신 `INACTIVE` 상태를 사용한다.

@@ -6,7 +6,6 @@ import com.platform.application.partner.command.PartnerBusinessRegistrationComma
 import com.platform.application.partner.command.PartnerContactSetCommand;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerStatus;
-import com.platform.domain.partner.PartnerIndustry;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -25,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 public record PartnerCreateForStaffRequest(
 	@NotBlank @Size(max = 255) String name,
 	@Size(max = 2000) String description,
-	@NotNull PartnerIndustry industry,
+	@BindParam("category_id") @NotNull @Positive Long categoryId,
 	@BindParam("road_address") @NotBlank @Size(max = 255) String roadAddress,
 	@BindParam("jibun_address") @NotBlank @Size(max = 255) String jibunAddress,
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
@@ -78,7 +77,7 @@ public record PartnerCreateForStaffRequest(
 		return new CreatePartnerCommand(
 			name,
 			description,
-			industry,
+			categoryId,
 			roadAddress,
 			jibunAddress,
 			detailAddress,

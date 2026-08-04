@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record PartnerOptionSaveRequest(
+	@JsonProperty("category_id") @NotNull @Positive Long categoryId,
 	@NotBlank @Size(max = 120) String name,
 	@Size(max = 1000) String description,
 	@DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal price,
@@ -28,6 +29,7 @@ public record PartnerOptionSaveRequest(
 
 	public SavePartnerOptionCommand toCommand() {
 		return new SavePartnerOptionCommand(
+			categoryId,
 			name,
 			description,
 			price,

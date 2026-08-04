@@ -2,6 +2,7 @@ package com.platform.application.partner.result;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.platform.application.media.result.MediaResult;
+import com.platform.application.category.result.CategoryReferenceResult;
 import java.util.List;
 
 public record PartnerOnboardingResult(
@@ -18,8 +19,7 @@ public record PartnerOnboardingResult(
 	public record BasicInformation(
 		String name,
 		String description,
-		String industry,
-		@JsonProperty("industry_label") String industryLabel,
+		List<CategoryReferenceResult> categories,
 		@JsonProperty("road_address") String roadAddress,
 		@JsonProperty("jibun_address") String jibunAddress,
 		@JsonProperty("detail_address") String detailAddress,

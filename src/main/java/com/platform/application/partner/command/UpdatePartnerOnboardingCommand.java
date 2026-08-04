@@ -1,14 +1,13 @@
 package com.platform.application.partner.command;
 
 import com.platform.application.media.storage.MediaFileSource;
-import com.platform.domain.partner.PartnerIndustry;
 import java.util.List;
 import java.util.Set;
 
 public record UpdatePartnerOnboardingCommand(
 	String name,
 	String description,
-	PartnerIndustry industry,
+	Long categoryId,
 	String roadAddress,
 	String jibunAddress,
 	String detailAddress,

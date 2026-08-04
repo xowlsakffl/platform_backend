@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.platform.application.auth.OwnershipPolicy;
 import com.platform.application.cache.StaffSummaryCache;
 import com.platform.application.cache.StaffSummaryCacheInvalidator;
+import com.platform.application.category.CategoryAssignmentService;
 import com.platform.application.media.MediaCollectionPolicy;
 import com.platform.application.media.MediaCommandService;
 import com.platform.application.media.MediaReadService;
@@ -27,6 +28,7 @@ import com.platform.common.error.InternalApplicationException;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.domain.account.AccountPartner;
 import com.platform.domain.account.AccountPartnerStatus;
+import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.media.MediaOwnerType;
 import com.platform.domain.operationhistory.OperationHistory;
 import com.platform.domain.partner.Partner;
@@ -74,6 +76,7 @@ public class PartnerOnboardingService {
 	private static final String ACTION_SIGNED_UP = "ONBOARDING_SIGNED_UP";
 	private static final String ACTION_SUBMITTED = "ONBOARDING_SUBMITTED";
 	private final OwnershipPolicy ownershipPolicy;
+	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
 	private final AccountPartnerRepository accountPartnerRepository;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
@@ -91,6 +94,7 @@ public class PartnerOnboardingService {
 
 	public PartnerOnboardingService(
 		OwnershipPolicy ownershipPolicy,
+		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
 		AccountPartnerRepository accountPartnerRepository,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
@@ -107,6 +111,7 @@ public class PartnerOnboardingService {
 		ObjectMapper objectMapper
 	) {
 		this.ownershipPolicy = ownershipPolicy;
+		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
 		this.accountPartnerRepository = accountPartnerRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
@@ -189,7 +194,6 @@ public class PartnerOnboardingService {
 		partner.updateOnboardingProfile(
 			name,
 			command.specified("description") ? trimToNull(command.description()) : partner.description(),
-			command.specified("industry") ? command.industry() : partner.industry(),
 			command.specified("road_address") ? trimToNull(command.roadAddress()) : partner.roadAddress(),
 			command.specified("jibun_address") ? trimToNull(command.jibunAddress()) : partner.jibunAddress(),
 			command.specified("detail_address") ? trimToNull(command.detailAddress()) : partner.detailAddress(),
@@ -214,6 +218,14 @@ public class PartnerOnboardingService {
 			partner.replaceFeatures(loadFeatures(command.featureIds()));
 		}
 		partnerRepository.saveAndFlush(partner);
+		if (command.specified("category_id")) {
+			optionService.validatePartnerCategoryChange(partner.id(), command.categoryId());
+			categoryAssignmentService.replacePrimary(
+				CategoryAssignmentTarget.PARTNER,
+				partner.id(),
+				command.categoryId()
+			);
+		}
 
 		if (command.hashtags() != null) {
 			replaceHashtags(partner, command.hashtags());
@@ -280,8 +292,8 @@ public class PartnerOnboardingService {
 		if (!StringUtils.hasText(partner.description())) {
 			missing.add("description");
 		}
-		if (partner.industry() == null) {
-			missing.add("industry");
+		if (categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id()).isEmpty()) {
+			missing.add("category_id");
 		}
 		if (!StringUtils.hasText(partner.roadAddress())) {
 			missing.add("road_address");
@@ -325,8 +337,12 @@ public class PartnerOnboardingService {
 		) == null) {
 			missing.add("business_registration_file");
 		}
-		if (optionRepository.countByPartner_IdAndDeletedAtIsNull(partner.id()) == 0) {
+		var options = optionRepository.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partner.id());
+		if (options.isEmpty()) {
 			missing.add("price_option");
+		} else if (options.stream().anyMatch(option -> categoryAssignmentService
+			.references(CategoryAssignmentTarget.PARTNER_OPTION, option.id()).isEmpty())) {
+			missing.add("price_option_category");
 		}
 		if (!missing.isEmpty()) {
 			throw new ApiException(
@@ -656,8 +672,7 @@ public class PartnerOnboardingService {
 			new PartnerOnboardingResult.BasicInformation(
 				partner.name(),
 				partner.description(),
-				partner.industry() == null ? null : partner.industry().name(),
-				partner.industry() == null ? null : partner.industry().label(),
+				categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id()),
 				partner.roadAddress(),
 				partner.jibunAddress(),
 				partner.detailAddress(),

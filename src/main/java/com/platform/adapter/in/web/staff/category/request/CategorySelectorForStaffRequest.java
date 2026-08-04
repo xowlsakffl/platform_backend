@@ -4,6 +4,7 @@ import com.platform.application.category.query.SelectCategoriesQuery;
 import com.platform.domain.category.CategoryDomain;
 import com.platform.domain.category.CategoryGroup;
 import com.platform.domain.category.CategoryStatus;
+import com.platform.domain.category.CategoryUsageType;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.BindParam;
 
 public record CategorySelectorForStaffRequest(
 	@NotNull CategoryDomain domain,
+	CategoryUsageType usage,
 	@Size(max = 100) String q,
 	@BindParam("parent_id") Long parentId,
 	@BindParam("parent_code") @Size(max = 80) String parentCode,
@@ -29,6 +31,7 @@ public record CategorySelectorForStaffRequest(
 	public SelectCategoriesQuery toQuery() {
 		return new SelectCategoriesQuery(
 			domain,
+			usage,
 			q,
 			parentId,
 			parentCode,

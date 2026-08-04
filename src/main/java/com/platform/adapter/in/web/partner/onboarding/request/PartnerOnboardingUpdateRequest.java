@@ -5,7 +5,6 @@ import com.platform.application.partner.command.PartnerBusinessRegistrationComma
 import com.platform.application.partner.command.PartnerContactSetCommand;
 import com.platform.application.partner.command.UpdatePartnerOnboardingCommand;
 import com.platform.common.web.multipart.MultipartMediaFileSource;
-import com.platform.domain.partner.PartnerIndustry;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -22,7 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 public record PartnerOnboardingUpdateRequest(
 	@Size(max = 255) String name,
 	@Size(max = 2000) String description,
-	PartnerIndustry industry,
+	@BindParam("category_id") @Positive Long categoryId,
 	@BindParam("road_address") @Size(max = 255) String roadAddress,
 	@BindParam("jibun_address") @Size(max = 255) String jibunAddress,
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
@@ -72,7 +71,7 @@ public record PartnerOnboardingUpdateRequest(
 		return new UpdatePartnerOnboardingCommand(
 			name,
 			description,
-			industry,
+			categoryId,
 			roadAddress,
 			jibunAddress,
 			detailAddress,

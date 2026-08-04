@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record SavePartnerOptionCommand(
+	Long categoryId,
 	String name,
 	String description,
 	BigDecimal price,
