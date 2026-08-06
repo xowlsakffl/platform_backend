@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.platform.application.auth.OwnershipPolicy;
+import com.platform.application.auth.PermissionService;
 import com.platform.application.category.CategoryAssignmentService;
 import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.common.error.ApiException;
@@ -34,6 +35,7 @@ class PartnerOptionCategoryValidationTests {
 		optionRepository = mock(PartnerOptionRepository.class);
 		service = new PartnerOptionForPartnerService(
 			mock(OwnershipPolicy.class),
+			mock(PermissionService.class),
 			categoryAssignmentService,
 			mock(PartnerRepository.class),
 			optionRepository,

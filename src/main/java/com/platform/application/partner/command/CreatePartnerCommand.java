@@ -1,29 +1,29 @@
 package com.platform.application.partner.command;
 
 import com.platform.application.media.storage.MediaFileSource;
-import com.platform.domain.partner.PartnerAllowStatus;
-import com.platform.domain.partner.PartnerStatus;
 import java.util.Set;
 import java.util.List;
 
 public record CreatePartnerCommand(
 	String name,
-	String accountInvitationEmail,
+	String englishName,
 	String description,
 	Long categoryId,
 	String roadAddress,
-	String jibunAddress,
 	String detailAddress,
 	String latitude,
 	String longitude,
+	String subwayStationsJson,
 	String operatingHoursNotice,
 	Object operationHours,
+	Object holidayPolicy,
 	String direction,
-	PartnerAllowStatus allowStatus,
-	PartnerStatus status,
 	PartnerContactSetCommand contacts,
 	PartnerBusinessRegistrationCommand businessRegistration,
 	Set<Long> featureIds,
+	List<String> hashtags,
+	List<SavePartnerOptionCommand> options,
+	String linksJson,
 	MediaFileSource logo,
 	MediaFileSource mainImage,
 	List<MediaFileSource> interiorImages,

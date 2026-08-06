@@ -1,6 +1,6 @@
 Project platform_backend {
   database_type: 'MySQL'
-  Note: '현재 Flyway V1~V25 기준. 실행 기준은 src/main/resources/db/migration이다.'
+  Note: '현재 Flyway V1~V27 기준. 실행 기준은 src/main/resources/db/migration이다.'
 }
 
 Table auth_sessions {
@@ -49,6 +49,7 @@ Table password_reset_tokens {
 
 Table account_staffs {
   id bigint [pk, increment]
+  login_id varchar(30) [not null, unique]
   name varchar(255) [not null]
   nickname varchar(255) [not null, unique]
   email varchar(255) [not null, unique]
@@ -107,8 +108,7 @@ Table account_staff_roles {
 Table account_partners {
   id bigint [pk, increment]
   partner_id bigint [not null, unique]
-  name varchar(255) [not null]
-  nickname varchar(255) [not null, unique]
+  login_id varchar(30) [not null, unique]
   email varchar(255) [not null, unique]
   phone varchar(50)
   email_verified_at timestamp
@@ -150,17 +150,18 @@ Table account_users {
 
 Table partners {
   id bigint [pk, increment]
-  name varchar(255) [not null, unique]
-  account_invitation_email varchar(255)
+  name varchar(30) [not null, unique]
+  english_name varchar(90)
   description text
   road_address varchar(255)
-  jibun_address varchar(255)
   detail_address varchar(255)
+  subway_stations json
   region_sort_key varchar(255)
   latitude varchar(50)
   longitude varchar(50)
   operating_hours_notice text
   operation_hours json
+  holiday_policy json
   direction text
   view_count bigint [not null, default: 0]
   evaluation_count int [not null, default: 0]
@@ -248,16 +249,31 @@ Table partner_feature_assignments {
   }
 }
 
-Table partner_hashtags {
+Table hashtags {
   id bigint [pk, increment]
-  partner_id bigint [not null]
-  value varchar(30) [not null]
+  name varchar(30) [not null]
+  normalized_name varchar(30) [not null, unique]
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (status, name)
+  }
+}
+
+Table hashtag_relations {
+  id bigint [pk, increment]
+  hashtag_id bigint [not null]
+  target_type varchar(30) [not null]
+  target_id bigint [not null]
   sort_order tinyint [not null, default: 0]
   created_at timestamp [not null]
   updated_at timestamp [not null]
 
   indexes {
-    (partner_id, value) [unique]
+    (target_type, target_id, hashtag_id) [unique]
+    (target_type, target_id, sort_order) [unique]
   }
 }
 
@@ -432,7 +448,7 @@ Ref: partner_contacts.partner_id > partners.id [delete: cascade]
 Ref: partner_business_registrations.partner_id > partners.id [delete: cascade]
 Ref: partner_feature_assignments.partner_id > partners.id [delete: cascade]
 Ref: partner_feature_assignments.partner_feature_id > partner_features.id [delete: restrict]
-Ref: partner_hashtags.partner_id > partners.id [delete: cascade]
+Ref: hashtag_relations.hashtag_id > hashtags.id [delete: cascade]
 Ref: partner_links.partner_id > partners.id [delete: cascade]
 Ref: partner_options.partner_id > partners.id [delete: cascade]
 Ref: partner_specialists.partner_id > partners.id [delete: cascade]

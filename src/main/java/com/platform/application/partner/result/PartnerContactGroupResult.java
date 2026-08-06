@@ -5,6 +5,7 @@ import java.util.List;
 
 public record PartnerContactGroupResult(
 	@JsonProperty("representative_phone") String representativePhone,
+	@JsonProperty("representative_email") String representativeEmail,
 	@JsonProperty("sms_sender_phone") String smsSenderPhone,
 	@JsonProperty("call_receiver_phone") String callReceiverPhone,
 	@JsonProperty("consultation_receiver_phones") List<String> consultationReceiverPhones,

@@ -20,20 +20,23 @@ import org.springframework.web.bind.annotation.BindParam;
 import org.springframework.web.multipart.MultipartFile;
 
 public record PartnerUpdateForStaffRequest(
-	@BindParam("account_invitation_email") @Email @Size(max = 255) String accountInvitationEmail,
+	@Pattern(regexp = ".*\\S.*") @Size(max = 30) String name,
+	@BindParam("english_name") @Size(max = 90) String englishName,
 	@Size(max = 2000) String description,
 	@BindParam("category_id") @Positive Long categoryId,
 	@BindParam("road_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String roadAddress,
-	@BindParam("jibun_address") @Pattern(regexp = ".*\\S.*") @Size(max = 255) String jibunAddress,
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
 	@DecimalMin("-90") @DecimalMax("90") String latitude,
 	@DecimalMin("-180") @DecimalMax("180") String longitude,
+	@BindParam("subway_stations") @Size(max = 12000) String subwayStations,
 	@BindParam("operating_hours_notice") @Size(max = 5000) String operatingHoursNotice,
 	@BindParam("operation_hours") Object operationHours,
+	@BindParam("holiday_policy") Object holidayPolicy,
 	@Size(max = 5000) String direction,
 	@BindParam("allow_status") PartnerAllowStatus allowStatus,
 	PartnerStatus status,
 	@BindParam("representative_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String representativePhone,
+	@BindParam("representative_email") @Email @Size(max = 255) String representativeEmail,
 	@BindParam("sms_sender_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String smsSenderPhone,
 	@BindParam("call_receiver_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String callReceiverPhone,
 	@BindParam("consultation_receiver_phones[]") @Size(max = 3)
@@ -56,6 +59,8 @@ public record PartnerUpdateForStaffRequest(
 	@BindParam("tax_invoice_email") @Email @Size(max = 255) String taxInvoiceEmail,
 	@BindParam("issued_at") LocalDate issuedAt,
 	@BindParam("feature_ids[]") @Size(min = 1, max = 100) Set<@Positive Long> featureIds,
+	@BindParam("hashtags[]") @Size(max = 10) List<@Size(max = 30) String> hashtags,
+	@Size(max = 12000) String links,
 	MultipartFile logo,
 	@BindParam("existing_logo_id") @Positive Long existingLogoId,
 	@BindParam("main_image") MultipartFile mainImage,
@@ -71,22 +76,26 @@ public record PartnerUpdateForStaffRequest(
 	public UpdatePartnerCommand toCommand(Set<String> requestFields) {
 		Set<String> fields = normalizeFields(requestFields);
 		return new UpdatePartnerCommand(
-			accountInvitationEmail,
+			name,
+			englishName,
 			description,
 			categoryId,
 			roadAddress,
-			jibunAddress,
 			detailAddress,
 			latitude,
 			longitude,
+			subwayStations,
 			operatingHoursNotice,
 			operationHours,
+			holidayPolicy,
 			direction,
 			allowStatus,
 			status,
 			contactsOrNull(fields),
 			businessRegistrationOrNull(fields),
 			fields.contains("feature_ids") ? PartnerRequestSupport.ids(featureIds) : null,
+			fields.contains("hashtags") ? PartnerRequestSupport.list(hashtags) : null,
+			fields.contains("links") ? links : null,
 			MultipartMediaFileSource.from(logo),
 			existingLogoId,
 			MultipartMediaFileSource.from(mainImage),
@@ -103,6 +112,7 @@ public record PartnerUpdateForStaffRequest(
 	private PartnerContactSetCommand contactsOrNull(Set<String> fields) {
 		if (Set.of(
 			"representative_phone",
+			"representative_email",
 			"sms_sender_phone",
 			"call_receiver_phone",
 			"consultation_receiver_phones",
@@ -113,6 +123,7 @@ public record PartnerUpdateForStaffRequest(
 		}
 		return new PartnerContactSetCommand(
 			representativePhone,
+			representativeEmail,
 			smsSenderPhone,
 			callReceiverPhone,
 			PartnerRequestSupport.list(consultationReceiverPhones),

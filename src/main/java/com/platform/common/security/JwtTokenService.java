@@ -55,6 +55,7 @@ public class JwtTokenService {
 			.claim("permissions", actor.permissions().stream().sorted().toList());
 		optionalClaim(claimsBuilder, "partner_id", actor.partnerId());
 		optionalClaim(claimsBuilder, "email", actor.email());
+		optionalClaim(claimsBuilder, "login_id", actor.loginId());
 		optionalClaim(claimsBuilder, "name", actor.name());
 		optionalClaim(claimsBuilder, "nickname", actor.nickname());
 		JwtClaimsSet claims = claimsBuilder.build();
@@ -75,6 +76,7 @@ public class JwtTokenService {
 				jwt.getClaim("partner_id"),
 				jwt.getClaimAsString("sid"),
 				jwt.getClaimAsString("email"),
+				jwt.getClaimAsString("login_id"),
 				jwt.getClaimAsString("name"),
 				jwt.getClaimAsString("nickname"),
 				permissions(jwt)

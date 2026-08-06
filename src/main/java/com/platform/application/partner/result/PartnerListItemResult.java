@@ -11,7 +11,6 @@ import java.util.List;
 public record PartnerListItemResult(
 	Long id,
 	String name,
-	@JsonProperty("account_invitation_email") String accountInvitationEmail,
 	@JsonProperty("allow_status") String allowStatus,
 	String status,
 	@JsonProperty("created_at") LocalDateTime createdAt,

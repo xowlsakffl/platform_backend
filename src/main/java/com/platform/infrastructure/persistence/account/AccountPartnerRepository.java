@@ -15,11 +15,13 @@ public interface AccountPartnerRepository extends JpaRepository<AccountPartner, 
 
 	boolean existsByEmail(String email);
 
-	boolean existsByNickname(String nickname);
+	boolean existsByLoginId(String loginId);
 
 	boolean existsByPartner_IdAndDeletedAtIsNull(Long partnerId);
 
 	Optional<AccountPartner> findByEmailAndDeletedAtIsNull(String email);
+
+	Optional<AccountPartner> findByLoginIdAndDeletedAtIsNull(String loginId);
 
 	Optional<AccountPartner> findByIdAndDeletedAtIsNull(Long id);
 

@@ -2,6 +2,7 @@ package com.platform.domain.partner;
 
 public enum PartnerContactType {
 	REPRESENTATIVE_PHONE(1),
+	REPRESENTATIVE_EMAIL(1),
 	SMS_SENDER_PHONE(1),
 	CALL_RECEIVER_PHONE(1),
 	CONSULTATION_RECEIVER_PHONE(3),

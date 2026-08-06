@@ -221,7 +221,6 @@ public class PartnerSampleBootstrapService {
 			sample.name(),
 			"로컬 개발 환경에서 사용하는 가상 파트너 데이터입니다.",
 			sample.address(),
-			sample.addressDetail(),
 			sample.latitude(),
 			sample.longitude(),
 			"평일 09:00~20:00, 토요일 09:00~15:00",
@@ -230,7 +229,7 @@ public class PartnerSampleBootstrapService {
 			sample.allowStatus(),
 			sample.partnerStatus()
 		);
-		partner.changeAccountInvitationEmail(sample.email());
+		partner.changeDetailAddress(sample.addressDetail());
 		partner.replaceContacts(createContacts(sequence, sample.email()));
 		partner.replaceBusinessRegistration(createBusinessRegistration(sequence, sample));
 		partner.replaceFeatures(resolveCodes(sample.featureCodes(), features));
@@ -270,8 +269,7 @@ public class PartnerSampleBootstrapService {
 	) {
 		AccountPartner account = AccountPartner.create(
 			partner,
-			sample.managerName(),
-			sample.nickname(),
+			sample.loginId(),
 			sample.email(),
 			"010-9200-%04d".formatted(sequence),
 			encodedPassword,
@@ -306,7 +304,7 @@ public class PartnerSampleBootstrapService {
 		return partnerRepository.existsByName(sample.name())
 			|| businessRegistrationRepository.existsByBusinessNumber(sample.businessNumber())
 			|| accountPartnerRepository.existsByEmail(sample.email())
-			|| accountPartnerRepository.existsByNickname(sample.nickname());
+			|| accountPartnerRepository.existsByLoginId(sample.loginId());
 	}
 
 	private Map<String, PartnerFeature> loadFeatures() {
@@ -359,6 +357,7 @@ public class PartnerSampleBootstrapService {
 		String suffix = "%04d".formatted(sequence);
 		Set<PartnerContact> contacts = new LinkedHashSet<>();
 		contacts.add(new PartnerContact(PartnerContactType.REPRESENTATIVE_PHONE, "02-6100-" + suffix, 0, true));
+		contacts.add(new PartnerContact(PartnerContactType.REPRESENTATIVE_EMAIL, email, 0, true));
 		contacts.add(new PartnerContact(PartnerContactType.SMS_SENDER_PHONE, "02-6200-" + suffix, 0, true));
 		contacts.add(new PartnerContact(PartnerContactType.CALL_RECEIVER_PHONE, "02-6300-" + suffix, 0, true));
 		contacts.add(new PartnerContact(PartnerContactType.CONSULTATION_RECEIVER_PHONE, "010-7100-" + suffix, 0, true));
@@ -402,7 +401,7 @@ public class PartnerSampleBootstrapService {
 		SampleAccountState accountState,
 		String managerName,
 		String email,
-		String nickname,
+		String loginId,
 		String businessNumber,
 		String categoryCode,
 		List<String> featureCodes,

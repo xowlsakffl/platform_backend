@@ -1,13 +1,12 @@
 package com.platform.application.partner;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.platform.application.auth.OwnershipPolicy;
 import com.platform.application.cache.StaffSummaryCache;
 import com.platform.application.cache.StaffSummaryCacheInvalidator;
 import com.platform.application.category.CategoryAssignmentService;
+import com.platform.application.hashtag.HashtagAssignmentService;
 import com.platform.application.media.MediaCollectionPolicy;
 import com.platform.application.media.MediaCommandService;
 import com.platform.application.media.MediaReadService;
@@ -38,22 +37,15 @@ import com.platform.domain.partner.PartnerContact;
 import com.platform.domain.partner.PartnerContactType;
 import com.platform.domain.partner.PartnerFeature;
 import com.platform.domain.partner.PartnerFeatureStatus;
-import com.platform.domain.partner.PartnerHashtag;
-import com.platform.domain.partner.PartnerLink;
-import com.platform.domain.partner.PartnerLinkType;
+import com.platform.domain.hashtag.HashtagTargetType;
 import com.platform.domain.partner.PartnerStatus;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.operationhistory.OperationHistoryRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
-import com.platform.infrastructure.persistence.partner.PartnerHashtagRepository;
 import com.platform.infrastructure.persistence.partner.PartnerLinkRepository;
 import com.platform.infrastructure.persistence.partner.PartnerOptionRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -81,11 +73,13 @@ public class PartnerOnboardingService {
 	private final AccountPartnerRepository accountPartnerRepository;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final PartnerFeatureRepository featureRepository;
-	private final PartnerHashtagRepository hashtagRepository;
+	private final HashtagAssignmentService hashtagAssignmentService;
 	private final PartnerLinkRepository linkRepository;
+	private final PartnerLinkAssignmentService linkAssignmentService;
 	private final PartnerOptionRepository optionRepository;
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final PartnerOptionForPartnerService optionService;
+	private final PartnerSchedulePolicyValidator schedulePolicyValidator;
 	private final MediaCommandService mediaCommandService;
 	private final MediaReadService mediaReadService;
 	private final StaffSummaryCacheInvalidator summaryCacheInvalidator;
@@ -99,11 +93,13 @@ public class PartnerOnboardingService {
 		AccountPartnerRepository accountPartnerRepository,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		PartnerFeatureRepository featureRepository,
-		PartnerHashtagRepository hashtagRepository,
+		HashtagAssignmentService hashtagAssignmentService,
 		PartnerLinkRepository linkRepository,
+		PartnerLinkAssignmentService linkAssignmentService,
 		PartnerOptionRepository optionRepository,
 		OperationHistoryRepository operationHistoryRepository,
 		PartnerOptionForPartnerService optionService,
+		PartnerSchedulePolicyValidator schedulePolicyValidator,
 		MediaCommandService mediaCommandService,
 		MediaReadService mediaReadService,
 		StaffSummaryCacheInvalidator summaryCacheInvalidator,
@@ -116,11 +112,13 @@ public class PartnerOnboardingService {
 		this.accountPartnerRepository = accountPartnerRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.featureRepository = featureRepository;
-		this.hashtagRepository = hashtagRepository;
+		this.hashtagAssignmentService = hashtagAssignmentService;
 		this.linkRepository = linkRepository;
+		this.linkAssignmentService = linkAssignmentService;
 		this.optionRepository = optionRepository;
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.optionService = optionService;
+		this.schedulePolicyValidator = schedulePolicyValidator;
 		this.mediaCommandService = mediaCommandService;
 		this.mediaReadService = mediaReadService;
 		this.summaryCacheInvalidator = summaryCacheInvalidator;
@@ -131,8 +129,7 @@ public class PartnerOnboardingService {
 	@Transactional
 	public PartnerOnboardingSignupResult signup(SignupPartnerOnboardingCommand command) {
 		String partnerName = requireText(command.partnerName(), "Partner name is required.");
-		String managerName = requireText(command.managerName(), "Manager name is required.");
-		String nickname = requireText(command.nickname(), "Nickname is required.");
+		String loginId = normalizeLoginId(command.loginId());
 		String email = requireText(command.email(), "Email is required.").toLowerCase(Locale.ROOT);
 		if (partnerRepository.existsByNameAndDeletedAtIsNull(partnerName)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner name is already in use.");
@@ -140,17 +137,15 @@ public class PartnerOnboardingService {
 		if (accountPartnerRepository.existsByEmail(email)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Email is already in use.");
 		}
-		if (accountPartnerRepository.existsByNickname(nickname)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Nickname is already in use.");
+		if (accountPartnerRepository.existsByLoginId(loginId)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "Login ID is already in use.");
 		}
 
 		Partner partner = Partner.createDraft(partnerName);
-		partner.changeAccountInvitationEmail(email);
 		partner = partnerRepository.saveAndFlush(partner);
 		AccountPartner account = accountPartnerRepository.saveAndFlush(AccountPartner.create(
 			partner,
-			managerName,
-			nickname,
+			loginId,
 			email,
 			trimToNull(command.phone()),
 			passwordEncoder.encode(command.password()),
@@ -169,9 +164,18 @@ public class PartnerOnboardingService {
 		return new PartnerOnboardingSignupResult(
 			partner.id(),
 			account.id(),
+			account.loginId(),
 			account.email(),
 			partner.allowStatus().name()
 		);
+	}
+
+	private String normalizeLoginId(String value) {
+		String loginId = requireText(value, "Login ID is required.").toLowerCase(Locale.ROOT);
+		if (!loginId.matches("^[a-z0-9][a-z0-9._-]{3,29}$")) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "Login ID format is invalid.");
+		}
+		return loginId;
 	}
 
 	@Transactional(readOnly = true)
@@ -189,15 +193,18 @@ public class PartnerOnboardingService {
 		String name = command.specified("name")
 			? requireText(command.name(), "Partner name cannot be empty.")
 			: partner.name();
+		String englishName = command.specified("english_name")
+			? trimToNull(command.englishName())
+			: partner.englishName();
 		if (!Objects.equals(name, partner.name()) && partnerRepository.existsByNameAndDeletedAtIsNull(name)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner name is already in use.");
 		}
 
 		partner.updateOnboardingProfile(
 			name,
+			englishName,
 			command.specified("description") ? trimToNull(command.description()) : partner.description(),
 			command.specified("road_address") ? trimToNull(command.roadAddress()) : partner.roadAddress(),
-			command.specified("jibun_address") ? trimToNull(command.jibunAddress()) : partner.jibunAddress(),
 			command.specified("detail_address") ? trimToNull(command.detailAddress()) : partner.detailAddress(),
 			command.specified("latitude") ? trimToNull(command.latitude()) : partner.latitude(),
 			command.specified("longitude") ? trimToNull(command.longitude()) : partner.longitude(),
@@ -205,10 +212,15 @@ public class PartnerOnboardingService {
 				? trimToNull(command.operatingHoursNotice())
 				: partner.operatingHoursNotice(),
 			command.specified("operation_hours")
-				? normalizeOperationHours(command.operationHours())
+				? schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true)
 				: partner.operationHours(),
 			command.specified("direction") ? trimToNull(command.direction()) : partner.direction()
 		);
+		if (command.specified("holiday_policy")) {
+			partner.changeHolidayPolicy(
+				schedulePolicyValidator.normalizeHolidayPolicy(command.holidayPolicy(), true)
+			);
+		}
 
 		if (command.contacts() != null) {
 			partner.replaceContacts(mergeContacts(partner, command.contacts(), command.specifiedFields()));
@@ -230,10 +242,10 @@ public class PartnerOnboardingService {
 		}
 
 		if (command.hashtags() != null) {
-			replaceHashtags(partner, command.hashtags());
+			hashtagAssignmentService.replace(HashtagTargetType.PARTNER, partner.id(), command.hashtags());
 		}
 		if (command.specified("links")) {
-			replaceLinks(partner, command.linksJson());
+			linkAssignmentService.replace(partner, command.linksJson());
 		}
 		synchronizeMedia(partner, command);
 
@@ -300,14 +312,11 @@ public class PartnerOnboardingService {
 		if (!StringUtils.hasText(partner.roadAddress())) {
 			missing.add("road_address");
 		}
-		if (!StringUtils.hasText(partner.jibunAddress())) {
-			missing.add("jibun_address");
-		}
-		if (!StringUtils.hasText(partner.latitude()) || !StringUtils.hasText(partner.longitude())) {
-			missing.add("coordinates");
-		}
 		if (!StringUtils.hasText(partner.operationHours())) {
 			missing.add("operation_hours");
+		}
+		if (!StringUtils.hasText(partner.holidayPolicy())) {
+			missing.add("holiday_policy");
 		}
 		boolean hasRepresentativePhone = partner.contacts().stream().anyMatch(contact ->
 			contact.active()
@@ -315,6 +324,13 @@ public class PartnerOnboardingService {
 				&& StringUtils.hasText(contact.value()));
 		if (!hasRepresentativePhone) {
 			missing.add("representative_phone");
+		}
+		boolean hasRepresentativeEmail = partner.contacts().stream().anyMatch(contact ->
+			contact.active()
+				&& contact.contactType() == PartnerContactType.REPRESENTATIVE_EMAIL
+				&& StringUtils.hasText(contact.value()));
+		if (!hasRepresentativeEmail) {
+			missing.add("representative_email");
 		}
 		PartnerBusinessRegistration registration = partner.businessRegistration();
 		if (registration == null
@@ -424,6 +440,7 @@ public class PartnerOnboardingService {
 				Collectors.mapping(PartnerContact::value, Collectors.toList())
 			));
 		putSingle(values, PartnerContactType.REPRESENTATIVE_PHONE, command.representativePhone(), fields, "representative_phone");
+		putSingle(values, PartnerContactType.REPRESENTATIVE_EMAIL, command.representativeEmail(), fields, "representative_email");
 		putSingle(values, PartnerContactType.SMS_SENDER_PHONE, command.smsSenderPhone(), fields, "sms_sender_phone");
 		putSingle(values, PartnerContactType.CALL_RECEIVER_PHONE, command.callReceiverPhone(), fields, "call_receiver_phone");
 		putMany(values, PartnerContactType.CONSULTATION_RECEIVER_PHONE, command.consultationReceiverPhones(), fields, "consultation_receiver_phones");
@@ -552,119 +569,6 @@ public class PartnerOnboardingService {
 		return new LinkedHashSet<>(features);
 	}
 
-	private void replaceHashtags(Partner partner, List<String> values) {
-		LinkedHashMap<String, String> hashtags = new LinkedHashMap<>();
-		for (String rawValue : values) {
-			String value = trimToNull(rawValue);
-			if (value == null) {
-				continue;
-			}
-			value = value.replaceFirst("^#+", "").trim();
-			if (value.isEmpty() || value.length() > 30) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "A hashtag must be between 1 and 30 characters.");
-			}
-			hashtags.putIfAbsent(value.toLowerCase(Locale.ROOT), value);
-		}
-		if (hashtags.size() > 10) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Up to 10 hashtags can be saved.");
-		}
-		hashtagRepository.deleteByPartner_Id(partner.id());
-		hashtagRepository.flush();
-		int index = 0;
-		for (String value : hashtags.values()) {
-			hashtagRepository.save(new PartnerHashtag(partner, value, index++));
-		}
-	}
-
-	private void replaceLinks(Partner partner, String linksJson) {
-		List<LinkPayload> payloads = parseLinks(linksJson);
-		if (payloads.size() > PartnerLinkType.values().length) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Too many external links were supplied.");
-		}
-		Set<PartnerLinkType> types = new LinkedHashSet<>();
-		for (LinkPayload payload : payloads) {
-			if (payload.type() == null || !types.add(payload.type())) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "Each external link type can be saved only once.");
-			}
-			validateUrl(payload.url());
-		}
-		linkRepository.deleteByPartner_Id(partner.id());
-		linkRepository.flush();
-		for (int index = 0; index < payloads.size(); index++) {
-			LinkPayload payload = payloads.get(index);
-			linkRepository.save(new PartnerLink(
-				partner,
-				payload.type(),
-				payload.url().trim(),
-				payload.sortOrder() == null ? index : payload.sortOrder()
-			));
-		}
-	}
-
-	private List<LinkPayload> parseLinks(String json) {
-		if (!StringUtils.hasText(json)) {
-			return List.of();
-		}
-		try {
-			return objectMapper.readerForListOf(LinkPayload.class).readValue(json);
-		} catch (JsonProcessingException exception) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "External links JSON is invalid.");
-		}
-	}
-
-	private void validateUrl(String value) {
-		String normalized = trimToNull(value);
-		if (normalized == null || normalized.length() > 1000) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "External link URL is invalid.");
-		}
-		try {
-			URI uri = new URI(normalized);
-			if (uri.getHost() == null
-				|| uri.getScheme() == null
-				|| !(uri.getScheme().equalsIgnoreCase("http") || uri.getScheme().equalsIgnoreCase("https"))) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "External links must use HTTP or HTTPS.");
-			}
-		} catch (URISyntaxException exception) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "External link URL is invalid.");
-		}
-	}
-
-	private String normalizeOperationHours(String value) {
-		if (!StringUtils.hasText(value)) {
-			return null;
-		}
-		try {
-			JsonNode root = objectMapper.readTree(value);
-			if (root == null || !root.isObject()) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "Operation hours must be a JSON object.");
-			}
-			for (String day : List.of("mon", "tue", "wed", "thu", "fri", "sat", "sun")) {
-				JsonNode hours = root.get(day);
-				if (hours == null || !hours.isObject() || !hours.path("is_closed").isBoolean()) {
-					throw new ApiException(ErrorCode.INVALID_REQUEST, "Operation hours are required for every day.");
-				}
-				if (hours.path("is_closed").booleanValue()) {
-					continue;
-				}
-				String start = hours.path("start").isTextual() ? hours.path("start").textValue() : null;
-				String end = hours.path("end").isTextual() ? hours.path("end").textValue() : null;
-				if (start == null || end == null || !start.matches("^\\d{2}:\\d{2}$") || !end.matches("^\\d{2}:\\d{2}$")) {
-					throw new ApiException(ErrorCode.INVALID_REQUEST, "Operation hours must use HH:mm.");
-				}
-				LocalTime startTime = LocalTime.parse(start);
-				LocalTime endTime = LocalTime.parse(end);
-				if (!endTime.isAfter(startTime)) {
-					throw new ApiException(ErrorCode.INVALID_REQUEST, "Closing time must be after opening time.");
-				}
-			}
-			return objectMapper.writeValueAsString(root);
-		} catch (ApiException exception) {
-			throw exception;
-		} catch (JsonProcessingException | IllegalArgumentException | DateTimeParseException exception) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Operation hours JSON is invalid.");
-		}
-	}
-
 	private PartnerOnboardingResult result(AuthenticatedActor actor, Partner partner) {
 		return new PartnerOnboardingResult(
 			partner.id(),
@@ -673,18 +577,18 @@ public class PartnerOnboardingService {
 			rejectionReason(partner),
 			new PartnerOnboardingResult.BasicInformation(
 				partner.name(),
+				partner.englishName(),
 				partner.description(),
 				categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id()),
 				partner.roadAddress(),
-				partner.jibunAddress(),
 				partner.detailAddress(),
 				partner.latitude(),
 				partner.longitude(),
 				partner.operatingHoursNotice(),
 				fromJson(partner.operationHours()),
+				fromJson(partner.holidayPolicy()),
 				partner.direction(),
-				hashtagRepository.findByPartner_IdOrderBySortOrderAscIdAsc(partner.id())
-					.stream().map(PartnerHashtag::value).toList(),
+				hashtagAssignmentService.values(HashtagTargetType.PARTNER, partner.id()),
 				contactResults(partner.contacts()),
 				mediaReadService.primary(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_LOGO),
 				mediaReadService.primary(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_MAIN_IMAGE),
@@ -801,10 +705,4 @@ public class PartnerOnboardingService {
 		return trimmed.isEmpty() ? null : trimmed;
 	}
 
-	private record LinkPayload(
-		PartnerLinkType type,
-		String url,
-		@JsonProperty("sort_order") Integer sortOrder
-	) {
-	}
 }

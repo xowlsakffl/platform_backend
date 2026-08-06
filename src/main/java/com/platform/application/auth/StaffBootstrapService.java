@@ -32,12 +32,13 @@ public class StaffBootstrapService {
 	public boolean ensureStaff(BootstrapStaffCommand command) {
 		validate(command);
 
+		String loginId = command.loginId().trim().toLowerCase();
 		String email = command.email().trim().toLowerCase();
 		String nickname = command.nickname().trim();
 		StaffRole role = roleRepository.findByName(command.roleName().trim())
 			.orElseThrow(() -> new InternalApplicationException("운영자 역할을 찾을 수 없습니다: " + command.roleName()));
 
-		AccountStaff existingStaff = staffRepository.findByEmail(email).orElse(null);
+		AccountStaff existingStaff = staffRepository.findByLoginId(loginId).orElse(null);
 		if (existingStaff != null) {
 			if (!existingStaff.isActive()) {
 				throw new InternalApplicationException("같은 이메일의 비활성 운영자 계정이 존재합니다: " + email);
@@ -46,11 +47,15 @@ public class StaffBootstrapService {
 			return false;
 		}
 
+		if (staffRepository.findByEmail(email).isPresent()) {
+			throw new InternalApplicationException("같은 이메일의 운영자 계정이 존재합니다: " + email);
+		}
 		if (staffRepository.existsByNickname(nickname)) {
 			throw new InternalApplicationException("같은 닉네임의 운영자 계정이 존재합니다: " + nickname);
 		}
 
 		AccountStaff staff = AccountStaff.create(
+			loginId,
 			command.name().trim(),
 			nickname,
 			email,
@@ -63,6 +68,7 @@ public class StaffBootstrapService {
 
 	private void validate(BootstrapStaffCommand command) {
 		if (command == null
+			|| !StringUtils.hasText(command.loginId())
 			|| !StringUtils.hasText(command.email())
 			|| !StringUtils.hasText(command.password())
 			|| !StringUtils.hasText(command.name())

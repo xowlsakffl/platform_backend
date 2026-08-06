@@ -35,6 +35,7 @@ app:
   bootstrap:
     staff:
       enabled: ${STAFF_BOOTSTRAP_ENABLED:true}
+      login-id: ${STAFF_BOOTSTRAP_LOGIN_ID:platform_admin}
       email: ${STAFF_BOOTSTRAP_EMAIL:admin@platform.local}
       password: ${STAFF_BOOTSTRAP_PASSWORD:Platform1234!}
       name: ${STAFF_BOOTSTRAP_NAME:최고 관리자}
@@ -42,6 +43,7 @@ app:
       role: ${STAFF_BOOTSTRAP_ROLE:platform.super_admin}
     staff-sample:
       enabled: ${STAFF_SAMPLE_BOOTSTRAP_ENABLED:true}
+      login-id: ${STAFF_SAMPLE_BOOTSTRAP_LOGIN_ID:platform_staff}
       email: ${STAFF_SAMPLE_BOOTSTRAP_EMAIL:staff@platform.local}
       password: ${STAFF_SAMPLE_BOOTSTRAP_PASSWORD:Platform1234!}
       name: ${STAFF_SAMPLE_BOOTSTRAP_NAME:일반 직원}

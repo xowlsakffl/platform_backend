@@ -7,6 +7,7 @@ import com.platform.application.auth.result.AuthActorResult;
 import com.platform.application.auth.result.AuthLogoutResult;
 import com.platform.application.auth.result.AuthSessionTokenResult;
 import com.platform.application.auth.result.AuthTokenResult;
+import com.platform.application.auth.result.LoginIdAvailabilityResult;
 import com.platform.application.auth.result.PasswordResetMessageResult;
 import com.platform.application.auth.result.PasswordResetTokenVerifyResult;
 import com.platform.common.web.auth.request.PasswordResetLinkRequest;
@@ -62,6 +63,10 @@ public class AuthWebService {
 
 	public AuthActorResult me(AccountActorType actorType, AuthenticatedActor actor) {
 		return authenticationService.me(actorType, actor);
+	}
+
+	public LoginIdAvailabilityResult partnerLoginIdAvailability(String loginId) {
+		return authenticationService.partnerLoginIdAvailability(loginId);
 	}
 
 	public PasswordResetMessageResult sendPasswordResetLink(

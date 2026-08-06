@@ -1,7 +1,6 @@
 package com.platform.application.partner;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.application.auth.AuthSessionService;
 import com.platform.application.auth.PermissionService;
@@ -9,6 +8,7 @@ import com.platform.application.cache.StaffSummaryCache;
 import com.platform.application.cache.StaffSummaryCacheInvalidator;
 import com.platform.application.category.CategoryAssignmentService;
 import com.platform.application.category.result.CategoryReferenceResult;
+import com.platform.application.hashtag.HashtagAssignmentService;
 import com.platform.application.specialist.SpecialistLifecycleService;
 import com.platform.application.specialist.result.SpecialistFieldResult;
 import com.platform.application.partner.command.CreatePartnerCommand;
@@ -65,7 +65,7 @@ import com.platform.domain.partner.PartnerContact;
 import com.platform.domain.partner.PartnerContactType;
 import com.platform.domain.partner.PartnerFeature;
 import com.platform.domain.partner.PartnerFeatureStatus;
-import com.platform.domain.partner.PartnerHashtag;
+import com.platform.domain.hashtag.HashtagTargetType;
 import com.platform.domain.partner.PartnerStatus;
 import com.platform.domain.specialist.Specialist;
 import com.platform.domain.media.MediaOwnerType;
@@ -75,7 +75,6 @@ import com.platform.infrastructure.persistence.account.AccountStaffRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerAccountInvitationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
-import com.platform.infrastructure.persistence.partner.PartnerHashtagRepository;
 import com.platform.infrastructure.persistence.partner.PartnerLinkRepository;
 import com.platform.infrastructure.persistence.partner.PartnerOptionRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
@@ -86,7 +85,6 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -127,10 +125,13 @@ public class PartnerForStaffService {
 	private final PartnerAccountInvitationRepository invitationRepository;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final PartnerFeatureRepository featureRepository;
-	private final PartnerHashtagRepository hashtagRepository;
+	private final HashtagAssignmentService hashtagAssignmentService;
 	private final PartnerLinkRepository linkRepository;
+	private final PartnerLinkAssignmentService linkAssignmentService;
 	private final PartnerOptionRepository partnerOptionRepository;
 	private final PartnerOptionForPartnerService optionService;
+	private final PartnerSchedulePolicyValidator schedulePolicyValidator;
+	private final PartnerAccessInformationValidator accessInformationValidator;
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final MediaLifecycleService mediaLifecycleService;
 	private final MediaCommandService mediaCommandService;
@@ -151,10 +152,13 @@ public class PartnerForStaffService {
 		PartnerAccountInvitationRepository invitationRepository,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		PartnerFeatureRepository featureRepository,
-		PartnerHashtagRepository hashtagRepository,
+		HashtagAssignmentService hashtagAssignmentService,
 		PartnerLinkRepository linkRepository,
+		PartnerLinkAssignmentService linkAssignmentService,
 		PartnerOptionRepository partnerOptionRepository,
 		PartnerOptionForPartnerService optionService,
+		PartnerSchedulePolicyValidator schedulePolicyValidator,
+		PartnerAccessInformationValidator accessInformationValidator,
 		OperationHistoryRepository operationHistoryRepository,
 		MediaLifecycleService mediaLifecycleService,
 		MediaCommandService mediaCommandService,
@@ -174,10 +178,13 @@ public class PartnerForStaffService {
 		this.invitationRepository = invitationRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.featureRepository = featureRepository;
-		this.hashtagRepository = hashtagRepository;
+		this.hashtagAssignmentService = hashtagAssignmentService;
 		this.linkRepository = linkRepository;
+		this.linkAssignmentService = linkAssignmentService;
 		this.partnerOptionRepository = partnerOptionRepository;
 		this.optionService = optionService;
+		this.schedulePolicyValidator = schedulePolicyValidator;
+		this.accessInformationValidator = accessInformationValidator;
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.mediaLifecycleService = mediaLifecycleService;
 		this.mediaCommandService = mediaCommandService;
@@ -290,7 +297,8 @@ public class PartnerForStaffService {
 	@Transactional
 	public PartnerDetailResult create(AuthenticatedActor actor, CreatePartnerCommand command) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
-		if (partnerRepository.existsByNameAndDeletedAtIsNull(command.name())) {
+		String name = trim(command.name());
+		if (partnerRepository.existsByNameAndDeletedAtIsNull(name)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 파트너명입니다.");
 		}
 		PartnerBusinessRegistrationCommand businessCommand = requireBusinessRegistration(command.businessRegistration());
@@ -298,21 +306,25 @@ public class PartnerForStaffService {
 		if (businessRegistrationRepository.existsByBusinessNumber(businessNumber)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 사업자등록번호입니다.");
 		}
+		if (command.options() == null || command.options().isEmpty()) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "가격 옵션을 최소 1개 등록해 주세요.");
+		}
 
 		Partner partner = new Partner(
-			trim(command.name()),
+			name,
 			trimToNull(command.description()),
 			trimToNull(command.roadAddress()),
-			trimToNull(command.jibunAddress()),
 			trimToNull(command.latitude()),
 			trimToNull(command.longitude()),
 			trimToNull(command.operatingHoursNotice()),
-			normalizeOperationHours(command.operationHours()),
+			schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true),
 			trimToNull(command.direction()),
-			command.allowStatus(),
-			command.status()
+			PartnerAllowStatus.PENDING,
+			PartnerStatus.ACTIVE
 		);
-		partner.changeAccountInvitationEmail(normalizeEmail(command.accountInvitationEmail()));
+		partner.changeHolidayPolicy(schedulePolicyValidator.normalizeHolidayPolicy(command.holidayPolicy(), true));
+		partner.changeSubwayStations(accessInformationValidator.normalizeSubwayStations(command.subwayStationsJson()));
+		partner.changeNames(name, trimToNull(command.englishName()));
 		partner.changeDetailAddress(trimToNull(command.detailAddress()));
 		partner.markStaffCreated(actor.accountId());
 		partner.replaceContacts(buildContacts(requireContacts(command.contacts()), true));
@@ -325,6 +337,9 @@ public class PartnerForStaffService {
 			saved.id(),
 			command.categoryId()
 		);
+		command.options().forEach(option -> optionService.createForPartner(saved, option));
+		hashtagAssignmentService.replace(HashtagTargetType.PARTNER, saved.id(), command.hashtags());
+		linkAssignmentService.replace(saved, command.linksJson());
 		mediaCommandService.synchronizeSingle(
 			MediaOwnerType.PARTNER,
 			saved.id(),
@@ -347,8 +362,8 @@ public class PartnerForStaffService {
 			MediaCollectionPolicy.PARTNER_INTERIOR_IMAGE,
 			command.interiorImages(),
 			List.of(),
-			true,
-			5
+			false,
+			9
 		);
 		mediaCommandService.synchronizeSingle(
 			MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
@@ -376,16 +391,21 @@ public class PartnerForStaffService {
 		Partner partner = findActivePartner(id);
 		Map<String, String> before = capture(partner);
 		PartnerStatus statusBeforeUpdate = partner.status();
+		String updatedName = command.specified("name") ? trim(command.name()) : partner.name();
+		if (!Objects.equals(updatedName, partner.name())
+			&& partnerRepository.existsByNameAndDeletedAtIsNull(updatedName)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 파트너명입니다.");
+		}
+		partner.changeNames(
+			updatedName,
+			command.specified("english_name") ? trimToNull(command.englishName()) : partner.englishName()
+		);
 		if (command.specified("allow_status") && command.allowStatus() != null) {
 			assertPartnerAllowStatusTransition(partner.allowStatus(), command.allowStatus());
 		}
 		if (command.specified("status")) {
 			assertPartnerStatusTransition(statusBeforeUpdate, command.status());
 		}
-		if (command.specified("account_invitation_email")) {
-			partner.changeAccountInvitationEmail(normalizeEmail(command.accountInvitationEmail()));
-		}
-
 		if (command.contacts() != null) {
 			partner.replaceContacts(buildContacts(
 				mergeContacts(partner, command.contacts(), command.specifiedFields()),
@@ -403,16 +423,31 @@ public class PartnerForStaffService {
 		if (command.featureIds() != null) {
 			partner.replaceFeatures(loadFeatures(command.featureIds()));
 		}
+		if (command.hashtags() != null) {
+			hashtagAssignmentService.replace(HashtagTargetType.PARTNER, partner.id(), command.hashtags());
+		}
+		if (command.specified("links")) {
+			linkAssignmentService.replace(partner, command.linksJson());
+		}
+		if (command.specified("holiday_policy")) {
+			partner.changeHolidayPolicy(
+				schedulePolicyValidator.normalizeHolidayPolicy(command.holidayPolicy(), true)
+			);
+		}
+		if (command.specified("subway_stations")) {
+			partner.changeSubwayStations(
+				accessInformationValidator.normalizeSubwayStations(command.subwayStationsJson())
+			);
+		}
 
 		partner.updateProfile(
 			command.specified("description") ? trimToNull(command.description()) : partner.description(),
 			command.specified("road_address") ? trimToNull(command.roadAddress()) : partner.roadAddress(),
-			command.specified("jibun_address") ? trimToNull(command.jibunAddress()) : partner.jibunAddress(),
 			command.specified("latitude") ? trimToNull(command.latitude()) : partner.latitude(),
 			command.specified("longitude") ? trimToNull(command.longitude()) : partner.longitude(),
 			command.specified("operating_hours_notice") ? trimToNull(command.operatingHoursNotice()) : partner.operatingHoursNotice(),
 			command.specified("operation_hours")
-				? normalizeOperationHours(command.operationHours())
+				? schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true)
 				: partner.operationHours(),
 			command.specified("direction") ? trimToNull(command.direction()) : partner.direction(),
 			command.allowStatus(),
@@ -843,14 +878,18 @@ public class PartnerForStaffService {
 	private Set<PartnerContact> buildContacts(PartnerContactSetCommand contacts, boolean requireRepresentative) {
 		Map<PartnerContactType, List<String>> values = new LinkedHashMap<>();
 		putSingle(values, PartnerContactType.REPRESENTATIVE_PHONE, contacts.representativePhone());
+		putSingle(values, PartnerContactType.REPRESENTATIVE_EMAIL, contacts.representativeEmail());
 		putSingle(values, PartnerContactType.SMS_SENDER_PHONE, contacts.smsSenderPhone());
 		putSingle(values, PartnerContactType.CALL_RECEIVER_PHONE, contacts.callReceiverPhone());
 		putMany(values, PartnerContactType.CONSULTATION_RECEIVER_PHONE, contacts.consultationReceiverPhones());
 		putMany(values, PartnerContactType.EVENT_NOTICE_RECEIVER_PHONE, contacts.eventNoticeReceiverPhones());
 		putMany(values, PartnerContactType.NOTICE_MARKETING_EMAIL, contacts.noticeMarketingEmails());
 
-		if (requireRepresentative && values.getOrDefault(PartnerContactType.REPRESENTATIVE_PHONE, List.of()).isEmpty()) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "대표 번호는 필수입니다.");
+		if (requireRepresentative && (
+			values.getOrDefault(PartnerContactType.REPRESENTATIVE_PHONE, List.of()).isEmpty()
+				|| values.getOrDefault(PartnerContactType.REPRESENTATIVE_EMAIL, List.of()).isEmpty()
+		)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "대표 전화번호와 대표 이메일은 필수입니다.");
 		}
 
 		Set<PartnerContact> result = new LinkedHashSet<>();
@@ -878,6 +917,7 @@ public class PartnerForStaffService {
 		PartnerContactGroupResult current = contacts(partner);
 		return new PartnerContactSetCommand(
 			specifiedFields.contains("representative_phone") ? requested.representativePhone() : current.representativePhone(),
+			specifiedFields.contains("representative_email") ? requested.representativeEmail() : current.representativeEmail(),
 			specifiedFields.contains("sms_sender_phone") ? requested.smsSenderPhone() : current.smsSenderPhone(),
 			specifiedFields.contains("call_receiver_phone") ? requested.callReceiverPhone() : current.callReceiverPhone(),
 			specifiedFields.contains("consultation_receiver_phones")
@@ -1009,7 +1049,6 @@ public class PartnerForStaffService {
 		return new PartnerListItemResult(
 			partner.id(),
 			partner.name(),
-			partner.accountInvitationEmail(),
 			partner.allowStatus().name(),
 			partner.status().name(),
 			partner.createdAt(),
@@ -1047,16 +1086,17 @@ public class PartnerForStaffService {
 		return new PartnerDetailResult(
 			partner.id(),
 			partner.name(),
-			partner.accountInvitationEmail(),
+			partner.englishName(),
 			partner.description(),
 			partner.roadAddress(),
-			partner.jibunAddress(),
 			partner.latitude(),
 			partner.longitude(),
+			fromJson(partner.subwayStations()),
 			contacts(partner),
 			contactResponses(partner.contacts()),
 			partner.operatingHoursNotice(),
 			fromJson(partner.operationHours()),
+			fromJson(partner.holidayPolicy()),
 			partner.direction(),
 			partner.viewCount(),
 			0,
@@ -1089,8 +1129,7 @@ public class PartnerForStaffService {
 				: null,
 			categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id()),
 			partner.detailAddress(),
-			hashtagRepository.findByPartner_IdOrderBySortOrderAscIdAsc(partner.id())
-				.stream().map(PartnerHashtag::value).toList(),
+			hashtagAssignmentService.values(HashtagTargetType.PARTNER, partner.id()),
 			linkRepository.findByPartner_IdOrderBySortOrderAscIdAsc(partner.id())
 				.stream()
 				.map(link -> new PartnerLinkResult(link.id(), link.type().name(), link.url(), link.sortOrder()))
@@ -1162,8 +1201,7 @@ public class PartnerForStaffService {
 		}
 		return new PartnerAccountResult(
 			account.id(),
-			account.name(),
-			account.nickname(),
+			account.loginId(),
 			account.email(),
 			account.phone(),
 			account.status().name(),
@@ -1234,6 +1272,7 @@ public class PartnerForStaffService {
 			));
 		return new PartnerContactGroupResult(
 			first(byType.get(PartnerContactType.REPRESENTATIVE_PHONE)),
+			first(byType.get(PartnerContactType.REPRESENTATIVE_EMAIL)),
 			first(byType.get(PartnerContactType.SMS_SENDER_PHONE)),
 			first(byType.get(PartnerContactType.CALL_RECEIVER_PHONE)),
 			byType.getOrDefault(PartnerContactType.CONSULTATION_RECEIVER_PHONE, List.of()),
@@ -1336,18 +1375,20 @@ public class PartnerForStaffService {
 
 	private Map<String, String> capture(Partner partner) {
 		Map<String, String> values = new LinkedHashMap<>();
+		values.put("name", partner.name());
+		values.put("english_name", partner.englishName());
 		values.put("description", partner.description());
-		values.put("account_invitation_email", partner.accountInvitationEmail());
 		values.put("categories", writeInternalJson(
 			categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id())
 		));
 		values.put("road_address", partner.roadAddress());
-		values.put("jibun_address", partner.jibunAddress());
 		values.put("detail_address", partner.detailAddress());
 		values.put("latitude", partner.latitude());
 		values.put("longitude", partner.longitude());
+		values.put("subway_stations", partner.subwayStations());
 		values.put("operating_hours_notice", partner.operatingHoursNotice());
 		values.put("operation_hours", partner.operationHours());
+		values.put("holiday_policy", partner.holidayPolicy());
 		values.put("direction", partner.direction());
 		values.put("allow_status", partner.allowStatus().name());
 		values.put("status", partner.status().name());
@@ -1390,6 +1431,7 @@ public class PartnerForStaffService {
 			partner.id(),
 			MediaCollectionPolicy.PARTNER_INTERIOR_IMAGE
 		).stream().map(this::mediaSnapshot).toList()));
+		values.put("options", writeInternalJson(optionService.listByPartnerId(partner.id())));
 		return values;
 	}
 
@@ -1461,44 +1503,6 @@ public class PartnerForStaffService {
 		}
 	}
 
-	private String normalizeOperationHours(Object value) {
-		if (value == null || value instanceof String stringValue && stringValue.isBlank()) {
-			return null;
-		}
-		try {
-			JsonNode root = value instanceof String rawValue
-				? objectMapper.readTree(rawValue)
-				: objectMapper.valueToTree(value);
-			if (root == null || !root.isObject()) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "운영시간 형식이 올바르지 않습니다.");
-			}
-			for (String day : List.of("mon", "tue", "wed", "thu", "fri", "sat", "sun")) {
-				JsonNode hours = root.get(day);
-				if (hours == null || !hours.isObject() || !hours.path("is_closed").isBoolean()) {
-					throw new ApiException(ErrorCode.INVALID_REQUEST, "요일별 운영시간을 모두 입력해주세요.");
-				}
-				if (hours.path("is_closed").booleanValue()) {
-					continue;
-				}
-				String start = hours.path("start").isTextual() ? hours.path("start").textValue() : null;
-				String end = hours.path("end").isTextual() ? hours.path("end").textValue() : null;
-				if (start == null || end == null || !start.matches("^\\d{2}:\\d{2}$") || !end.matches("^\\d{2}:\\d{2}$")) {
-					throw new ApiException(ErrorCode.INVALID_REQUEST, "운영 시작 시간과 종료 시간을 HH:mm 형식으로 입력해주세요.");
-				}
-				LocalTime startTime = LocalTime.parse(start);
-				LocalTime endTime = LocalTime.parse(end);
-				if (!endTime.isAfter(startTime)) {
-					throw new ApiException(ErrorCode.INVALID_REQUEST, "운영 종료 시간은 시작 시간보다 늦어야 합니다.");
-				}
-			}
-			return objectMapper.writeValueAsString(root);
-		} catch (ApiException exception) {
-			throw exception;
-		} catch (JsonProcessingException | IllegalArgumentException | DateTimeParseException exception) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "운영시간 형식이 올바르지 않습니다.");
-		}
-	}
-
 	private Object fromJson(String json) {
 		if (!StringUtils.hasText(json)) {
 			return null;
@@ -1559,11 +1563,6 @@ public class PartnerForStaffService {
 		String trimmed = trim(value);
 		String normalized = trimmed.replaceAll("\\D+", "");
 		return normalized.isBlank() ? trimmed : normalized;
-	}
-
-	private String normalizeEmail(String value) {
-		String trimmed = trimToNull(value);
-		return trimmed == null ? null : trimmed.toLowerCase(Locale.ROOT);
 	}
 
 	private LocalDate parseDate(String value) {

@@ -27,6 +27,9 @@ public class AccountStaff extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
+	@Column(name = "login_id", nullable = false, unique = true, length = 30)
+	private String loginId;
+
 	@Column(nullable = false)
 	private String name;
 
@@ -72,12 +75,14 @@ public class AccountStaff extends BaseTimeEntity {
 	}
 
 	public static AccountStaff create(
+		String loginId,
 		String name,
 		String nickname,
 		String email,
 		String encodedPassword
 	) {
 		AccountStaff staff = new AccountStaff();
+		staff.loginId = Objects.requireNonNull(loginId);
 		staff.name = Objects.requireNonNull(name);
 		staff.nickname = Objects.requireNonNull(nickname);
 		staff.email = Objects.requireNonNull(email);
@@ -89,6 +94,10 @@ public class AccountStaff extends BaseTimeEntity {
 
 	public Long id() {
 		return id;
+	}
+
+	public String loginId() {
+		return loginId;
 	}
 
 	public String name() {

@@ -193,8 +193,7 @@ public class PartnerAccountInvitationService {
 		String rawToken = requireText(command.token(), "Invitation token is required.");
 		PartnerAccountInvitation invitation = validInvitation(rawToken, true);
 		Partner partner = invitation.partner();
-		String name = requireText(command.name(), "Name is required.");
-		String nickname = requireText(command.nickname(), "Nickname is required.");
+		String loginId = normalizeLoginId(command.loginId());
 		String phone = trimToNull(command.phone());
 		String password = requireText(command.password(), "Password is required.");
 		validatePassword(password);
@@ -205,14 +204,13 @@ public class PartnerAccountInvitationService {
 		if (accountPartnerRepository.existsByEmail(invitation.email())) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Email is already in use.");
 		}
-		if (accountPartnerRepository.existsByNickname(nickname)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Nickname is already in use.");
+		if (accountPartnerRepository.existsByLoginId(loginId)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "Login ID is already in use.");
 		}
 
 		AccountPartner account = accountPartnerRepository.saveAndFlush(AccountPartner.create(
 			partner,
-			name,
-			nickname,
+			loginId,
 			invitation.email(),
 			phone,
 			passwordEncoder.encode(password),
@@ -231,10 +229,19 @@ public class PartnerAccountInvitationService {
 		return new PartnerAccountInvitationAcceptedResult(
 			partner.id(),
 			partner.name(),
+			account.loginId(),
 			invitation.email(),
 			partner.allowStatus().name(),
 			"Partner account has been created."
 		);
+	}
+
+	private String normalizeLoginId(String value) {
+		String loginId = requireText(value, "Login ID is required.").toLowerCase(Locale.ROOT);
+		if (!loginId.matches("^[a-z0-9][a-z0-9._-]{3,29}$")) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "Login ID format is invalid.");
+		}
+		return loginId;
 	}
 
 	private PartnerAccountInvitationResult send(

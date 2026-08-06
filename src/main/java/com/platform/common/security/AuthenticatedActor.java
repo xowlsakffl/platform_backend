@@ -18,6 +18,8 @@ public record AuthenticatedActor(
 	@JsonProperty("session_id")
 	String sessionId,
 	String email,
+	@JsonProperty("login_id")
+	String loginId,
 	String name,
 	String nickname,
 	Set<String> permissions
@@ -43,6 +45,7 @@ public record AuthenticatedActor(
 			partnerId,
 			value,
 			email,
+			loginId,
 			name,
 			nickname,
 			permissions

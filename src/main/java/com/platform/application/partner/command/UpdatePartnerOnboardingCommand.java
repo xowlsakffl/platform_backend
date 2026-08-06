@@ -6,15 +6,16 @@ import java.util.Set;
 
 public record UpdatePartnerOnboardingCommand(
 	String name,
+	String englishName,
 	String description,
 	Long categoryId,
 	String roadAddress,
-	String jibunAddress,
 	String detailAddress,
 	String latitude,
 	String longitude,
 	String operatingHoursNotice,
 	String operationHours,
+	String holidayPolicy,
 	String direction,
 	PartnerContactSetCommand contacts,
 	PartnerBusinessRegistrationCommand businessRegistration,

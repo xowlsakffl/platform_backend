@@ -125,7 +125,6 @@ class PartnerAccountInvitationTokenServiceTests {
 			null,
 			null,
 			null,
-			null,
 			PartnerAllowStatus.APPROVED,
 			PartnerStatus.ACTIVE
 		);

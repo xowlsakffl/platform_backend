@@ -2,7 +2,7 @@
 
 반영구, 에스테틱, 미용실, 왁싱, 타투, 네일아트, 마사지 등을 다루는 K-뷰티 플랫폼의 Spring Boot 백엔드 단일 애플리케이션이다. 프론트엔드 저장소와 분리해 운영하며, 백엔드는 도메인 기준 패키지를 가진 모듈형 모놀리스로 개발한다.
 
-MVP는 유저가 Partner, Specialist, Event를 탐색하고 상담/예약을 요청하는 흐름까지 제공한다. 앱 내 결제와 정산은 현재 범위에 포함하지 않는다.
+정식 제품 운영을 목표로 업체·전문가·옵션·이벤트 탐색과 상담/예약 연결 흐름을 단계적으로 완성한다. 앱 내 결제와 정산은 현재 개발 우선순위에 포함하지 않는다.
 
 ## 기술 기준
 
@@ -14,7 +14,7 @@ MVP는 유저가 Partner, Specialist, Event를 탐색하고 상담/예약을 요
 ## 문서
 
 - [작업 기준](./AGENTS.md)
-- [플랫폼 MVP 기획](./docs/platform-mvp-plan.md)
+- [플랫폼 제품 기획](./docs/platform-product-plan.md)
 - [문서 인덱스](./docs/README.md)
 - [아키텍처와 디렉터리](./docs/architecture.md)
 - [API 응답과 예외](./docs/api-response.md)
@@ -53,6 +53,7 @@ API:   http://localhost:8081
 
 ```bash
 STAFF_BOOTSTRAP_ENABLED=true \
+STAFF_BOOTSTRAP_LOGIN_ID=platform_admin \
 STAFF_BOOTSTRAP_EMAIL=admin@platform.local \
 STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 ./gradlew bootRun
@@ -64,7 +65,8 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 
 `local` 프로필에서는 담당 직원 지정 권한이 없는 `platform.staff` 역할의 비교용 계정을 자동 생성한다.
 
-- 이메일: `staff@platform.local`
+- 로그인 아이디: `platform_staff`
+- 이메일: `staff@platform.local` (계정 복구용)
 - 비밀번호: `Platform1234!`
 - 역할: `platform.staff`
 - 파트너 목록 조회와 미지정 파트너의 자기 담당 등록은 가능
@@ -74,12 +76,13 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 
 ## 로컬 파트너 샘플 데이터
 
-영구 기준 데이터는 Flyway migration으로 관리하고, 화면 개발용 파트너 데이터는 `local` 프로필의 부트스트랩에서 생성한다. 로컬에서는 기본 활성화되며 같은 파트너명, 계정 이메일·닉네임 또는 사업자등록번호가 있으면 중복 생성하지 않는다.
+영구 기준 데이터는 Flyway migration으로 관리하고, 화면 개발용 파트너 데이터는 `local` 프로필의 부트스트랩에서 생성한다. 로컬에서는 기본 활성화되며 같은 파트너명, 계정 이메일·로그인 아이디 또는 사업자등록번호가 있으면 중복 생성하지 않는다.
 
 - 가상 파트너 11곳: 연결 8곳, 미초대 1곳, 초대 발송 1곳, 초대 만료 1곳
 - 신청·승인·반려 승인상태와 정상·운영중지·탈퇴 운영상태
 - 연락처, 사업자 정보, 파트너 특징, 1뎁스 파트너 분류
 - 연결 계정: `partner01@platform.local` ~ `partner08@platform.local`
+- 연결 계정 로그인 아이디: `platform_partner_01` ~ `platform_partner_08`
 - 초대 대상 이메일: `partner09@platform.local` ~ `partner11@platform.local`
 - 공통 비밀번호: `Platform1234!`
 - 미디어 파일은 생성하지 않음
@@ -97,17 +100,18 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 ## 현재 구현 범위
 
 - 공통 API 응답, 페이지네이션, 예외 처리, 요청 추적
-- Staff, Partner, User 이메일 로그인·내 정보·현재/전체 로그아웃
+- Staff·Partner 로그인 아이디 로그인, User 이메일 로그인, 내 정보·현재/전체 로그아웃
 - 15분 JWT 액세스 토큰과 MySQL 기반 회전형 리프레시 세션
 - HttpOnly 보안 쿠키, Redis 로그인 제한·로그아웃 토큰 폐기
 - 세 Actor 비밀번호 찾기·일회용 재설정 링크·변경 후 전체 세션 폐기
 - Staff 역할·권한 검사와 Partner 소유권 검사
 - Staff용 Partner 목록·상세·등록·부분수정·승인·운영상태 변경·삭제·이력·요약
 - 파트너별 내부 담당 직원 지정·변경·해제, 일반 직원 자기 담당 등록·해제
-- 파트너 연락처, 사업자 정보, 특징 12개
+- 파트너 연락처, 사업자 정보, 특징 12개, 상세 영업시간·휴무 정책
 - 직접 입점과 내부관리자 업체 등록경로, append-only 파트너 계정 초대 이력·일회용 초대 링크
 - Category Staff 관리 API와 사용처 selector
-- PARTNER 1뎁스 파트너 분류 기준 데이터
+- PARTNER 1뎁스 파트너 분류와 업종별 옵션 분류 기준 데이터
+- 업체 기본 가격 옵션과 전문가별 제공 여부·가격 오버라이드
 - Specialist Staff 관리 API와 Partner 자기 스페셜리스트 관리 API
 - Partner, Category, Specialist 미디어 저장·교체·조회·삭제 연동
 - 앱 공개용 Category 아이콘과 승인·노출 Specialist 프로필 조회

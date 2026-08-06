@@ -88,7 +88,7 @@ GET /api/v1/partner/categories?usage=PARTNER_OPTION_CATEGORY
 
 ## 연결 규칙
 
-| 대상 | 허용 카테고리 | MVP 규칙 |
+| 대상 | 허용 카테고리 | 제품 규칙 |
 |---|---|---|
 | `PARTNER` | `PARTNER_CATEGORY`에 등록된 1단계 | 업체당 1개 필수 |
 | `PARTNER_OPTION` | 업체 분류 아래 `PARTNER_OPTION_CATEGORY` 2단계 | 옵션당 1개 필수 |

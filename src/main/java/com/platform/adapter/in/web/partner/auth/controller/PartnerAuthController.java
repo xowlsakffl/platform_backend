@@ -1,6 +1,7 @@
 package com.platform.adapter.in.web.partner.auth.controller;
 
 import com.platform.adapter.in.web.partner.auth.request.PartnerLoginRequest;
+import com.platform.adapter.in.web.partner.auth.request.PartnerLoginIdCheckRequest;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.common.web.ApiResponse;
 import com.platform.common.web.RequestTrace;
@@ -39,6 +40,17 @@ public class PartnerAuthController {
 	) {
 		return ApiResponse.success(
 			authWebService.login(ACTOR_TYPE, body.toCommand(AuthRequestSupport.clientContext(request)), response),
+			RequestTrace.traceId(request)
+		);
+	}
+
+	@PostMapping("/check-login-id")
+	public ApiResponse checkLoginId(
+		@Valid @RequestBody PartnerLoginIdCheckRequest body,
+		HttpServletRequest request
+	) {
+		return ApiResponse.success(
+			authWebService.partnerLoginIdAvailability(body.loginId()),
 			RequestTrace.traceId(request)
 		);
 	}

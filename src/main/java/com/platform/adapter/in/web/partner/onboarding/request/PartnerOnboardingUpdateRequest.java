@@ -19,19 +19,22 @@ import org.springframework.web.bind.annotation.BindParam;
 import org.springframework.web.multipart.MultipartFile;
 
 public record PartnerOnboardingUpdateRequest(
-	@Size(max = 255) String name,
+	@Size(max = 30) String name,
+	@BindParam("english_name") @Size(max = 90) String englishName,
 	@Size(max = 2000) String description,
 	@BindParam("category_id") @Positive Long categoryId,
 	@BindParam("road_address") @Size(max = 255) String roadAddress,
-	@BindParam("jibun_address") @Size(max = 255) String jibunAddress,
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
 	@DecimalMin("-90") @DecimalMax("90") String latitude,
 	@DecimalMin("-180") @DecimalMax("180") String longitude,
 	@BindParam("operating_hours_notice") @Size(max = 500) String operatingHoursNotice,
 	@BindParam("operation_hours") String operationHours,
+	@BindParam("holiday_policy") String holidayPolicy,
 	@Size(max = 2000) String direction,
 	@BindParam("representative_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN)
 	String representativePhone,
+	@BindParam("representative_email") @Email @Size(max = 255)
+	String representativeEmail,
 	@BindParam("sms_sender_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN)
 	String smsSenderPhone,
 	@BindParam("call_receiver_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN)
@@ -70,15 +73,16 @@ public record PartnerOnboardingUpdateRequest(
 		Set<String> fields = normalizeFields(requestFields);
 		return new UpdatePartnerOnboardingCommand(
 			name,
+			englishName,
 			description,
 			categoryId,
 			roadAddress,
-			jibunAddress,
 			detailAddress,
 			latitude,
 			longitude,
 			operatingHoursNotice,
 			operationHours,
+			holidayPolicy,
 			direction,
 			contactsOrNull(fields),
 			businessRegistrationOrNull(fields),
@@ -103,6 +107,7 @@ public record PartnerOnboardingUpdateRequest(
 	private PartnerContactSetCommand contactsOrNull(Set<String> fields) {
 		if (Set.of(
 			"representative_phone",
+			"representative_email",
 			"sms_sender_phone",
 			"call_receiver_phone",
 			"consultation_receiver_phones",
@@ -113,6 +118,7 @@ public record PartnerOnboardingUpdateRequest(
 		}
 		return new PartnerContactSetCommand(
 			representativePhone,
+			representativeEmail,
 			smsSenderPhone,
 			callReceiverPhone,
 			PartnerRequestSupport.list(consultationReceiverPhones),

@@ -69,20 +69,14 @@ public class MediaCollectionPolicy {
 	private void validatePartnerFile(String collection, StoredMediaFile file) {
 		if (PARTNER_LOGO.equals(collection)) {
 			requireTypeAndSize(file, APP_IMAGE_TYPES, PARTNER_LOGO_MAX_SIZE, "파트너 로고는 JPG, PNG, WebP 5MB 이하만 가능합니다.");
-			if (file.width() == null || file.height() == null || !file.width().equals(file.height())) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "파트너 로고는 1:1 비율이어야 합니다.");
-			}
 			return;
 		}
 		requireTypeAndSize(
 			file,
 			PARTNER_IMAGE_TYPES,
 			PARTNER_IMAGE_MAX_SIZE,
-			"파트너 대표/내부 이미지는 JPG, PNG 10MB 이하만 가능합니다."
+			"파트너 이미지는 JPG, PNG, WebP 10MB 이하만 가능합니다."
 		);
-		if (file.width() == null || file.height() == null || file.width() != 760 || file.height() != 490) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "파트너 대표/내부 이미지는 760x490 크기여야 합니다.");
-		}
 	}
 
 	private void validateCategoryIcon(StoredMediaFile file) {

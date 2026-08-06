@@ -13,6 +13,8 @@ public record AuthActorResult(
 	@JsonProperty("partner_id")
 	Long partnerId,
 	String email,
+	@JsonProperty("login_id")
+	String loginId,
 	String name,
 	String nickname,
 	List<String> permissions
@@ -24,6 +26,7 @@ public record AuthActorResult(
 			actor.accountId(),
 			actor.partnerId(),
 			actor.email(),
+			actor.loginId(),
 			actor.name(),
 			actor.nickname(),
 			actor.permissions().stream().sorted().toList()

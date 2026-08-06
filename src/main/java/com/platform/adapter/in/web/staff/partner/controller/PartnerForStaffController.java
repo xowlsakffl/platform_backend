@@ -9,6 +9,7 @@ import com.platform.adapter.in.web.staff.partner.request.PartnerCheckNameForStaf
 import com.platform.adapter.in.web.staff.partner.request.PartnerCreateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerGetForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerListForStaffRequest;
+import com.platform.adapter.in.web.staff.partner.request.PartnerOptionCreateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerStatusUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerUpdateForStaffRequest;
 import com.platform.application.partner.PartnerForStaffService;
@@ -19,6 +20,7 @@ import com.platform.common.web.PaginatedResponse;
 import com.platform.common.web.RequestTrace;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 
 @Validated
@@ -95,9 +98,10 @@ public class PartnerForStaffController {
 	public ApiResponse create(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@Valid @ModelAttribute PartnerCreateForStaffRequest body,
+		@RequestPart(name = "options", required = false) List<@Valid PartnerOptionCreateForStaffRequest> options,
 		HttpServletRequest request
 	) {
-		return ApiResponse.success(service.create(actor, body.toCommand()), RequestTrace.traceId(request));
+		return ApiResponse.success(service.create(actor, body.toCommand(options)), RequestTrace.traceId(request));
 	}
 
 	@PostMapping("/check-name")

@@ -32,11 +32,11 @@ public class Partner extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(nullable = false, unique = true)
+	@Column(nullable = false, unique = true, length = 30)
 	private String name;
 
-	@Column(name = "account_invitation_email")
-	private String accountInvitationEmail;
+	@Column(name = "english_name", length = 90)
+	private String englishName;
 
 	@Column(columnDefinition = "text")
 	private String description;
@@ -44,11 +44,11 @@ public class Partner extends BaseTimeEntity {
 	@Column(name = "road_address")
 	private String roadAddress;
 
-	@Column(name = "jibun_address")
-	private String jibunAddress;
-
 	@Column(name = "detail_address")
 	private String detailAddress;
+
+	@Column(name = "subway_stations", columnDefinition = "json")
+	private String subwayStations;
 
 	@Column(name = "region_sort_key")
 	private String regionSortKey;
@@ -62,6 +62,9 @@ public class Partner extends BaseTimeEntity {
 
 	@Column(name = "operation_hours", columnDefinition = "json")
 	private String operationHours;
+
+	@Column(name = "holiday_policy", columnDefinition = "json")
+	private String holidayPolicy;
 
 	@Column(columnDefinition = "text")
 	private String direction;
@@ -127,7 +130,6 @@ public class Partner extends BaseTimeEntity {
 			null,
 			null,
 			null,
-			null,
 			PartnerAllowStatus.DRAFT,
 			PartnerStatus.ACTIVE
 		);
@@ -139,7 +141,6 @@ public class Partner extends BaseTimeEntity {
 		String name,
 		String description,
 		String roadAddress,
-		String jibunAddress,
 		String latitude,
 		String longitude,
 		String operatingHoursNotice,
@@ -151,7 +152,6 @@ public class Partner extends BaseTimeEntity {
 		this.name = name;
 		this.description = description;
 		this.roadAddress = roadAddress;
-		this.jibunAddress = jibunAddress;
 		refreshRegionSortKey();
 		this.latitude = latitude;
 		this.longitude = longitude;
@@ -165,7 +165,6 @@ public class Partner extends BaseTimeEntity {
 	public void updateProfile(
 		String description,
 		String roadAddress,
-		String jibunAddress,
 		String latitude,
 		String longitude,
 		String operatingHoursNotice,
@@ -176,7 +175,6 @@ public class Partner extends BaseTimeEntity {
 	) {
 		this.description = description;
 		this.roadAddress = roadAddress;
-		this.jibunAddress = jibunAddress;
 		refreshRegionSortKey();
 		this.latitude = latitude;
 		this.longitude = longitude;
@@ -197,9 +195,9 @@ public class Partner extends BaseTimeEntity {
 
 	public void updateOnboardingProfile(
 		String name,
+		String englishName,
 		String description,
 		String roadAddress,
-		String jibunAddress,
 		String detailAddress,
 		String latitude,
 		String longitude,
@@ -208,9 +206,9 @@ public class Partner extends BaseTimeEntity {
 		String direction
 	) {
 		this.name = name;
+		this.englishName = englishName;
 		this.description = description;
 		this.roadAddress = roadAddress;
-		this.jibunAddress = jibunAddress;
 		this.detailAddress = detailAddress;
 		refreshRegionSortKey();
 		this.latitude = latitude;
@@ -228,12 +226,21 @@ public class Partner extends BaseTimeEntity {
 		this.detailAddress = detailAddress;
 	}
 
-	public void changeAccountInvitationEmail(String accountInvitationEmail) {
-		this.accountInvitationEmail = accountInvitationEmail;
+	public void changeNames(String name, String englishName) {
+		this.name = name;
+		this.englishName = englishName;
+	}
+
+	public void changeHolidayPolicy(String holidayPolicy) {
+		this.holidayPolicy = holidayPolicy;
+	}
+
+	public void changeSubwayStations(String subwayStations) {
+		this.subwayStations = subwayStations;
 	}
 
 	private void refreshRegionSortKey() {
-		String address = hasText(roadAddress) ? roadAddress.trim() : trimToNull(jibunAddress);
+		String address = trimToNull(roadAddress);
 		if (address == null) {
 			this.regionSortKey = null;
 			return;
@@ -296,8 +303,8 @@ public class Partner extends BaseTimeEntity {
 		return name;
 	}
 
-	public String accountInvitationEmail() {
-		return accountInvitationEmail;
+	public String englishName() {
+		return englishName;
 	}
 
 	public String description() {
@@ -308,12 +315,12 @@ public class Partner extends BaseTimeEntity {
 		return roadAddress;
 	}
 
-	public String jibunAddress() {
-		return jibunAddress;
-	}
-
 	public String detailAddress() {
 		return detailAddress;
+	}
+
+	public String subwayStations() {
+		return subwayStations;
 	}
 
 	public String regionSortKey() {
@@ -334,6 +341,10 @@ public class Partner extends BaseTimeEntity {
 
 	public String operationHours() {
 		return operationHours;
+	}
+
+	public String holidayPolicy() {
+		return holidayPolicy;
 	}
 
 	public String direction() {

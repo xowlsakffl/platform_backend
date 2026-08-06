@@ -4,6 +4,7 @@ import java.util.List;
 
 public record PartnerContactSetCommand(
 	String representativePhone,
+	String representativeEmail,
 	String smsSenderPhone,
 	String callReceiverPhone,
 	List<String> consultationReceiverPhones,

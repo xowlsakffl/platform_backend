@@ -72,6 +72,7 @@ class SecurityConfig {
 					"/api/v1/staff/auth/login",
 					"/api/v1/staff/auth/refresh",
 					"/api/v1/partner/auth/login",
+					"/api/v1/partner/auth/check-login-id",
 					"/api/v1/partner/auth/refresh",
 					"/api/v1/partner/onboarding/signup",
 					"/api/v1/partner/account-invitations/**",

@@ -28,11 +28,8 @@ public class AccountPartner extends BaseTimeEntity {
 	@JoinColumn(name = "partner_id", nullable = false)
 	private Partner partner;
 
-	@Column(nullable = false)
-	private String name;
-
-	@Column(nullable = false, unique = true)
-	private String nickname;
+	@Column(name = "login_id", nullable = false, unique = true, length = 30)
+	private String loginId;
 
 	@Column(nullable = false, unique = true)
 	private String email;
@@ -61,8 +58,7 @@ public class AccountPartner extends BaseTimeEntity {
 
 	public static AccountPartner create(
 		Partner partner,
-		String name,
-		String nickname,
+		String loginId,
 		String email,
 		String phone,
 		String encodedPassword,
@@ -70,8 +66,7 @@ public class AccountPartner extends BaseTimeEntity {
 	) {
 		AccountPartner account = new AccountPartner();
 		account.partner = Objects.requireNonNull(partner);
-		account.name = Objects.requireNonNull(name);
-		account.nickname = Objects.requireNonNull(nickname);
+		account.loginId = Objects.requireNonNull(loginId);
 		account.email = Objects.requireNonNull(email);
 		account.phone = phone;
 		account.emailVerifiedAt = LocalDateTime.now();
@@ -88,12 +83,12 @@ public class AccountPartner extends BaseTimeEntity {
 		return partner == null ? null : partner.id();
 	}
 
-	public String name() {
-		return name;
+	public String loginId() {
+		return loginId;
 	}
 
-	public String nickname() {
-		return nickname;
+	public String partnerName() {
+		return partner == null ? null : partner.name();
 	}
 
 	public String email() {

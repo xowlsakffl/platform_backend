@@ -95,6 +95,7 @@ class PartnerAccountInvitationServiceTests {
 			null,
 			"session",
 			"staff@example.com",
+			"platform_staff",
 			"Staff",
 			"staff",
 			Set.of()

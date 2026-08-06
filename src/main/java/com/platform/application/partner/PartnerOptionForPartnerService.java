@@ -1,6 +1,7 @@
 package com.platform.application.partner;
 
 import com.platform.application.auth.OwnershipPolicy;
+import com.platform.application.auth.PermissionService;
 import com.platform.application.category.CategoryAssignmentService;
 import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.application.partner.command.SavePartnerOptionCommand;
@@ -10,6 +11,7 @@ import com.platform.application.partner.result.PartnerOptionResult.SpecialistPri
 import com.platform.common.error.ApiException;
 import com.platform.common.error.ErrorCode;
 import com.platform.common.security.AuthenticatedActor;
+import com.platform.common.security.AccessPermissions;
 import com.platform.domain.partner.Partner;
 import com.platform.domain.category.Category;
 import com.platform.domain.category.CategoryAssignmentTarget;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerOptionForPartnerService {
 
 	private final OwnershipPolicy ownershipPolicy;
+	private final PermissionService permissionService;
 	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
 	private final PartnerOptionRepository optionRepository;
@@ -44,6 +47,7 @@ public class PartnerOptionForPartnerService {
 
 	public PartnerOptionForPartnerService(
 		OwnershipPolicy ownershipPolicy,
+		PermissionService permissionService,
 		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
 		PartnerOptionRepository optionRepository,
@@ -51,6 +55,7 @@ public class PartnerOptionForPartnerService {
 		SpecialistOptionRepository specialistOptionRepository
 	) {
 		this.ownershipPolicy = ownershipPolicy;
+		this.permissionService = permissionService;
 		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
 		this.optionRepository = optionRepository;
@@ -68,6 +73,13 @@ public class PartnerOptionForPartnerService {
 	public List<PartnerOptionResult> listByPartnerId(Long partnerId) {
 		return results(optionRepository
 			.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partnerId));
+	}
+
+	@Transactional(readOnly = true)
+	public List<PartnerOptionResult> listForStaff(AuthenticatedActor actor, Long partnerId) {
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_SHOW);
+		staffPartner(partnerId, false);
+		return listByPartnerId(partnerId);
 	}
 
 	@Transactional(readOnly = true)
@@ -95,6 +107,10 @@ public class PartnerOptionForPartnerService {
 	@Transactional
 	public PartnerOptionResult create(AuthenticatedActor actor, SavePartnerOptionCommand command) {
 		Partner partner = editablePartner(actor);
+		return createForPartner(partner, command);
+	}
+
+	PartnerOptionResult createForPartner(Partner partner, SavePartnerOptionCommand command) {
 		ValidatedOption value = validate(partner, command);
 		PartnerOption option = optionRepository.saveAndFlush(new PartnerOption(
 			partner,
@@ -117,12 +133,30 @@ public class PartnerOptionForPartnerService {
 	}
 
 	@Transactional
+	public PartnerOptionResult createForStaff(
+		AuthenticatedActor actor,
+		Long partnerId,
+		SavePartnerOptionCommand command
+	) {
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
+		return createForPartner(staffPartner(partnerId, true), command);
+	}
+
+	@Transactional
 	public PartnerOptionResult update(
 		AuthenticatedActor actor,
 		Long optionId,
 		SavePartnerOptionCommand command
 	) {
 		Partner partner = editablePartner(actor);
+		return updateForPartner(partner, optionId, command);
+	}
+
+	private PartnerOptionResult updateForPartner(
+		Partner partner,
+		Long optionId,
+		SavePartnerOptionCommand command
+	) {
 		PartnerOption option = optionRepository
 			.findForUpdateByIdAndPartner_IdAndDeletedAtIsNull(optionId, partner.id())
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner option not found."));
@@ -148,8 +182,23 @@ public class PartnerOptionForPartnerService {
 	}
 
 	@Transactional
+	public PartnerOptionResult updateForStaff(
+		AuthenticatedActor actor,
+		Long partnerId,
+		Long optionId,
+		SavePartnerOptionCommand command
+	) {
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
+		return updateForPartner(staffPartner(partnerId, true), optionId, command);
+	}
+
+	@Transactional
 	public Long delete(AuthenticatedActor actor, Long optionId) {
 		Partner partner = editablePartner(actor);
+		return deleteForPartner(partner, optionId);
+	}
+
+	private Long deleteForPartner(Partner partner, Long optionId) {
 		PartnerOption option = optionRepository
 			.findForUpdateByIdAndPartner_IdAndDeletedAtIsNull(optionId, partner.id())
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner option not found."));
@@ -158,6 +207,12 @@ public class PartnerOptionForPartnerService {
 		option.softDelete();
 		optionRepository.save(option);
 		return option.id();
+	}
+
+	@Transactional
+	public Long deleteForStaff(AuthenticatedActor actor, Long partnerId, Long optionId) {
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
+		return deleteForPartner(staffPartner(partnerId, true), optionId);
 	}
 
 	private Partner ownedPartner(AuthenticatedActor actor) {
@@ -173,6 +228,15 @@ public class PartnerOptionForPartnerService {
 		}
 		if (partner.allowStatus() == PartnerAllowStatus.PENDING) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Options cannot be changed while review is pending.");
+		}
+		return partner;
+	}
+
+	private Partner staffPartner(Long partnerId, boolean editable) {
+		Partner partner = partnerRepository.findByIdAndDeletedAtIsNull(partnerId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner not found."));
+		if (editable && partner.status() == PartnerStatus.WITHDRAWN) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "A withdrawn partner cannot edit options.");
 		}
 		return partner;
 	}

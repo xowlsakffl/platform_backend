@@ -26,6 +26,7 @@ class StaffBootstrapConfig {
 	) {
 		return args -> {
 			boolean created = bootstrapService.ensureStaff(new BootstrapStaffCommand(
+				properties.loginId(),
 				properties.email(),
 				properties.password(),
 				properties.name(),
@@ -34,9 +35,9 @@ class StaffBootstrapConfig {
 			));
 
 			if (created) {
-				log.info("초기 운영자 계정을 생성했습니다: {}", properties.email());
+				log.info("초기 운영자 계정을 생성했습니다: {}", properties.loginId());
 			} else {
-				log.info("기존 운영자 계정의 역할을 확인했습니다: {}", properties.email());
+				log.info("기존 운영자 계정의 역할을 확인했습니다: {}", properties.loginId());
 			}
 		};
 	}

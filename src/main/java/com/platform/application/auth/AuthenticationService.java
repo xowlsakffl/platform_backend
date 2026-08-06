@@ -6,6 +6,7 @@ import com.platform.application.auth.result.AuthActorResult;
 import com.platform.application.auth.result.AuthLogoutResult;
 import com.platform.application.auth.result.AuthSessionTokenResult;
 import com.platform.application.auth.result.AuthTokenResult;
+import com.platform.application.auth.result.LoginIdAvailabilityResult;
 import com.platform.application.auth.result.RotatedAuthSessionResult;
 import com.platform.application.cache.StaffSummaryCache;
 import com.platform.application.cache.StaffSummaryCacheInvalidator;
@@ -61,23 +62,23 @@ public class AuthenticationService {
 
 	@Transactional
 	public AuthSessionTokenResult login(AccountActorType actorType, AuthLoginCommand command) {
-		String email = normalizeEmail(command.email());
+		String identifier = normalizeIdentifier(actorType, command.identifier());
 		String ipAddress = command.client().ipAddress();
-		loginAttemptPolicy.assertAllowed(actorType, email, ipAddress);
+		loginAttemptPolicy.assertAllowed(actorType, identifier, ipAddress);
 
 		AuthenticatedActor actor;
 		try {
 			actor = switch (actorType) {
-				case STAFF -> loginStaff(email, command.password());
-				case PARTNER -> loginPartner(email, command.password());
-				case USER -> loginUser(email, command.password());
+				case STAFF -> loginStaff(identifier, command.password());
+				case PARTNER -> loginPartner(identifier, command.password());
+				case USER -> loginUser(identifier, command.password());
 			};
 		} catch (ApiException exception) {
-			loginAttemptPolicy.recordFailure(actorType, email, ipAddress);
+			loginAttemptPolicy.recordFailure(actorType, identifier, ipAddress);
 			throw exception;
 		}
 
-		loginAttemptPolicy.recordSuccess(actorType, email, ipAddress);
+		loginAttemptPolicy.recordSuccess(actorType, identifier, ipAddress);
 		RotatedAuthSessionResult session = authSessionService.create(
 			actorType,
 			actor.accountId(),
@@ -131,6 +132,12 @@ public class AuthenticationService {
 		return AuthActorResult.from(authenticatedActor);
 	}
 
+	@Transactional(readOnly = true)
+	public LoginIdAvailabilityResult partnerLoginIdAvailability(String value) {
+		String loginId = normalizeIdentifier(AccountActorType.PARTNER, value);
+		return new LoginIdAvailabilityResult(loginId, !partnerRepository.existsByLoginId(loginId));
+	}
+
 	public AuthLogoutResult logout(AccountActorType expectedActorType, AuthenticatedActor actor, String accessToken) {
 		AuthenticatedActor authenticatedActor = requireActor(expectedActorType, actor);
 		authSessionService.revoke(
@@ -155,8 +162,8 @@ public class AuthenticationService {
 		return new AuthLogoutResult(true);
 	}
 
-	private AuthenticatedActor loginStaff(String email, String password) {
-		AccountStaff staff = staffRepository.findByEmailAndDeletedAtIsNull(email)
+	private AuthenticatedActor loginStaff(String loginId, String password) {
+		AccountStaff staff = staffRepository.findByLoginIdAndDeletedAtIsNull(loginId)
 			.orElseThrow(this::invalidCredentials);
 		assertPassword(password, staff.password());
 		assertUsable(staff.isActive());
@@ -164,8 +171,8 @@ public class AuthenticationService {
 		return actorFromStaff(staff, null);
 	}
 
-	private AuthenticatedActor loginPartner(String email, String password) {
-		AccountPartner partner = partnerRepository.findByEmailAndDeletedAtIsNull(email)
+	private AuthenticatedActor loginPartner(String loginId, String password) {
+		AccountPartner partner = partnerRepository.findByLoginIdAndDeletedAtIsNull(loginId)
 			.orElseThrow(this::invalidCredentials);
 		assertPassword(password, partner.password());
 		assertUsable(partner.isActive());
@@ -190,6 +197,7 @@ public class AuthenticationService {
 			null,
 			sessionId,
 			staff.email(),
+			staff.loginId(),
 			staff.name(),
 			staff.nickname(),
 			staff.permissionCodes()
@@ -203,8 +211,9 @@ public class AuthenticationService {
 			partner.partnerId(),
 			sessionId,
 			partner.email(),
-			partner.name(),
-			partner.nickname(),
+			partner.loginId(),
+			partner.partnerName(),
+			null,
 			Set.of()
 		);
 	}
@@ -216,6 +225,7 @@ public class AuthenticationService {
 			null,
 			sessionId,
 			user.email(),
+			null,
 			user.name(),
 			user.nickname(),
 			Set.of()
@@ -264,15 +274,19 @@ public class AuthenticationService {
 		}
 	}
 
-	private String normalizeEmail(String email) {
-		if (email == null || email.isBlank()) {
+	private String normalizeIdentifier(AccountActorType actorType, String value) {
+		if (value == null || value.isBlank()) {
 			throw invalidCredentials();
 		}
-		return email.trim().toLowerCase();
+		String normalized = value.trim().toLowerCase();
+		if (actorType != AccountActorType.USER && !normalized.matches("^[a-z0-9][a-z0-9._-]{3,29}$")) {
+			throw invalidCredentials();
+		}
+		return normalized;
 	}
 
 	private ApiException invalidCredentials() {
-		return new ApiException(ErrorCode.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다.");
+		return new ApiException(ErrorCode.UNAUTHORIZED, "로그인 정보가 올바르지 않습니다.");
 	}
 
 	private ApiException unauthorized() {

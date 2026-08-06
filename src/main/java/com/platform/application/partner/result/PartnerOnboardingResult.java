@@ -18,15 +18,16 @@ public record PartnerOnboardingResult(
 
 	public record BasicInformation(
 		String name,
+		@JsonProperty("english_name") String englishName,
 		String description,
 		List<CategoryReferenceResult> categories,
 		@JsonProperty("road_address") String roadAddress,
-		@JsonProperty("jibun_address") String jibunAddress,
 		@JsonProperty("detail_address") String detailAddress,
 		String latitude,
 		String longitude,
 		@JsonProperty("operating_hours_notice") String operatingHoursNotice,
 		@JsonProperty("operation_hours") Object operationHours,
+		@JsonProperty("holiday_policy") Object holidayPolicy,
 		String direction,
 		List<String> hashtags,
 		List<PartnerContactResult> contacts,

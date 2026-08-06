@@ -103,6 +103,7 @@ app:
   bootstrap:
     staff:
       enabled: ${STAFF_BOOTSTRAP_ENABLED:false}
+      login-id: ${STAFF_BOOTSTRAP_LOGIN_ID:}
       email: ${STAFF_BOOTSTRAP_EMAIL:}
       password: ${STAFF_BOOTSTRAP_PASSWORD:}
       name: ${STAFF_BOOTSTRAP_NAME:Platform Admin}

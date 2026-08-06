@@ -29,13 +29,14 @@ class StaffSampleBootstrapConfig {
 	) {
 		return args -> {
 			boolean created = bootstrapService.ensureStaff(new BootstrapStaffCommand(
+				properties.loginId(),
 				properties.email(),
 				properties.password(),
 				properties.name(),
 				properties.nickname(),
 				STAFF_ROLE
 			));
-			log.info("일반 직원 샘플 계정을 확인했습니다. 이메일: {}, 생성 여부: {}", properties.email(), created);
+			log.info("일반 직원 샘플 계정을 확인했습니다. 아이디: {}, 생성 여부: {}", properties.loginId(), created);
 		};
 	}
 }
