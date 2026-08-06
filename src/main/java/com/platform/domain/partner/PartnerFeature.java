@@ -34,6 +34,28 @@ public class PartnerFeature extends BaseTimeEntity {
 	protected PartnerFeature() {
 	}
 
+	public PartnerFeature(
+		String code,
+		String name,
+		int sortOrder,
+		PartnerFeatureStatus status
+	) {
+		this.code = code;
+		this.name = name;
+		this.sortOrder = sortOrder;
+		this.status = status;
+	}
+
+	public void synchronizeDefinition(
+		String name,
+		int sortOrder,
+		PartnerFeatureStatus status
+	) {
+		this.name = name;
+		this.sortOrder = sortOrder;
+		this.status = status;
+	}
+
 	public Long id() {
 		return id;
 	}

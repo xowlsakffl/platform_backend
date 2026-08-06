@@ -50,6 +50,8 @@ management:
 app:
   category-definitions:
     sync-enabled: ${CATEGORY_DEFINITION_SYNC_ENABLED:true}
+  partner-feature-definitions:
+    sync-enabled: ${PARTNER_FEATURE_DEFINITION_SYNC_ENABLED:true}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4001,http://localhost:4002,http://localhost:4003,http://localhost:4004,http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003,http://127.0.0.1:4004}
   auth:

@@ -1,0 +1,21 @@
+{
+  "features": [
+    { "code": "PARKING", "name": "주차 가능", "sort_order": 1 },
+    { "code": "VALET_PARKING", "name": "발렛 가능", "sort_order": 2 },
+    { "code": "STATION_WITHIN_5_MINUTES", "name": "역에서 도보 5분 이내", "sort_order": 3 },
+    { "code": "PRIVATE_ROOM", "name": "프라이빗룸", "sort_order": 4 },
+    { "code": "WIFI", "name": "와이파이", "sort_order": 5 },
+    { "code": "LOCKER", "name": "개인 락커", "sort_order": 6 },
+    { "code": "SHOWER_ROOM", "name": "샤워실", "sort_order": 7 },
+    { "code": "NIGHT_OPERATION", "name": "야간 운영", "sort_order": 8 },
+    { "code": "WEEKEND_OPERATION", "name": "주말 운영", "sort_order": 9 },
+    { "code": "AFTERCARE", "name": "시술 후 관리", "sort_order": 10 },
+    { "code": "WOMEN_SPECIALIST", "name": "여성 스페셜리스트", "sort_order": 11 },
+    { "code": "ONE_PERSON_SHOP", "name": "1인샵", "sort_order": 12 },
+    { "code": "WAITING_AREA", "name": "대기공간", "sort_order": 13 },
+    { "code": "SEPARATE_RESTROOMS", "name": "남녀 화장실 구분", "sort_order": 14 },
+    { "code": "WHEELCHAIR_ACCESSIBLE", "name": "휠체어 이용 가능", "sort_order": 15 },
+    { "code": "PET_FRIENDLY", "name": "반려동물 동반 가능", "sort_order": 16 },
+    { "code": "MEN_SERVICE_AVAILABLE", "name": "남성 고객 이용 가능", "sort_order": 17 }
+  ]
+}

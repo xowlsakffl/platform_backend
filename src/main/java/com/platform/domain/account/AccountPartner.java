@@ -44,7 +44,7 @@ public class AccountPartner extends BaseTimeEntity {
 	private String password;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false)
+	@Column(nullable = false, length = 20)
 	private AccountPartnerStatus status = AccountPartnerStatus.ACTIVE;
 
 	@Column(name = "last_login_at")

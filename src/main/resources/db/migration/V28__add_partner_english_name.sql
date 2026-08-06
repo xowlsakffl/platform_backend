@@ -1,3 +1,0 @@
-ALTER TABLE partners
-    MODIFY COLUMN name VARCHAR(30) NOT NULL,
-    ADD COLUMN english_name VARCHAR(90) NULL AFTER name;

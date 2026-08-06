@@ -13,6 +13,7 @@
 ## 세부 문서
 
 - [카테고리](./category.md)
+- [업체 특징](./partner-feature.md)
 - [미디어](./media.md)
 - [운영 이력](./operation-history.md)
 - [Redis 캐시](./cache.md)

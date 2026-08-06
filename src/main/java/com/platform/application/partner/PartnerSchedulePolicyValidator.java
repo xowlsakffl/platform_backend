@@ -69,10 +69,7 @@ public class PartnerSchedulePolicyValidator {
 		} catch (DateTimeException exception) {
 			throw invalid("운영시간 시간대가 올바르지 않습니다.");
 		}
-		if (root.has("reservation_only") && !root.path("reservation_only").isBoolean()) {
-			throw invalid("예약제 운영 여부가 올바르지 않습니다.");
-		}
-		((ObjectNode) root).put("reservation_only", root.path("reservation_only").asBoolean(false));
+		((ObjectNode) root).remove("reservation_only");
 
 		for (String day : DAYS) {
 			JsonNode schedule = root.get(day);

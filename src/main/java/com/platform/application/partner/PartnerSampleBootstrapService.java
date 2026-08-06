@@ -54,7 +54,7 @@ public class PartnerSampleBootstrapService {
 			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
 			"김강남", "partner01@platform.local", "platform_partner_01", "1209900001",
 			"KB_HAIR_SALON",
-			List.of("PARKING", "PRIVATE_ROOM", "AFTERCARE", "RESERVATION_ONLY"),
+			List.of("PARKING", "PRIVATE_ROOM", "AFTERCARE"),
 			true
 		),
 		new PartnerSample(
@@ -102,7 +102,7 @@ public class PartnerSampleBootstrapService {
 			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
 			"오부산", "partner07@platform.local", "platform_partner_07", "1209900007",
 			"KB_MASSAGE",
-			List.of("PRIVATE_ROOM", "RESERVATION_ONLY", "AFTERCARE", "WEEKEND_OPERATION"),
+			List.of("PRIVATE_ROOM", "AFTERCARE", "WEEKEND_OPERATION"),
 			true
 		),
 		new PartnerSample(
@@ -118,7 +118,7 @@ public class PartnerSampleBootstrapService {
 			PartnerAllowStatus.APPROVED, PartnerStatus.ACTIVE, SampleAccountState.NOT_INVITED,
 			"윤성수", "partner09@platform.local", "platform_partner_09", "1209900009",
 			"KB_EYELASH",
-			List.of("RESERVATION_ONLY", "STATION_WITHIN_5_MINUTES"),
+			List.of("STATION_WITHIN_5_MINUTES"),
 			false
 		),
 		new PartnerSample(
@@ -126,7 +126,7 @@ public class PartnerSampleBootstrapService {
 			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.INVITED,
 			"서여의", "partner10@platform.local", "platform_partner_10", "1209900010",
 			"KB_MAKEUP",
-			List.of("RESERVATION_ONLY", "WEEKEND_OPERATION"),
+			List.of("WEEKEND_OPERATION"),
 			false
 		),
 		new PartnerSample(

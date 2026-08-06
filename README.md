@@ -21,6 +21,7 @@
 - [인증과 권한](./docs/authentication.md)
 - [도메인 정책과 상태](./docs/domain-status-definition.md)
 - [카테고리](./docs/category.md)
+- [업체 특징](./docs/partner-feature.md)
 - [미디어](./docs/media.md)
 - [운영 이력](./docs/operation-history.md)
 - [캐시](./docs/cache.md)
@@ -76,7 +77,7 @@ STAFF_BOOTSTRAP_PASSWORD='<강한 비밀번호>' \
 
 ## 로컬 파트너 샘플 데이터
 
-영구 기준 데이터는 Flyway migration으로 관리하고, 화면 개발용 파트너 데이터는 `local` 프로필의 부트스트랩에서 생성한다. 로컬에서는 기본 활성화되며 같은 파트너명, 계정 이메일·로그인 아이디 또는 사업자등록번호가 있으면 중복 생성하지 않는다.
+DB 스키마와 Staff 권한 기준 데이터는 Flyway migration으로 관리한다. 카테고리와 업체 특징은 JSON 정의를 시작 시 동기화하고, 화면 개발용 파트너 데이터는 `local` 프로필의 부트스트랩에서 생성한다. 로컬에서는 기본 활성화되며 같은 파트너명, 계정 이메일·로그인 아이디 또는 사업자등록번호가 있으면 중복 생성하지 않는다.
 
 - 가상 파트너 11곳: 연결 8곳, 미초대 1곳, 초대 발송 1곳, 초대 만료 1곳
 - 신청·승인·반려 승인상태와 정상·운영중지·탈퇴 운영상태
@@ -107,7 +108,7 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 - Staff 역할·권한 검사와 Partner 소유권 검사
 - Staff용 Partner 목록·상세·등록·부분수정·승인·운영상태 변경·삭제·이력·요약
 - 파트너별 내부 담당 직원 지정·변경·해제, 일반 직원 자기 담당 등록·해제
-- 파트너 연락처, 사업자 정보, 특징 12개, 상세 영업시간·휴무 정책
+- 파트너 연락처, 사업자 정보, 특징 17개, 상세 영업시간·휴무 정책
 - 직접 입점과 내부관리자 업체 등록경로, append-only 파트너 계정 초대 이력·일회용 초대 링크
 - Category Staff 관리 API와 사용처 selector
 - PARTNER 1뎁스 파트너 분류와 업종별 옵션 분류 기준 데이터

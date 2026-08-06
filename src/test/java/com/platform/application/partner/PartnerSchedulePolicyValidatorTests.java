@@ -35,12 +35,12 @@ class PartnerSchedulePolicyValidatorTests {
 
 		assertThat(validator.normalizeOperationHours(schedule, true))
 			.contains("\"timezone\":\"Asia/Seoul\"")
-			.contains("\"reservation_only\":true")
-			.contains("\"ends_next_day\":true");
+			.contains("\"ends_next_day\":true")
+			.doesNotContain("reservation_only");
 	}
 
 	@Test
-	void defaultsReservationOnlyToFalse() {
+	void doesNotAddReservationOnly() {
 		String schedule = """
 			{
 			  "mon":{"is_closed":true},"tue":{"is_closed":true},"wed":{"is_closed":true},
@@ -50,7 +50,7 @@ class PartnerSchedulePolicyValidatorTests {
 			""";
 
 		assertThat(validator.normalizeOperationHours(schedule, true))
-			.contains("\"reservation_only\":false");
+			.doesNotContain("reservation_only");
 	}
 
 	@Test

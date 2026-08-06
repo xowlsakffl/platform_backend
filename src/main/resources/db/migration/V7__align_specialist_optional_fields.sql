@@ -1,4 +1,0 @@
-ALTER TABLE partner_specialists
-    MODIFY COLUMN name VARCHAR(255) NOT NULL COMMENT '스페셜리스트명',
-    MODIFY COLUMN gender VARCHAR(20) NULL COMMENT '성별(남, 여)',
-    MODIFY COLUMN position VARCHAR(50) NULL COMMENT '직책';
