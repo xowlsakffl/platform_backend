@@ -80,6 +80,7 @@ public class PartnerOnboardingService {
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final PartnerOptionForPartnerService optionService;
 	private final PartnerSchedulePolicyValidator schedulePolicyValidator;
+	private final PartnerBusinessNumberPolicy businessNumberPolicy;
 	private final MediaCommandService mediaCommandService;
 	private final MediaReadService mediaReadService;
 	private final StaffSummaryCacheInvalidator summaryCacheInvalidator;
@@ -100,6 +101,7 @@ public class PartnerOnboardingService {
 		OperationHistoryRepository operationHistoryRepository,
 		PartnerOptionForPartnerService optionService,
 		PartnerSchedulePolicyValidator schedulePolicyValidator,
+		PartnerBusinessNumberPolicy businessNumberPolicy,
 		MediaCommandService mediaCommandService,
 		MediaReadService mediaReadService,
 		StaffSummaryCacheInvalidator summaryCacheInvalidator,
@@ -119,6 +121,7 @@ public class PartnerOnboardingService {
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.optionService = optionService;
 		this.schedulePolicyValidator = schedulePolicyValidator;
+		this.businessNumberPolicy = businessNumberPolicy;
 		this.mediaCommandService = mediaCommandService;
 		this.mediaReadService = mediaReadService;
 		this.summaryCacheInvalidator = summaryCacheInvalidator;
@@ -131,7 +134,7 @@ public class PartnerOnboardingService {
 		String partnerName = requireText(command.partnerName(), "Partner name is required.");
 		String loginId = normalizeLoginId(command.loginId());
 		String email = requireText(command.email(), "Email is required.").toLowerCase(Locale.ROOT);
-		if (partnerRepository.existsByNameAndDeletedAtIsNull(partnerName)) {
+		if (partnerRepository.existsByName(partnerName)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner name is already in use.");
 		}
 		if (accountPartnerRepository.existsByEmail(email)) {
@@ -196,7 +199,7 @@ public class PartnerOnboardingService {
 		String englishName = command.specified("english_name")
 			? trimToNull(command.englishName())
 			: partner.englishName();
-		if (!Objects.equals(name, partner.name()) && partnerRepository.existsByNameAndDeletedAtIsNull(name)) {
+		if (!Objects.equals(name, partner.name()) && partnerRepository.existsByName(name)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner name is already in use.");
 		}
 
@@ -312,6 +315,9 @@ public class PartnerOnboardingService {
 		if (!StringUtils.hasText(partner.roadAddress())) {
 			missing.add("road_address");
 		}
+		if (!StringUtils.hasText(partner.latitude()) || !StringUtils.hasText(partner.longitude())) {
+			missing.add("address_coordinates");
+		}
 		if (!StringUtils.hasText(partner.operationHours())) {
 			missing.add("operation_hours");
 		}
@@ -332,6 +338,9 @@ public class PartnerOnboardingService {
 		if (!hasRepresentativeEmail) {
 			missing.add("representative_email");
 		}
+		if (partner.features().isEmpty()) {
+			missing.add("feature_ids");
+		}
 		PartnerBusinessRegistration registration = partner.businessRegistration();
 		if (registration == null
 			|| !StringUtils.hasText(registration.businessNumber())
@@ -340,6 +349,16 @@ public class PartnerOnboardingService {
 			|| !StringUtils.hasText(registration.businessType())
 			|| !StringUtils.hasText(registration.businessItem())) {
 			missing.add("business_registration");
+		}
+		if (registration != null && StringUtils.hasText(registration.businessNumber())) {
+			businessNumberPolicy.normalize(registration.businessNumber());
+		}
+		if (mediaReadService.primary(
+			MediaOwnerType.PARTNER,
+			partner.id(),
+			MediaCollectionPolicy.PARTNER_LOGO
+		) == null) {
+			missing.add("logo");
 		}
 		if (mediaReadService.primary(
 			MediaOwnerType.PARTNER,
@@ -399,7 +418,7 @@ public class PartnerOnboardingService {
 				command.interiorImages(),
 				command.interiorImageOrder(),
 				false,
-				10
+				9
 			);
 		} else if (command.specified("interior_images") || command.specified("existing_interior_image_ids")) {
 			mediaCommandService.synchronizeMany(
@@ -409,7 +428,7 @@ public class PartnerOnboardingService {
 				command.interiorImages(),
 				command.existingInteriorImageIds(),
 				false,
-				10
+				9
 			);
 		}
 		if (command.specified("business_registration_file")
@@ -492,7 +511,7 @@ public class PartnerOnboardingService {
 	) {
 		PartnerBusinessRegistration current = partner.businessRegistration();
 		String businessNumber = fields.contains("business_number")
-			? normalizeBusinessNumber(command.businessNumber())
+			? businessNumberPolicy.normalize(command.businessNumber())
 			: current == null ? null : current.businessNumber();
 		Long currentId = current == null ? null : current.id();
 		if (businessNumber != null) {
@@ -508,7 +527,6 @@ public class PartnerOnboardingService {
 		String businessItem = fieldValue(fields, "business_item", command.businessItem(), current == null ? null : current.businessItem());
 		String businessAddress = fieldValue(fields, "business_address", command.businessAddress(), current == null ? null : current.businessAddress());
 		String businessAddressDetail = fieldValue(fields, "business_address_detail", command.businessAddressDetail(), current == null ? null : current.businessAddressDetail());
-		String taxInvoiceEmail = fieldValue(fields, "tax_invoice_email", command.taxInvoiceEmail(), current == null ? null : current.taxInvoiceEmail());
 
 		if (current == null) {
 			current = new PartnerBusinessRegistration(
@@ -521,9 +539,7 @@ public class PartnerOnboardingService {
 				businessAddressDetail,
 				null,
 				null,
-				null,
-				taxInvoiceEmail,
-				fields.contains("issued_at") ? command.issuedAt() : null
+				null
 			);
 			partner.replaceBusinessRegistration(current);
 		} else {
@@ -537,9 +553,7 @@ public class PartnerOnboardingService {
 				businessAddressDetail,
 				current.settlementBankName(),
 				current.settlementAccountNumber(),
-				current.settlementAccountHolder(),
-				taxInvoiceEmail,
-				fields.contains("issued_at") ? command.issuedAt() : current.issuedAt()
+				current.settlementAccountHolder()
 			);
 		}
 	}
@@ -547,7 +561,7 @@ public class PartnerOnboardingService {
 	private PartnerBusinessRegistration ensureBusinessRegistration(Partner partner) {
 		if (partner.businessRegistration() == null) {
 			partner.replaceBusinessRegistration(new PartnerBusinessRegistration(
-				null, null, null, null, null, null, null, null, null, null, null, null
+				null, null, null, null, null, null, null, null, null, null
 			));
 			partnerRepository.saveAndFlush(partner);
 		}
@@ -662,8 +676,7 @@ public class PartnerOnboardingService {
 			registration.businessItem(),
 			registration.businessAddress(),
 			registration.businessAddressDetail(),
-			new PartnerSettlementAccountResult(null, null, null, registration.taxInvoiceEmail()),
-			registration.issuedAt(),
+			new PartnerSettlementAccountResult(null, null, null),
 			registration.status().name(),
 			mediaReadService.primary(
 				MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
@@ -682,11 +695,6 @@ public class PartnerOnboardingService {
 		} catch (JsonProcessingException exception) {
 			throw new InternalApplicationException("Stored operation hours JSON is invalid.", exception);
 		}
-	}
-
-	private String normalizeBusinessNumber(String value) {
-		String normalized = trimToNull(value);
-		return normalized == null ? null : normalized.replaceAll("\\D+", "");
 	}
 
 	private String requireText(String value, String message) {

@@ -15,7 +15,7 @@ spring:
   servlet:
     multipart:
       max-file-size: ${MEDIA_MAX_FILE_SIZE:20MB}
-      max-request-size: ${MEDIA_MAX_REQUEST_SIZE:21MB}
+      max-request-size: ${MEDIA_MAX_REQUEST_SIZE:128MB}
   mail:
     host: ${MAIL_HOST}
     port: ${MAIL_PORT:587}

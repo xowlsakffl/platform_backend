@@ -2,7 +2,6 @@ package com.platform.adapter.in.web.staff.partner.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.platform.application.partner.command.SavePartnerOptionCommand;
-import com.platform.domain.partner.PartnerPriceType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -17,10 +16,11 @@ import java.util.List;
 
 public record PartnerOptionCreateForStaffRequest(
 	@JsonProperty("category_id") @NotNull @Positive Long categoryId,
-	@NotBlank @Size(max = 120) String name,
-	@Size(max = 1000) String description,
-	@DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal price,
-	@JsonProperty("price_type") @NotNull PartnerPriceType priceType,
+	@NotBlank @Size(max = 80) String name,
+	@Size(max = 200) String description,
+	@JsonProperty("regular_price") @NotNull @DecimalMin("0") @Digits(integer = 10, fraction = 2)
+	BigDecimal regularPrice,
+	@JsonProperty("sale_price") @DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal salePrice,
 	@JsonProperty("duration_minutes") @Positive @Max(1440) Integer durationMinutes,
 	@JsonProperty("is_visible") @NotNull Boolean visible,
 	@JsonProperty("sort_order") @Min(0) int sortOrder,
@@ -32,8 +32,8 @@ public record PartnerOptionCreateForStaffRequest(
 			categoryId,
 			name,
 			description,
-			price,
-			priceType,
+			regularPrice,
+			salePrice,
 			durationMinutes,
 			visible,
 			sortOrder,
@@ -45,16 +45,17 @@ public record PartnerOptionCreateForStaffRequest(
 
 	public record SpecialistPriceRequest(
 		@JsonProperty("specialist_id") @NotNull @Positive Long specialistId,
-		@JsonProperty("price_override")
-		@DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal priceOverride,
-		@JsonProperty("price_type_override") PartnerPriceType priceTypeOverride
+		@JsonProperty("regular_price_override")
+		@DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal regularPriceOverride,
+		@JsonProperty("sale_price_override")
+		@DecimalMin("0") @Digits(integer = 10, fraction = 2) BigDecimal salePriceOverride
 	) {
 
 		private SavePartnerOptionCommand.SpecialistPriceCommand toCommand() {
 			return new SavePartnerOptionCommand.SpecialistPriceCommand(
 				specialistId,
-				priceOverride,
-				priceTypeOverride
+				regularPriceOverride,
+				salePriceOverride
 			);
 		}
 	}

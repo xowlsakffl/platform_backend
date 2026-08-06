@@ -276,8 +276,6 @@ CREATE TABLE `partner_business_registrations` (
   `settlement_bank_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `settlement_account_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `settlement_account_holder` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `tax_invoice_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `issued_at` date DEFAULT NULL,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
@@ -354,10 +352,10 @@ CREATE TABLE `partner_specialists` (
 CREATE TABLE `partner_options` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `partner_id` bigint NOT NULL,
-  `name` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `price` decimal(12,2) DEFAULT NULL,
-  `price_type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `regular_price` decimal(12,2) NOT NULL,
+  `sale_price` decimal(12,2) DEFAULT NULL,
   `duration_minutes` int DEFAULT NULL,
   `is_visible` tinyint(1) NOT NULL DEFAULT '1',
   `sort_order` int NOT NULL DEFAULT '0',
@@ -366,6 +364,7 @@ CREATE TABLE `partner_options` (
   `deleted_at` timestamp(6) NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `partner_options_partner_visible_order_index` (`partner_id`,`deleted_at`,`is_visible`,`sort_order`),
+  CONSTRAINT `chk_partner_options_prices` CHECK (`regular_price` >= 0 AND (`sale_price` IS NULL OR (`sale_price` >= 0 AND `sale_price` < `regular_price`))),
   CONSTRAINT `fk_partner_options_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -373,13 +372,14 @@ CREATE TABLE `specialist_options` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `specialist_id` bigint NOT NULL,
   `partner_option_id` bigint NOT NULL,
-  `price_override` decimal(12,2) DEFAULT NULL,
-  `price_type_override` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `regular_price_override` decimal(12,2) DEFAULT NULL,
+  `sale_price_override` decimal(12,2) DEFAULT NULL,
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
   UNIQUE KEY `specialist_options_specialist_option_unique` (`specialist_id`,`partner_option_id`),
   KEY `specialist_options_partner_option_index` (`partner_option_id`),
+  CONSTRAINT `chk_specialist_options_prices` CHECK ((`regular_price_override` IS NULL AND `sale_price_override` IS NULL) OR (`regular_price_override` >= 0 AND (`sale_price_override` IS NULL OR (`sale_price_override` >= 0 AND `sale_price_override` < `regular_price_override`)))),
   CONSTRAINT `fk_specialist_options_partner_option` FOREIGN KEY (`partner_option_id`) REFERENCES `partner_options` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_specialist_options_specialist` FOREIGN KEY (`specialist_id`) REFERENCES `partner_specialists` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

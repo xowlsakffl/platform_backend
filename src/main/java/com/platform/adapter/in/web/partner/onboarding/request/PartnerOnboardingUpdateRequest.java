@@ -11,7 +11,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,7 +29,7 @@ public record PartnerOnboardingUpdateRequest(
 	@BindParam("operating_hours_notice") @Size(max = 500) String operatingHoursNotice,
 	@BindParam("operation_hours") String operationHours,
 	@BindParam("holiday_policy") String holidayPolicy,
-	@Size(max = 2000) String direction,
+	@Size(max = 5000) String direction,
 	@BindParam("representative_phone") @Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN)
 	String representativePhone,
 	@BindParam("representative_email") @Email @Size(max = 255)
@@ -45,15 +44,14 @@ public record PartnerOnboardingUpdateRequest(
 	List<@Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String> eventNoticeReceiverPhones,
 	@BindParam("notice_marketing_emails[]") @Size(max = 3)
 	List<@Email @Size(max = 255) String> noticeMarketingEmails,
-	@BindParam("business_number") @Size(max = 20) String businessNumber,
+	@BindParam("business_number")
+	@Pattern(regexp = PartnerRequestSupport.BUSINESS_NUMBER_PATTERN) String businessNumber,
 	@BindParam("company_name") @Size(max = 255) String companyName,
 	@BindParam("ceo_name") @Size(max = 100) String ceoName,
 	@BindParam("business_type") @Size(max = 100) String businessType,
 	@BindParam("business_item") @Size(max = 100) String businessItem,
 	@BindParam("business_address") @Size(max = 255) String businessAddress,
 	@BindParam("business_address_detail") @Size(max = 255) String businessAddressDetail,
-	@BindParam("tax_invoice_email") @Email @Size(max = 255) String taxInvoiceEmail,
-	@BindParam("issued_at") LocalDate issuedAt,
 	@BindParam("feature_ids[]") @Size(max = 100) Set<@Positive Long> featureIds,
 	@BindParam("hashtags[]") @Size(max = 10) List<@Size(max = 30) String> hashtags,
 	@Size(max = 12000) String links,
@@ -61,9 +59,9 @@ public record PartnerOnboardingUpdateRequest(
 	@BindParam("existing_logo_id") @Positive Long existingLogoId,
 	@BindParam("main_image") MultipartFile mainImage,
 	@BindParam("existing_main_image_id") @Positive Long existingMainImageId,
-	@BindParam("interior_images[]") @Size(max = 10) List<MultipartFile> interiorImages,
-	@BindParam("existing_interior_image_ids[]") @Size(max = 10) List<@Positive Long> existingInteriorImageIds,
-	@BindParam("interior_image_order[]") @Size(max = 10)
+	@BindParam("interior_images[]") @Size(max = 9) List<MultipartFile> interiorImages,
+	@BindParam("existing_interior_image_ids[]") @Size(max = 9) List<@Positive Long> existingInteriorImageIds,
+	@BindParam("interior_image_order[]") @Size(max = 9)
 	List<@Pattern(regexp = "^(existing|new):[0-9]+$") String> interiorImageOrder,
 	@BindParam("business_registration_file") MultipartFile businessRegistrationFile,
 	@BindParam("existing_business_registration_file_id") @Positive Long existingBusinessRegistrationFileId
@@ -135,9 +133,7 @@ public record PartnerOnboardingUpdateRequest(
 			"business_type",
 			"business_item",
 			"business_address",
-			"business_address_detail",
-			"tax_invoice_email",
-			"issued_at"
+			"business_address_detail"
 		).stream().noneMatch(fields::contains)) {
 			return null;
 		}
@@ -151,9 +147,7 @@ public record PartnerOnboardingUpdateRequest(
 			businessAddressDetail,
 			null,
 			null,
-			null,
-			taxInvoiceEmail,
-			issuedAt
+			null
 		);
 	}
 

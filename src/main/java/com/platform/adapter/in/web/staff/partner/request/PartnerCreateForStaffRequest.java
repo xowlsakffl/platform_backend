@@ -13,7 +13,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.springframework.web.bind.annotation.BindParam;
@@ -22,14 +21,14 @@ import org.springframework.web.multipart.MultipartFile;
 public record PartnerCreateForStaffRequest(
 	@NotBlank @Size(max = 30) String name,
 	@BindParam("english_name") @Size(max = 90) String englishName,
-	@Size(max = 2000) String description,
+	@NotBlank @Size(max = 2000) String description,
 	@BindParam("category_id") @NotNull @Positive Long categoryId,
 	@BindParam("road_address") @NotBlank @Size(max = 255) String roadAddress,
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
-	@DecimalMin("-90") @DecimalMax("90") String latitude,
-	@DecimalMin("-180") @DecimalMax("180") String longitude,
+	@NotBlank @DecimalMin("-90") @DecimalMax("90") String latitude,
+	@NotBlank @DecimalMin("-180") @DecimalMax("180") String longitude,
 	@BindParam("subway_stations") @Size(max = 12000) String subwayStations,
-	@BindParam("operating_hours_notice") @Size(max = 5000) String operatingHoursNotice,
+	@BindParam("operating_hours_notice") @Size(max = 500) String operatingHoursNotice,
 	@BindParam("operation_hours") @NotNull Object operationHours,
 	@BindParam("holiday_policy") @NotNull Object holidayPolicy,
 	@Size(max = 5000) String direction,
@@ -53,7 +52,8 @@ public record PartnerCreateForStaffRequest(
 	List<@Pattern(regexp = PartnerRequestSupport.PHONE_PATTERN) String> eventNoticeReceiverPhones,
 	@BindParam("notice_marketing_emails[]") @Size(max = 3)
 	List<@Email @Size(max = 255) String> noticeMarketingEmails,
-	@BindParam("business_number") @NotBlank @Size(max = 20) String businessNumber,
+	@BindParam("business_number") @NotBlank
+	@Pattern(regexp = PartnerRequestSupport.BUSINESS_NUMBER_PATTERN) String businessNumber,
 	@BindParam("company_name") @NotBlank @Size(max = 255) String companyName,
 	@BindParam("ceo_name") @NotBlank @Size(max = 100) String ceoName,
 	@BindParam("business_type") @NotBlank @Size(max = 100) String businessType,
@@ -64,8 +64,6 @@ public record PartnerCreateForStaffRequest(
 	@BindParam("settlement_account_number") @Size(max = 50)
 	@Pattern(regexp = "^(?:|[0-9\\-\\s]{2,50})$") String settlementAccountNumber,
 	@BindParam("settlement_account_holder") @Size(max = 100) String settlementAccountHolder,
-	@BindParam("tax_invoice_email") @Email @Size(max = 255) String taxInvoiceEmail,
-	@BindParam("issued_at") LocalDate issuedAt,
 	@BindParam("feature_ids[]") @NotEmpty @Size(max = 100) Set<@Positive Long> featureIds,
 	@BindParam("hashtags[]") @Size(max = 10) List<@Size(max = 30) String> hashtags,
 	@Size(max = 12000) String links,
@@ -125,9 +123,7 @@ public record PartnerCreateForStaffRequest(
 			businessAddressDetail,
 			settlementBankName,
 			settlementAccountNumber,
-			settlementAccountHolder,
-			taxInvoiceEmail,
-			issuedAt
+			settlementAccountHolder
 		);
 	}
 }

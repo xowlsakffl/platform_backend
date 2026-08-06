@@ -17,7 +17,6 @@ import com.platform.domain.category.Category;
 import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerOption;
-import com.platform.domain.partner.PartnerPriceType;
 import com.platform.domain.partner.PartnerStatus;
 import com.platform.domain.specialist.Specialist;
 import com.platform.domain.specialist.SpecialistOption;
@@ -116,8 +115,8 @@ public class PartnerOptionForPartnerService {
 			partner,
 			value.name(),
 			value.description(),
-			value.price(),
-			value.priceType(),
+			value.regularPrice(),
+			value.salePrice(),
 			value.durationMinutes(),
 			value.visible(),
 			value.sortOrder()
@@ -164,8 +163,8 @@ public class PartnerOptionForPartnerService {
 		option.update(
 			value.name(),
 			value.description(),
-			value.price(),
-			value.priceType(),
+			value.regularPrice(),
+			value.salePrice(),
 			value.durationMinutes(),
 			value.visible(),
 			value.sortOrder()
@@ -257,8 +256,7 @@ public class PartnerOptionForPartnerService {
 		if (name == null) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Option name is required.");
 		}
-		PartnerPriceType priceType = Objects.requireNonNull(command.priceType(), "priceType");
-		validatePrice(priceType, command.price(), "Option price");
+		validatePricePair(command.regularPrice(), command.salePrice(), "Option");
 		List<SpecialistPriceCommand> specialists = command.specialists() == null ? List.of() : command.specialists();
 		long uniqueCount = specialists.stream().map(SpecialistPriceCommand::specialistId).distinct().count();
 		if (uniqueCount != specialists.size()) {
@@ -268,19 +266,26 @@ public class PartnerOptionForPartnerService {
 			if (specialist.specialistId() == null) {
 				throw new ApiException(ErrorCode.INVALID_REQUEST, "Specialist id is required.");
 			}
-			PartnerPriceType effectiveType = specialist.priceTypeOverride() == null
-				? priceType
-				: specialist.priceTypeOverride();
-			if (specialist.priceOverride() != null || specialist.priceTypeOverride() != null) {
-				validatePrice(effectiveType, specialist.priceOverride(), "Specialist price");
+			if (specialist.regularPriceOverride() == null && specialist.salePriceOverride() != null) {
+				throw new ApiException(
+					ErrorCode.INVALID_REQUEST,
+					"Specialist regular price is required when a sale price is provided."
+				);
+			}
+			if (specialist.regularPriceOverride() != null) {
+				validatePricePair(
+					specialist.regularPriceOverride(),
+					specialist.salePriceOverride(),
+					"Specialist"
+				);
 			}
 		}
 		return new ValidatedOption(
 			category.id(),
 			name,
 			trimToNull(command.description()),
-			priceType == PartnerPriceType.INQUIRE ? null : command.price(),
-			priceType,
+			command.regularPrice(),
+			command.salePrice(),
 			command.durationMinutes(),
 			command.visible(),
 			command.sortOrder(),
@@ -288,15 +293,21 @@ public class PartnerOptionForPartnerService {
 		);
 	}
 
-	private void validatePrice(PartnerPriceType type, BigDecimal price, String fieldName) {
-		if (type == PartnerPriceType.INQUIRE) {
-			if (price != null) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, fieldName + " must be empty for INQUIRE.");
-			}
+	private void validatePricePair(BigDecimal regularPrice, BigDecimal salePrice, String fieldName) {
+		if (regularPrice == null || regularPrice.signum() < 0) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				fieldName + " regular price is required and cannot be negative."
+			);
+		}
+		if (salePrice == null) {
 			return;
 		}
-		if (price == null || price.signum() < 0) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, fieldName + " is required and cannot be negative.");
+		if (salePrice.signum() < 0 || salePrice.compareTo(regularPrice) >= 0) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				fieldName + " sale price must be lower than the regular price."
+			);
 		}
 	}
 
@@ -323,8 +334,8 @@ public class PartnerOptionForPartnerService {
 			.map(command -> new SpecialistOption(
 				specialists.get(command.specialistId()),
 				option,
-				command.priceOverride(),
-				command.priceTypeOverride()
+				command.regularPriceOverride(),
+				command.salePriceOverride()
 			))
 			.toList();
 		specialistOptionRepository.saveAll(assignments);
@@ -363,8 +374,10 @@ public class PartnerOptionForPartnerService {
 			category,
 			option.name(),
 			option.description(),
-			option.price(),
-			option.priceType().name(),
+			option.regularPrice(),
+			option.salePrice(),
+			option.effectivePrice(),
+			option.discountRate(),
 			option.durationMinutes(),
 			option.visible(),
 			option.sortOrder(),
@@ -372,10 +385,12 @@ public class PartnerOptionForPartnerService {
 				.map(assignment -> new SpecialistPriceResult(
 					assignment.specialist().id(),
 					assignment.specialist().name(),
-					assignment.priceOverride(),
-					assignment.priceTypeOverride() == null ? null : assignment.priceTypeOverride().name(),
+					assignment.regularPriceOverride(),
+					assignment.salePriceOverride(),
+					assignment.effectiveRegularPrice(),
+					assignment.effectiveSalePrice(),
 					assignment.effectivePrice(),
-					assignment.effectivePriceType().name()
+					assignment.effectiveDiscountRate()
 				))
 				.toList(),
 			option.createdAt(),
@@ -402,8 +417,8 @@ public class PartnerOptionForPartnerService {
 		Long categoryId,
 		String name,
 		String description,
-		BigDecimal price,
-		PartnerPriceType priceType,
+		BigDecimal regularPrice,
+		BigDecimal salePrice,
 		Integer durationMinutes,
 		boolean visible,
 		int sortOrder,

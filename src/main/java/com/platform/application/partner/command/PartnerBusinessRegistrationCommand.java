@@ -1,7 +1,5 @@
 package com.platform.application.partner.command;
 
-import java.time.LocalDate;
-
 public record PartnerBusinessRegistrationCommand(
 	String businessNumber,
 	String companyName,
@@ -12,8 +10,6 @@ public record PartnerBusinessRegistrationCommand(
 	String businessAddressDetail,
 	String settlementBankName,
 	String settlementAccountNumber,
-	String settlementAccountHolder,
-	String taxInvoiceEmail,
-	LocalDate issuedAt
+	String settlementAccountHolder
 ) {
 }

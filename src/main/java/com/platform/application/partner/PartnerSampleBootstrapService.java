@@ -25,7 +25,6 @@ import com.platform.infrastructure.persistence.partner.PartnerAccountInvitationR
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -384,9 +383,7 @@ public class PartnerSampleBootstrapService {
 			sample.addressDetail(),
 			"메디은행",
 			"1002-000-%04d".formatted(sequence),
-			sample.managerName(),
-			"tax%02d@platform.local".formatted(sequence),
-			LocalDate.of(2020 + sequence % 5, sequence, Math.min(sequence + 5, 28))
+			sample.managerName()
 		);
 	}
 

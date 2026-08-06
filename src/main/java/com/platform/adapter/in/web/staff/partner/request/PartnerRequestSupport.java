@@ -7,6 +7,7 @@ import java.util.Set;
 public final class PartnerRequestSupport {
 
 	public static final String PHONE_PATTERN = "^(?:|[0-9+\\-().\\s]{6,50})$";
+	public static final String BUSINESS_NUMBER_PATTERN = "^(?:[0-9]{10}|[0-9]{3}-[0-9]{2}-[0-9]{5})$";
 
 	private PartnerRequestSupport() {
 	}

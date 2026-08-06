@@ -19,11 +19,48 @@ class PartnerOptionPricingTests {
 
 		assertThat(partner.allowStatus()).isEqualTo(PartnerAllowStatus.DRAFT);
 		assertThat(option.partner()).isSameAs(partner);
-		assertThat(option.price()).isEqualByComparingTo("30000");
+		assertThat(option.regularPrice()).isEqualByComparingTo("30000");
+		assertThat(option.salePrice()).isEqualByComparingTo("24000");
+		assertThat(option.effectivePrice()).isEqualByComparingTo("24000");
+		assertThat(option.discountRate()).isEqualTo(20);
 	}
 
 	@Test
-	void specialistCanOverrideOnlyThePriceAndInheritThePriceType() {
+	void specialistInheritsThePartnerOptionPricingWithoutAnOverride() {
+		Partner partner = Partner.createDraft("Draft partner");
+		PartnerOption option = option(partner);
+		SpecialistOption assignment = new SpecialistOption(
+			specialist(partner),
+			option,
+			null,
+			null
+		);
+
+		assertThat(assignment.effectiveRegularPrice()).isEqualByComparingTo("30000");
+		assertThat(assignment.effectiveSalePrice()).isEqualByComparingTo("24000");
+		assertThat(assignment.effectivePrice()).isEqualByComparingTo("24000");
+		assertThat(assignment.effectiveDiscountRate()).isEqualTo(20);
+	}
+
+	@Test
+	void specialistCanUseACustomRegularAndSalePrice() {
+		Partner partner = Partner.createDraft("Draft partner");
+		PartnerOption option = option(partner);
+		SpecialistOption assignment = new SpecialistOption(
+			specialist(partner),
+			option,
+			new BigDecimal("45000"),
+			new BigDecimal("36000")
+		);
+
+		assertThat(assignment.effectiveRegularPrice()).isEqualByComparingTo("45000");
+		assertThat(assignment.effectiveSalePrice()).isEqualByComparingTo("36000");
+		assertThat(assignment.effectivePrice()).isEqualByComparingTo("36000");
+		assertThat(assignment.effectiveDiscountRate()).isEqualTo(20);
+	}
+
+	@Test
+	void specialistCustomRegularPriceDoesNotInheritThePartnerSalePrice() {
 		Partner partner = Partner.createDraft("Draft partner");
 		PartnerOption option = option(partner);
 		SpecialistOption assignment = new SpecialistOption(
@@ -33,23 +70,10 @@ class PartnerOptionPricingTests {
 			null
 		);
 
+		assertThat(assignment.effectiveRegularPrice()).isEqualByComparingTo("45000");
+		assertThat(assignment.effectiveSalePrice()).isNull();
 		assertThat(assignment.effectivePrice()).isEqualByComparingTo("45000");
-		assertThat(assignment.effectivePriceType()).isEqualTo(PartnerPriceType.FIXED);
-	}
-
-	@Test
-	void specialistCanOverrideTheOptionAsPriceInquiry() {
-		Partner partner = Partner.createDraft("Draft partner");
-		PartnerOption option = option(partner);
-		SpecialistOption assignment = new SpecialistOption(
-			specialist(partner),
-			option,
-			null,
-			PartnerPriceType.INQUIRE
-		);
-
-		assertThat(assignment.effectivePrice()).isNull();
-		assertThat(assignment.effectivePriceType()).isEqualTo(PartnerPriceType.INQUIRE);
+		assertThat(assignment.effectiveDiscountRate()).isNull();
 	}
 
 	private PartnerOption option(Partner partner) {
@@ -58,7 +82,7 @@ class PartnerOptionPricingTests {
 			"Gel nail",
 			null,
 			new BigDecimal("30000"),
-			PartnerPriceType.FIXED,
+			new BigDecimal("24000"),
 			60,
 			true,
 			0

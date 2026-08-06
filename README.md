@@ -112,7 +112,7 @@ PARTNER_SAMPLE_BOOTSTRAP_PASSWORD='새 비밀번호' \
 - 직접 입점과 내부관리자 업체 등록경로, append-only 파트너 계정 초대 이력·일회용 초대 링크
 - Category Staff 관리 API와 사용처 selector
 - PARTNER 1뎁스 파트너 분류와 업종별 옵션 분류 기준 데이터
-- 업체 기본 가격 옵션과 전문가별 제공 여부·가격 오버라이드
+- 업체 옵션 정상가·할인가와 전문가별 제공 여부·가격 오버라이드
 - Specialist Staff 관리 API와 Partner 자기 스페셜리스트 관리 API
 - Partner, Category, Specialist 미디어 저장·교체·조회·삭제 연동
 - 앱 공개용 Category 아이콘과 승인·노출 Specialist 프로필 조회

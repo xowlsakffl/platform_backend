@@ -20,8 +20,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long>, JpaSpec
 
 	boolean existsByName(String name);
 
-	boolean existsByNameAndDeletedAtIsNull(String name);
-
 	Optional<Partner> findByName(String name);
 
 	boolean existsByIdAndDeletedAtIsNull(Long id);

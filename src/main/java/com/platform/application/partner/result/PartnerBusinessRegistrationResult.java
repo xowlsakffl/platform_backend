@@ -2,7 +2,6 @@ package com.platform.application.partner.result;
 
 import com.platform.application.media.result.MediaResult;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.LocalDate;
 
 public record PartnerBusinessRegistrationResult(
 	Long id,
@@ -14,7 +13,6 @@ public record PartnerBusinessRegistrationResult(
 	@JsonProperty("business_address") String businessAddress,
 	@JsonProperty("business_address_detail") String businessAddressDetail,
 	@JsonProperty("settlement_account") PartnerSettlementAccountResult settlementAccount,
-	@JsonProperty("issued_at") LocalDate issuedAt,
 	String status,
 	@JsonProperty("certificate_media") MediaResult certificateMedia
 ) {

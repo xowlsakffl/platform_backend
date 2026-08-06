@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDate;
 
 @Entity
 @Table(name = "partner_business_registrations")
@@ -56,12 +55,6 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 	@Column(name = "settlement_account_holder", length = 100)
 	private String settlementAccountHolder;
 
-	@Column(name = "tax_invoice_email")
-	private String taxInvoiceEmail;
-
-	@Column(name = "issued_at")
-	private LocalDate issuedAt;
-
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private PartnerBusinessRegistrationStatus status = PartnerBusinessRegistrationStatus.ACTIVE;
@@ -79,9 +72,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		String businessAddressDetail,
 		String settlementBankName,
 		String settlementAccountNumber,
-		String settlementAccountHolder,
-		String taxInvoiceEmail,
-		LocalDate issuedAt
+		String settlementAccountHolder
 	) {
 		this.businessNumber = businessNumber;
 		this.companyName = companyName;
@@ -93,8 +84,6 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		this.settlementBankName = settlementBankName;
 		this.settlementAccountNumber = settlementAccountNumber;
 		this.settlementAccountHolder = settlementAccountHolder;
-		this.taxInvoiceEmail = taxInvoiceEmail;
-		this.issuedAt = issuedAt;
 	}
 
 	void assignPartner(Partner partner) {
@@ -111,9 +100,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		String businessAddressDetail,
 		String settlementBankName,
 		String settlementAccountNumber,
-		String settlementAccountHolder,
-		String taxInvoiceEmail,
-		LocalDate issuedAt
+		String settlementAccountHolder
 	) {
 		this.businessNumber = businessNumber;
 		this.companyName = companyName;
@@ -125,8 +112,6 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		this.settlementBankName = settlementBankName;
 		this.settlementAccountNumber = settlementAccountNumber;
 		this.settlementAccountHolder = settlementAccountHolder;
-		this.taxInvoiceEmail = taxInvoiceEmail;
-		this.issuedAt = issuedAt;
 	}
 
 	public Long id() {
@@ -171,14 +156,6 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 
 	public String settlementAccountHolder() {
 		return settlementAccountHolder;
-	}
-
-	public String taxInvoiceEmail() {
-		return taxInvoiceEmail;
-	}
-
-	public LocalDate issuedAt() {
-		return issuedAt;
 	}
 
 	public PartnerBusinessRegistrationStatus status() {

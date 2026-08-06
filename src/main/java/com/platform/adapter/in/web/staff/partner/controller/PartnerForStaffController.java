@@ -20,6 +20,8 @@ import com.platform.common.web.PaginatedResponse;
 import com.platform.common.web.RequestTrace;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -98,7 +100,8 @@ public class PartnerForStaffController {
 	public ApiResponse create(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@Valid @ModelAttribute PartnerCreateForStaffRequest body,
-		@RequestPart(name = "options", required = false) List<@Valid PartnerOptionCreateForStaffRequest> options,
+		@RequestPart(name = "options") @NotEmpty @Size(max = 100)
+		List<@Valid PartnerOptionCreateForStaffRequest> options,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(service.create(actor, body.toCommand(options)), RequestTrace.traceId(request));

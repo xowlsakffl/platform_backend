@@ -219,8 +219,6 @@ Table partner_business_registrations {
   settlement_bank_name varchar(50)
   settlement_account_number varchar(50)
   settlement_account_holder varchar(100)
-  tax_invoice_email varchar(255)
-  issued_at date
   status varchar(20) [not null, default: 'ACTIVE']
   created_at timestamp [not null]
   updated_at timestamp [not null]
@@ -295,8 +293,8 @@ Table partner_options {
   partner_id bigint [not null]
   name varchar(120) [not null]
   description varchar(1000)
-  price decimal(12,2)
-  price_type varchar(20) [not null]
+  regular_price decimal(12,2) [not null]
+  sale_price decimal(12,2)
   duration_minutes int
   is_visible boolean [not null, default: true]
   sort_order int [not null, default: 0]
@@ -309,8 +307,8 @@ Table specialist_options {
   id bigint [pk, increment]
   specialist_id bigint [not null]
   partner_option_id bigint [not null]
-  price_override decimal(12,2)
-  price_type_override varchar(20)
+  regular_price_override decimal(12,2)
+  sale_price_override decimal(12,2)
   created_at timestamp [not null]
   updated_at timestamp [not null]
 

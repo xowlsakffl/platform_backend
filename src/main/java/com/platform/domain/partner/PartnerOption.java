@@ -3,8 +3,6 @@ package com.platform.domain.partner;
 import com.platform.domain.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -13,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Entity
@@ -27,18 +26,17 @@ public class PartnerOption extends BaseTimeEntity {
 	@JoinColumn(name = "partner_id", nullable = false)
 	private Partner partner;
 
-	@Column(nullable = false, length = 120)
+	@Column(nullable = false, length = 80)
 	private String name;
 
-	@Column(length = 1000)
+	@Column(length = 200)
 	private String description;
 
-	@Column(precision = 12, scale = 2)
-	private BigDecimal price;
+	@Column(name = "regular_price", nullable = false, precision = 12, scale = 2)
+	private BigDecimal regularPrice;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "price_type", nullable = false, length = 20)
-	private PartnerPriceType priceType;
+	@Column(name = "sale_price", precision = 12, scale = 2)
+	private BigDecimal salePrice;
 
 	@Column(name = "duration_minutes")
 	private Integer durationMinutes;
@@ -59,29 +57,29 @@ public class PartnerOption extends BaseTimeEntity {
 		Partner partner,
 		String name,
 		String description,
-		BigDecimal price,
-		PartnerPriceType priceType,
+		BigDecimal regularPrice,
+		BigDecimal salePrice,
 		Integer durationMinutes,
 		boolean visible,
 		int sortOrder
 	) {
 		this.partner = partner;
-		update(name, description, price, priceType, durationMinutes, visible, sortOrder);
+		update(name, description, regularPrice, salePrice, durationMinutes, visible, sortOrder);
 	}
 
 	public void update(
 		String name,
 		String description,
-		BigDecimal price,
-		PartnerPriceType priceType,
+		BigDecimal regularPrice,
+		BigDecimal salePrice,
 		Integer durationMinutes,
 		boolean visible,
 		int sortOrder
 	) {
 		this.name = name;
 		this.description = description;
-		this.priceType = priceType;
-		this.price = priceType == PartnerPriceType.INQUIRE ? null : price;
+		this.regularPrice = regularPrice;
+		this.salePrice = salePrice;
 		this.durationMinutes = durationMinutes;
 		this.visible = visible;
 		this.sortOrder = sortOrder;
@@ -114,12 +112,26 @@ public class PartnerOption extends BaseTimeEntity {
 		return description;
 	}
 
-	public BigDecimal price() {
-		return price;
+	public BigDecimal regularPrice() {
+		return regularPrice;
 	}
 
-	public PartnerPriceType priceType() {
-		return priceType;
+	public BigDecimal salePrice() {
+		return salePrice;
+	}
+
+	public BigDecimal effectivePrice() {
+		return salePrice == null ? regularPrice : salePrice;
+	}
+
+	public Integer discountRate() {
+		if (salePrice == null || regularPrice.signum() <= 0 || salePrice.compareTo(regularPrice) >= 0) {
+			return null;
+		}
+		return regularPrice.subtract(salePrice)
+			.multiply(BigDecimal.valueOf(100))
+			.divide(regularPrice, 0, RoundingMode.DOWN)
+			.intValue();
 	}
 
 	public Integer durationMinutes() {

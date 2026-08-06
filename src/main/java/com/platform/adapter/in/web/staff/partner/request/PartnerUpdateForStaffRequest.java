@@ -12,7 +12,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,7 +28,7 @@ public record PartnerUpdateForStaffRequest(
 	@DecimalMin("-90") @DecimalMax("90") String latitude,
 	@DecimalMin("-180") @DecimalMax("180") String longitude,
 	@BindParam("subway_stations") @Size(max = 12000) String subwayStations,
-	@BindParam("operating_hours_notice") @Size(max = 5000) String operatingHoursNotice,
+	@BindParam("operating_hours_notice") @Size(max = 500) String operatingHoursNotice,
 	@BindParam("operation_hours") Object operationHours,
 	@BindParam("holiday_policy") Object holidayPolicy,
 	@Size(max = 5000) String direction,
@@ -56,8 +55,6 @@ public record PartnerUpdateForStaffRequest(
 	@BindParam("settlement_account_number") @Size(max = 50)
 	@Pattern(regexp = "^(?:|[0-9\\-\\s]{2,50})$") String settlementAccountNumber,
 	@BindParam("settlement_account_holder") @Size(max = 100) String settlementAccountHolder,
-	@BindParam("tax_invoice_email") @Email @Size(max = 255) String taxInvoiceEmail,
-	@BindParam("issued_at") LocalDate issuedAt,
 	@BindParam("feature_ids[]") @Size(min = 1, max = 100) Set<@Positive Long> featureIds,
 	@BindParam("hashtags[]") @Size(max = 10) List<@Size(max = 30) String> hashtags,
 	@Size(max = 12000) String links,
@@ -65,9 +62,9 @@ public record PartnerUpdateForStaffRequest(
 	@BindParam("existing_logo_id") @Positive Long existingLogoId,
 	@BindParam("main_image") MultipartFile mainImage,
 	@BindParam("existing_main_image_id") @Positive Long existingMainImageId,
-	@BindParam("interior_images[]") @Size(max = 5) List<MultipartFile> interiorImages,
-	@BindParam("existing_interior_image_ids[]") @Size(max = 5) List<@Positive Long> existingInteriorImageIds,
-	@BindParam("interior_image_order[]") @Size(max = 5)
+	@BindParam("interior_images[]") @Size(max = 9) List<MultipartFile> interiorImages,
+	@BindParam("existing_interior_image_ids[]") @Size(max = 9) List<@Positive Long> existingInteriorImageIds,
+	@BindParam("interior_image_order[]") @Size(max = 9)
 	List<@Pattern(regexp = "^(existing|new):[0-9]+$") String> interiorImageOrder,
 	@BindParam("business_registration_file") MultipartFile businessRegistrationFile,
 	@BindParam("existing_business_registration_file_id") @Positive Long existingBusinessRegistrationFileId
@@ -143,9 +140,7 @@ public record PartnerUpdateForStaffRequest(
 			"business_address_detail",
 			"settlement_bank_name",
 			"settlement_account_number",
-			"settlement_account_holder",
-			"tax_invoice_email",
-			"issued_at"
+			"settlement_account_holder"
 		).stream().noneMatch(fields::contains)) {
 			return null;
 		}
@@ -159,9 +154,7 @@ public record PartnerUpdateForStaffRequest(
 			businessAddressDetail,
 			settlementBankName,
 			settlementAccountNumber,
-			settlementAccountHolder,
-			taxInvoiceEmail,
-			issuedAt
+			settlementAccountHolder
 		);
 	}
 

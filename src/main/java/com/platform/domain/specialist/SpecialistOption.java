@@ -2,11 +2,8 @@ package com.platform.domain.specialist;
 
 import com.platform.domain.common.BaseTimeEntity;
 import com.platform.domain.partner.PartnerOption;
-import com.platform.domain.partner.PartnerPriceType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Entity
 @Table(name = "specialist_options")
@@ -32,12 +30,11 @@ public class SpecialistOption extends BaseTimeEntity {
 	@JoinColumn(name = "partner_option_id", nullable = false)
 	private PartnerOption partnerOption;
 
-	@Column(name = "price_override", precision = 12, scale = 2)
-	private BigDecimal priceOverride;
+	@Column(name = "regular_price_override", precision = 12, scale = 2)
+	private BigDecimal regularPriceOverride;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "price_type_override", length = 20)
-	private PartnerPriceType priceTypeOverride;
+	@Column(name = "sale_price_override", precision = 12, scale = 2)
+	private BigDecimal salePriceOverride;
 
 	protected SpecialistOption() {
 	}
@@ -45,13 +42,13 @@ public class SpecialistOption extends BaseTimeEntity {
 	public SpecialistOption(
 		Specialist specialist,
 		PartnerOption partnerOption,
-		BigDecimal priceOverride,
-		PartnerPriceType priceTypeOverride
+		BigDecimal regularPriceOverride,
+		BigDecimal salePriceOverride
 	) {
 		this.specialist = specialist;
 		this.partnerOption = partnerOption;
-		this.priceTypeOverride = priceTypeOverride;
-		this.priceOverride = priceTypeOverride == PartnerPriceType.INQUIRE ? null : priceOverride;
+		this.regularPriceOverride = regularPriceOverride;
+		this.salePriceOverride = regularPriceOverride == null ? null : salePriceOverride;
 	}
 
 	public Long id() {
@@ -66,22 +63,36 @@ public class SpecialistOption extends BaseTimeEntity {
 		return partnerOption;
 	}
 
-	public BigDecimal priceOverride() {
-		return priceOverride;
+	public BigDecimal regularPriceOverride() {
+		return regularPriceOverride;
 	}
 
-	public PartnerPriceType priceTypeOverride() {
-		return priceTypeOverride;
+	public BigDecimal salePriceOverride() {
+		return salePriceOverride;
+	}
+
+	public BigDecimal effectiveRegularPrice() {
+		return regularPriceOverride == null ? partnerOption.regularPrice() : regularPriceOverride;
+	}
+
+	public BigDecimal effectiveSalePrice() {
+		return regularPriceOverride == null ? partnerOption.salePrice() : salePriceOverride;
 	}
 
 	public BigDecimal effectivePrice() {
-		if (effectivePriceType() == PartnerPriceType.INQUIRE) {
-			return null;
-		}
-		return priceOverride == null ? partnerOption.price() : priceOverride;
+		BigDecimal salePrice = effectiveSalePrice();
+		return salePrice == null ? effectiveRegularPrice() : salePrice;
 	}
 
-	public PartnerPriceType effectivePriceType() {
-		return priceTypeOverride == null ? partnerOption.priceType() : priceTypeOverride;
+	public Integer effectiveDiscountRate() {
+		BigDecimal regularPrice = effectiveRegularPrice();
+		BigDecimal salePrice = effectiveSalePrice();
+		if (salePrice == null || regularPrice.signum() <= 0 || salePrice.compareTo(regularPrice) >= 0) {
+			return null;
+		}
+		return regularPrice.subtract(salePrice)
+			.multiply(BigDecimal.valueOf(100))
+			.divide(regularPrice, 0, RoundingMode.DOWN)
+			.intValue();
 	}
 }

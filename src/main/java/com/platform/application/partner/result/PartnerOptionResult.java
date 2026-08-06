@@ -11,8 +11,10 @@ public record PartnerOptionResult(
 	CategoryReferenceResult category,
 	String name,
 	String description,
-	BigDecimal price,
-	@JsonProperty("price_type") String priceType,
+	@JsonProperty("regular_price") BigDecimal regularPrice,
+	@JsonProperty("sale_price") BigDecimal salePrice,
+	@JsonProperty("effective_price") BigDecimal effectivePrice,
+	@JsonProperty("discount_rate") Integer discountRate,
 	@JsonProperty("duration_minutes") Integer durationMinutes,
 	@JsonProperty("is_visible") boolean visible,
 	@JsonProperty("sort_order") int sortOrder,
@@ -24,10 +26,12 @@ public record PartnerOptionResult(
 	public record SpecialistPriceResult(
 		@JsonProperty("specialist_id") Long specialistId,
 		@JsonProperty("specialist_name") String specialistName,
-		@JsonProperty("price_override") BigDecimal priceOverride,
-		@JsonProperty("price_type_override") String priceTypeOverride,
+		@JsonProperty("regular_price_override") BigDecimal regularPriceOverride,
+		@JsonProperty("sale_price_override") BigDecimal salePriceOverride,
+		@JsonProperty("effective_regular_price") BigDecimal effectiveRegularPrice,
+		@JsonProperty("effective_sale_price") BigDecimal effectiveSalePrice,
 		@JsonProperty("effective_price") BigDecimal effectivePrice,
-		@JsonProperty("effective_price_type") String effectivePriceType
+		@JsonProperty("discount_rate") Integer discountRate
 	) {
 	}
 }

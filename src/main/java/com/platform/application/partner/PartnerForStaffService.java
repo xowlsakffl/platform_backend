@@ -101,6 +101,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -132,6 +133,7 @@ public class PartnerForStaffService {
 	private final PartnerOptionForPartnerService optionService;
 	private final PartnerSchedulePolicyValidator schedulePolicyValidator;
 	private final PartnerAccessInformationValidator accessInformationValidator;
+	private final PartnerBusinessNumberPolicy businessNumberPolicy;
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final MediaLifecycleService mediaLifecycleService;
 	private final MediaCommandService mediaCommandService;
@@ -159,6 +161,7 @@ public class PartnerForStaffService {
 		PartnerOptionForPartnerService optionService,
 		PartnerSchedulePolicyValidator schedulePolicyValidator,
 		PartnerAccessInformationValidator accessInformationValidator,
+		PartnerBusinessNumberPolicy businessNumberPolicy,
 		OperationHistoryRepository operationHistoryRepository,
 		MediaLifecycleService mediaLifecycleService,
 		MediaCommandService mediaCommandService,
@@ -185,6 +188,7 @@ public class PartnerForStaffService {
 		this.optionService = optionService;
 		this.schedulePolicyValidator = schedulePolicyValidator;
 		this.accessInformationValidator = accessInformationValidator;
+		this.businessNumberPolicy = businessNumberPolicy;
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.mediaLifecycleService = mediaLifecycleService;
 		this.mediaCommandService = mediaCommandService;
@@ -298,11 +302,11 @@ public class PartnerForStaffService {
 	public PartnerDetailResult create(AuthenticatedActor actor, CreatePartnerCommand command) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
 		String name = trim(command.name());
-		if (partnerRepository.existsByNameAndDeletedAtIsNull(name)) {
+		if (partnerRepository.existsByName(name)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 파트너명입니다.");
 		}
 		PartnerBusinessRegistrationCommand businessCommand = requireBusinessRegistration(command.businessRegistration());
-		String businessNumber = normalizeBusinessNumber(businessCommand.businessNumber());
+		String businessNumber = businessNumberPolicy.normalize(businessCommand.businessNumber());
 		if (businessRegistrationRepository.existsByBusinessNumber(businessNumber)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 사업자등록번호입니다.");
 		}
@@ -331,7 +335,15 @@ public class PartnerForStaffService {
 		partner.replaceBusinessRegistration(toBusinessRegistration(businessCommand, businessNumber));
 		partner.replaceFeatures(loadFeatures(command.featureIds()));
 
-		Partner saved = partnerRepository.saveAndFlush(partner);
+		Partner saved;
+		try {
+			saved = partnerRepository.saveAndFlush(partner);
+		} catch (DataIntegrityViolationException exception) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"이미 등록된 업체명 또는 사업자등록번호입니다."
+			);
+		}
 		categoryAssignmentService.replacePrimary(
 			CategoryAssignmentTarget.PARTNER,
 			saved.id(),
@@ -393,7 +405,7 @@ public class PartnerForStaffService {
 		PartnerStatus statusBeforeUpdate = partner.status();
 		String updatedName = command.specified("name") ? trim(command.name()) : partner.name();
 		if (!Objects.equals(updatedName, partner.name())
-			&& partnerRepository.existsByNameAndDeletedAtIsNull(updatedName)) {
+			&& partnerRepository.existsByName(updatedName)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 파트너명입니다.");
 		}
 		partner.changeNames(
@@ -415,7 +427,7 @@ public class PartnerForStaffService {
 		if (command.businessRegistration() != null) {
 			PartnerBusinessRegistrationCommand businessCommand = command.businessRegistration();
 			String businessNumber = command.specified("business_number")
-				? normalizeBusinessNumber(businessCommand.businessNumber())
+				? businessNumberPolicy.normalize(businessCommand.businessNumber())
 				: partner.businessRegistration().businessNumber();
 			assertBusinessNumberAvailableForUpdate(partner, businessNumber);
 			applyBusinessRegistration(partner, businessCommand, businessNumber, command.specifiedFields());
@@ -496,7 +508,7 @@ public class PartnerForStaffService {
 				command.interiorImages(),
 				command.interiorImageOrder(),
 				false,
-				5
+				9
 			);
 		} else if (command.specified("interior_images") || command.specified("existing_interior_image_ids")) {
 			mediaCommandService.synchronizeMany(
@@ -506,7 +518,7 @@ public class PartnerForStaffService {
 				command.interiorImages(),
 				command.existingInteriorImageIds(),
 				false,
-				5
+				9
 			);
 		}
 		if (command.specified("business_registration_file")
@@ -752,14 +764,14 @@ public class PartnerForStaffService {
 	@Transactional(readOnly = true)
 	public DuplicateCheckResult checkName(AuthenticatedActor actor, String name) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
-		return new DuplicateCheckResult(partnerRepository.existsByNameAndDeletedAtIsNull(trim(name)));
+		return new DuplicateCheckResult(partnerRepository.existsByName(trim(name)));
 	}
 
 	@Transactional(readOnly = true)
 	public DuplicateCheckResult checkBusinessNumber(AuthenticatedActor actor, String businessNumber) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
 		return new DuplicateCheckResult(
-			businessRegistrationRepository.existsByBusinessNumber(normalizeBusinessNumber(businessNumber))
+			businessRegistrationRepository.existsByBusinessNumber(businessNumberPolicy.normalize(businessNumber))
 		);
 	}
 
@@ -974,9 +986,7 @@ public class PartnerForStaffService {
 			trimToNull(command.businessAddressDetail()),
 			trimToNull(command.settlementBankName()),
 			trimToNull(command.settlementAccountNumber()),
-			trimToNull(command.settlementAccountHolder()),
-			trimToNull(command.taxInvoiceEmail()),
-			command.issuedAt()
+			trimToNull(command.settlementAccountHolder())
 		);
 	}
 
@@ -1009,11 +1019,7 @@ public class PartnerForStaffService {
 				: current.settlementAccountNumber(),
 			specifiedFields.contains("settlement_account_holder")
 				? trimToNull(command.settlementAccountHolder())
-				: current.settlementAccountHolder(),
-			specifiedFields.contains("tax_invoice_email")
-				? trimToNull(command.taxInvoiceEmail())
-				: current.taxInvoiceEmail(),
-			specifiedFields.contains("issued_at") ? command.issuedAt() : current.issuedAt()
+				: current.settlementAccountHolder()
 		);
 	}
 
@@ -1248,10 +1254,8 @@ public class PartnerForStaffService {
 			new PartnerSettlementAccountResult(
 				registration.settlementBankName(),
 				registration.settlementAccountNumber(),
-				registration.settlementAccountHolder(),
-				registration.taxInvoiceEmail()
+				registration.settlementAccountHolder()
 			),
-			registration.issuedAt(),
 			registration.status().name(),
 			mediaReadService.primary(
 				MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
@@ -1406,8 +1410,6 @@ public class PartnerForStaffService {
 			business.put("settlement_bank_name", registration.settlementBankName());
 			business.put("settlement_account_number", registration.settlementAccountNumber());
 			business.put("settlement_account_holder", registration.settlementAccountHolder());
-			business.put("tax_invoice_email", registration.taxInvoiceEmail());
-			business.put("issued_at", registration.issuedAt());
 			values.put("business_registration", writeInternalJson(business));
 			values.put("business_registration_file", writeInternalJson(mediaSnapshot(mediaReadService.primary(
 				MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
@@ -1557,12 +1559,6 @@ public class PartnerForStaffService {
 		if (account != null) {
 			authSessionService.revokeAll(AccountActorType.PARTNER, account.id(), reason);
 		}
-	}
-
-	private String normalizeBusinessNumber(String value) {
-		String trimmed = trim(value);
-		String normalized = trimmed.replaceAll("\\D+", "");
-		return normalized.isBlank() ? trimmed : normalized;
 	}
 
 	private LocalDate parseDate(String value) {
