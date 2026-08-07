@@ -37,6 +37,8 @@ spring:
 
 server:
   port: ${SERVER_PORT:8081}
+  tomcat:
+    max-part-count: ${SERVER_TOMCAT_MAX_PART_COUNT:128}
 
 management:
   health:

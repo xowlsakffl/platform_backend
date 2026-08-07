@@ -22,7 +22,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 	private Long id;
 
 	@OneToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "partner_id", nullable = false)
+	@JoinColumn(name = "partner_id", nullable = false, unique = true)
 	private Partner partner;
 
 	@Column(name = "business_number", length = 20, unique = true)

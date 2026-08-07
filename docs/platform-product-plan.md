@@ -315,6 +315,7 @@ DELETE /api/v1/partner/options/{id}
 ```text
 GET    /api/v1/staff/partners/{partnerId}/options
 POST   /api/v1/staff/partners/{partnerId}/options
+PUT    /api/v1/staff/partners/{partnerId}/options
 PATCH  /api/v1/staff/partners/{partnerId}/options/{optionId}
 DELETE /api/v1/staff/partners/{partnerId}/options/{optionId}
 ```
@@ -325,6 +326,7 @@ DELETE /api/v1/staff/partners/{partnerId}/options/{optionId}
 GET    /api/v1/staff/partners
 POST   /api/v1/staff/partners
 GET    /api/v1/staff/partners/{id}
+PATCH  /api/v1/staff/partners/{id}/fields
 PATCH  /api/v1/staff/partners/{id}/allow-status
 PATCH  /api/v1/staff/partners/{id}/status
 PATCH  /api/v1/staff/partners/{id}/account-status
@@ -359,7 +361,7 @@ POST /api/v1/partner/account-invitations/accept
 - 대표 연락처
 - 대표 이미지
 - 사업자등록 필수정보와 증빙 파일
-- 카테고리가 지정된 가격 옵션 최소 1개
+- 가격 옵션은 선택 입력이며, 등록하는 옵션에는 카테고리를 지정한다.
 
 부가정보, 외부 링크, 해시태그와 내부 이미지는 선택값이다.
 

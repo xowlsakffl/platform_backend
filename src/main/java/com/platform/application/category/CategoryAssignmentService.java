@@ -57,7 +57,15 @@ public class CategoryAssignmentService {
 	@Transactional
 	public Category replacePrimary(CategoryAssignmentTarget target, Long targetId, Long categoryId) {
 		Category category = requireSelectable(target, categoryId);
+		List<CategoryAssignment> currentAssignments = categoryAssignmentRepository
+			.findByCategorizableTypeAndCategorizableId(target.code(), targetId);
+		if (currentAssignments.size() == 1
+			&& currentAssignments.getFirst().category().id().equals(category.id())) {
+			currentAssignments.getFirst().changePrimary(true);
+			return category;
+		}
 		categoryAssignmentRepository.deleteByCategorizableTypeAndCategorizableId(target.code(), targetId);
+		categoryAssignmentRepository.flush();
 		categoryAssignmentRepository.save(new CategoryAssignment(target.code(), targetId, category, true));
 		return category;
 	}

@@ -15,6 +15,7 @@ import com.platform.common.security.PartnerAccountInvitationProperties;
 import com.platform.domain.account.AccountActorType;
 import com.platform.domain.partner.Partner;
 import com.platform.domain.partner.PartnerAccountInvitation;
+import com.platform.domain.partner.PartnerAccountInvitationDeliveryStatus;
 import com.platform.domain.partner.PartnerAccountInvitationStatus;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.account.AccountStaffRepository;
@@ -108,8 +109,10 @@ class PartnerAccountInvitationServiceTests {
 		)).hasMessage("mail unavailable");
 
 		assertThat(existing.status()).isEqualTo(PartnerAccountInvitationStatus.PENDING);
+		assertThat(existing.deliveryStatus()).isEqualTo(PartnerAccountInvitationDeliveryStatus.SENT);
 		assertThat(existing.canceledAt()).isNull();
 		assertThat(created.get().status()).isEqualTo(PartnerAccountInvitationStatus.CANCELED);
+		assertThat(created.get().deliveryStatus()).isEqualTo(PartnerAccountInvitationDeliveryStatus.FAILED);
 	}
 
 	private PartnerAccountInvitation invitation(

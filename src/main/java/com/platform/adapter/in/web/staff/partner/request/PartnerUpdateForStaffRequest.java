@@ -66,6 +66,7 @@ public record PartnerUpdateForStaffRequest(
 	@BindParam("existing_interior_image_ids[]") @Size(max = 9) List<@Positive Long> existingInteriorImageIds,
 	@BindParam("interior_image_order[]") @Size(max = 9)
 	List<@Pattern(regexp = "^(existing|new):[0-9]+$") String> interiorImageOrder,
+	@BindParam("replace_interior_images") Boolean replaceInteriorImages,
 	@BindParam("business_registration_file") MultipartFile businessRegistrationFile,
 	@BindParam("existing_business_registration_file_id") @Positive Long existingBusinessRegistrationFileId
 ) {
@@ -171,6 +172,10 @@ public record PartnerUpdateForStaffRequest(
 		}
 		if (interiorImages != null && interiorImages.stream().anyMatch(file -> file != null && !file.isEmpty())) {
 			fields.add("interior_images");
+		}
+		if (Boolean.TRUE.equals(replaceInteriorImages)) {
+			fields.add("interior_images");
+			fields.add("existing_interior_image_ids");
 		}
 		if (businessRegistrationFile != null && !businessRegistrationFile.isEmpty()) {
 			fields.add("business_registration_file");

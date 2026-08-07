@@ -122,6 +122,16 @@ public class PartnerAccountInvitation extends BaseTimeEntity {
 		return status;
 	}
 
+	public PartnerAccountInvitationDeliveryStatus deliveryStatus() {
+		if (sentAt != null) {
+			return PartnerAccountInvitationDeliveryStatus.SENT;
+		}
+		if (status == PartnerAccountInvitationStatus.CANCELED) {
+			return PartnerAccountInvitationDeliveryStatus.FAILED;
+		}
+		return PartnerAccountInvitationDeliveryStatus.PENDING;
+	}
+
 	public LocalDateTime expiresAt() {
 		return expiresAt;
 	}

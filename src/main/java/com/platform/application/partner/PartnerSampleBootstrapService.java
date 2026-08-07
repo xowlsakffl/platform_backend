@@ -186,7 +186,9 @@ public class PartnerSampleBootstrapService {
 
 		for (int index = 0; index < SAMPLES.size(); index++) {
 			PartnerSample sample = SAMPLES.get(index);
-			Partner existingPartner = partnerRepository.findByName(sample.name()).orElse(null);
+			Partner existingPartner = partnerRepository
+				.findByBusinessRegistration_BusinessNumber(sample.businessNumber())
+				.orElse(null);
 			if (existingPartner != null) {
 				ensureCategory(existingPartner, sample, categories);
 				if (existingPartner.assignedStaff() == null && defaultAssignedStaff != null) {
@@ -300,8 +302,7 @@ public class PartnerSampleBootstrapService {
 	}
 
 	private boolean alreadyExists(PartnerSample sample) {
-		return partnerRepository.existsByName(sample.name())
-			|| businessRegistrationRepository.existsByBusinessNumber(sample.businessNumber())
+		return businessRegistrationRepository.existsByBusinessNumber(sample.businessNumber())
 			|| accountPartnerRepository.existsByEmail(sample.email())
 			|| accountPartnerRepository.existsByLoginId(sample.loginId());
 	}

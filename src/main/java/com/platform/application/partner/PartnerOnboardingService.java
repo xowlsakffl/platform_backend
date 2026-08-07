@@ -54,7 +54,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -134,9 +133,6 @@ public class PartnerOnboardingService {
 		String partnerName = requireText(command.partnerName(), "Partner name is required.");
 		String loginId = normalizeLoginId(command.loginId());
 		String email = requireText(command.email(), "Email is required.").toLowerCase(Locale.ROOT);
-		if (partnerRepository.existsByName(partnerName)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner name is already in use.");
-		}
 		if (accountPartnerRepository.existsByEmail(email)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Email is already in use.");
 		}
@@ -199,10 +195,6 @@ public class PartnerOnboardingService {
 		String englishName = command.specified("english_name")
 			? trimToNull(command.englishName())
 			: partner.englishName();
-		if (!Objects.equals(name, partner.name()) && partnerRepository.existsByName(name)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner name is already in use.");
-		}
-
 		partner.updateOnboardingProfile(
 			name,
 			englishName,

@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.domain.Specification;
 
 public interface PartnerAccountInvitationRepository extends
@@ -29,7 +30,24 @@ public interface PartnerAccountInvitationRepository extends
 	List<PartnerAccountInvitation> findByPartner_IdOrderByCreatedAtDescIdDesc(Long partnerId);
 
 	@EntityGraph(attributePaths = "partner")
-	List<PartnerAccountInvitation> findByPartner_IdInOrderByCreatedAtDescIdDesc(Collection<Long> partnerIds);
+	@Query("""
+		select invitation
+		from PartnerAccountInvitation invitation
+		where invitation.partner.id in :partnerIds
+		  and not exists (
+			select newer.id
+			from PartnerAccountInvitation newer
+			where newer.partner.id = invitation.partner.id
+			  and (
+				newer.createdAt > invitation.createdAt
+				or (newer.createdAt = invitation.createdAt and newer.id > invitation.id)
+			  )
+		  )
+		""")
+	List<PartnerAccountInvitation> findLatestByPartnerIds(Collection<Long> partnerIds);
+
+	@EntityGraph(attributePaths = "partner")
+	Optional<PartnerAccountInvitation> findFirstByPartner_IdOrderByCreatedAtDescIdDesc(Long partnerId);
 
 	List<PartnerAccountInvitation> findByPartner_IdAndStatus(
 		Long partnerId,

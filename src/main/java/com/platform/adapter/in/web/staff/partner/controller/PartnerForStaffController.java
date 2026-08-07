@@ -5,7 +5,6 @@ import com.platform.adapter.in.web.staff.partner.request.PartnerAllowStatusRevie
 import com.platform.adapter.in.web.staff.partner.request.PartnerAccountStatusUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerAssignedStaffUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerCheckBusinessNumberForStaffRequest;
-import com.platform.adapter.in.web.staff.partner.request.PartnerCheckNameForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerCreateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerGetForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerListForStaffRequest;
@@ -20,7 +19,6 @@ import com.platform.common.web.PaginatedResponse;
 import com.platform.common.web.RequestTrace;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.http.MediaType;
@@ -34,7 +32,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -100,20 +97,11 @@ public class PartnerForStaffController {
 	public ApiResponse create(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@Valid @ModelAttribute PartnerCreateForStaffRequest body,
-		@RequestPart(name = "options") @NotEmpty @Size(max = 100)
+		@RequestPart(name = "options", required = false) @Size(max = 100)
 		List<@Valid PartnerOptionCreateForStaffRequest> options,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(service.create(actor, body.toCommand(options)), RequestTrace.traceId(request));
-	}
-
-	@PostMapping("/check-name")
-	public ApiResponse checkName(
-		@AuthenticationPrincipal AuthenticatedActor actor,
-		@Valid @RequestBody PartnerCheckNameForStaffRequest body,
-		HttpServletRequest request
-	) {
-		return ApiResponse.success(service.checkName(actor, body.name()), RequestTrace.traceId(request));
 	}
 
 	@PostMapping("/check-business-number")
@@ -125,12 +113,8 @@ public class PartnerForStaffController {
 		return ApiResponse.success(service.checkBusinessNumber(actor, body.businessNumber()), RequestTrace.traceId(request));
 	}
 
-	@RequestMapping(
-		value = "/{id}",
-		method = {RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH},
-		consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-	)
-	public ApiResponse update(
+	@PatchMapping(value = "/{id}/fields", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ApiResponse updateFields(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@PathVariable Long id,
 		@Valid @ModelAttribute PartnerUpdateForStaffRequest body,

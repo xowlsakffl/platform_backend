@@ -204,6 +204,97 @@ public class MediaCommandService {
 		return readService.list(ownerType, ownerId, collection);
 	}
 
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void synchronizePrimaryAndMany(
+		MediaOwnerType ownerType,
+		Long ownerId,
+		String primaryCollection,
+		String manyCollection,
+		MediaFileSource newPrimaryFile,
+		Long existingPrimaryId,
+		List<MediaFileSource> newManyFiles,
+		List<String> manyOrder,
+		boolean required,
+		int maxCount
+	) {
+		collectionPolicy.validateCollection(ownerType, primaryCollection);
+		collectionPolicy.validateCollection(ownerType, manyCollection);
+		List<Media> currentPrimary = lockedCollection(ownerType, ownerId, primaryCollection);
+		List<Media> currentMany = lockedCollection(ownerType, ownerId, manyCollection);
+		Map<Long, Media> currentById = java.util.stream.Stream
+			.concat(currentPrimary.stream(), currentMany.stream())
+			.collect(java.util.stream.Collectors.toMap(Media::id, media -> media));
+		List<MediaFileSource> manyUploads = newManyFiles == null ? List.of() : newManyFiles;
+		List<OrderedMediaEntry> manyEntries = parseOrder(manyOrder, currentById, manyUploads);
+		Media selectedPrimary = existingPrimaryId == null ? null : currentById.get(existingPrimaryId);
+		boolean hasNewPrimary = newPrimaryFile != null && newPrimaryFile.size() > 0;
+		if (!hasNewPrimary && existingPrimaryId != null && selectedPrimary == null) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "유지할 대표 이미지 정보가 올바르지 않습니다.");
+		}
+		if (selectedPrimary != null && manyEntries.stream().anyMatch(entry -> entry.existing() == selectedPrimary)) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "대표 이미지가 업체 이미지 순서에 중복되었습니다.");
+		}
+		long orderedUploadCount = manyEntries.stream().filter(entry -> entry.newFile() != null).count();
+		long uploadedFileCount = manyUploads.stream()
+			.filter(Objects::nonNull)
+			.filter(file -> file.size() > 0)
+			.count();
+		if (orderedUploadCount != uploadedFileCount) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "새로 업로드한 업체 이미지 순서 정보가 누락되었습니다.");
+		}
+		int finalCount = (hasNewPrimary || selectedPrimary != null ? 1 : 0) + manyEntries.size();
+		if (finalCount > maxCount) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "등록 가능한 미디어 개수를 초과했습니다.");
+		}
+		if (required && finalCount == 0) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "필수 미디어 파일을 등록해주세요.");
+		}
+
+		Set<Long> keptIds = manyEntries.stream()
+			.map(OrderedMediaEntry::existing)
+			.filter(Objects::nonNull)
+			.map(Media::id)
+			.collect(java.util.stream.Collectors.toSet());
+		if (!hasNewPrimary && selectedPrimary != null) {
+			keptIds.add(selectedPrimary.id());
+		}
+		currentById.values().forEach(media -> {
+			if (!keptIds.contains(media.id())) {
+				softDelete(media);
+			}
+		});
+
+		if (hasNewPrimary) {
+			StoredMediaFile stored = store(newPrimaryFile);
+			registerRollbackCleanup(stored.path());
+			collectionPolicy.validateFile(ownerType, primaryCollection, stored);
+			mediaRepository.save(createMedia(
+				ownerType, ownerId, primaryCollection, stored, 0, true, null
+			));
+		} else if (selectedPrimary != null) {
+			selectedPrimary.changeCollection(primaryCollection);
+			selectedPrimary.changeSortOrder(0);
+			selectedPrimary.changePrimary(true);
+		}
+
+		for (int index = 0; index < manyEntries.size(); index++) {
+			OrderedMediaEntry entry = manyEntries.get(index);
+			if (entry.existing() != null) {
+				entry.existing().changeCollection(manyCollection);
+				entry.existing().changeSortOrder(index);
+				entry.existing().changePrimary(index == 0);
+				continue;
+			}
+			StoredMediaFile stored = store(entry.newFile());
+			registerRollbackCleanup(stored.path());
+			collectionPolicy.validateFile(ownerType, manyCollection, stored);
+			mediaRepository.save(createMedia(
+				ownerType, ownerId, manyCollection, stored, index, index == 0, null
+			));
+		}
+		mediaRepository.flush();
+	}
+
 	private List<OrderedMediaEntry> parseOrder(
 		List<String> order,
 		Map<Long, Media> currentById,

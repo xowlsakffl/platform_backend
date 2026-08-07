@@ -17,6 +17,7 @@ import com.platform.application.partner.command.ChangePartnerAllowStatusCommand;
 import com.platform.application.partner.command.ChangePartnerStatusCommand;
 import com.platform.application.partner.command.PartnerBusinessRegistrationCommand;
 import com.platform.application.partner.command.PartnerContactSetCommand;
+import com.platform.application.partner.command.SavePartnerOptionCommand;
 import com.platform.application.partner.command.UpdatePartnerCommand;
 import com.platform.application.partner.query.SearchPartnersQuery;
 import com.platform.application.partner.query.GetPartnerForStaffQuery;
@@ -78,6 +79,7 @@ import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerLinkRepository;
 import com.platform.infrastructure.persistence.partner.PartnerOptionRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
+import com.platform.infrastructure.persistence.partner.PartnerRepresentativeEmail;
 import com.platform.infrastructure.persistence.partner.PartnerResourceCount;
 import com.platform.infrastructure.persistence.specialist.SpecialistRepository;
 import com.platform.infrastructure.persistence.operationhistory.OperationHistoryRepository;
@@ -212,6 +214,7 @@ public class PartnerForStaffService {
 		List<Long> partnerIds = page.getContent().stream().map(Partner::id).toList();
 		Map<Long, AccountPartner> accounts = accountsByPartnerIds(page.getContent());
 		Map<Long, PartnerAccountInvitation> invitations = latestInvitationsByPartnerIds(page.getContent());
+		Map<Long, String> representativeEmails = representativeEmailsByPartnerIds(partnerIds);
 		Map<Long, List<CategoryReferenceResult>> categories = categoryAssignmentService.referencesByTargetIds(
 			CategoryAssignmentTarget.PARTNER,
 			partnerIds
@@ -235,7 +238,8 @@ public class PartnerForStaffService {
 			categories.getOrDefault(partner.id(), List.of()),
 			specialistCounts.getOrDefault(partner.id(), 0L),
 			optionCounts.getOrDefault(partner.id(), 0L),
-			invitations.get(partner.id())
+			invitations.get(partner.id()),
+			representativeEmails.get(partner.id())
 		));
 	}
 
@@ -295,24 +299,28 @@ public class PartnerForStaffService {
 			id,
 			pageable
 		);
-		return PaginatedResponse.from(page, this::operationHistoryResult);
+		Map<Long, OperationHistory> historiesWithChanges = page.isEmpty()
+			? Map.of()
+			: operationHistoryRepository
+				.findWithChangesByIdIn(page.getContent().stream().map(OperationHistory::id).toList())
+				.stream()
+				.collect(Collectors.toMap(OperationHistory::id, history -> history));
+		return PaginatedResponse.from(page, history -> operationHistoryResult(
+			historiesWithChanges.getOrDefault(history.id(), history)
+		));
 	}
 
 	@Transactional
 	public PartnerDetailResult create(AuthenticatedActor actor, CreatePartnerCommand command) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
 		String name = trim(command.name());
-		if (partnerRepository.existsByName(name)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 파트너명입니다.");
-		}
 		PartnerBusinessRegistrationCommand businessCommand = requireBusinessRegistration(command.businessRegistration());
 		String businessNumber = businessNumberPolicy.normalize(businessCommand.businessNumber());
 		if (businessRegistrationRepository.existsByBusinessNumber(businessNumber)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 사업자등록번호입니다.");
 		}
-		if (command.options() == null || command.options().isEmpty()) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "가격 옵션을 최소 1개 등록해 주세요.");
-		}
+		List<SavePartnerOptionCommand> options =
+			command.options() == null ? List.of() : command.options();
 
 		Partner partner = new Partner(
 			name,
@@ -341,7 +349,7 @@ public class PartnerForStaffService {
 		} catch (DataIntegrityViolationException exception) {
 			throw new ApiException(
 				ErrorCode.INVALID_REQUEST,
-				"이미 등록된 업체명 또는 사업자등록번호입니다."
+				"이미 등록된 사업자등록번호입니다."
 			);
 		}
 		categoryAssignmentService.replacePrimary(
@@ -349,7 +357,7 @@ public class PartnerForStaffService {
 			saved.id(),
 			command.categoryId()
 		);
-		command.options().forEach(option -> optionService.createForPartner(saved, option));
+		options.forEach(option -> optionService.createForPartner(saved, option));
 		hashtagAssignmentService.replace(HashtagTargetType.PARTNER, saved.id(), command.hashtags());
 		linkAssignmentService.replace(saved, command.linksJson());
 		mediaCommandService.synchronizeSingle(
@@ -404,10 +412,6 @@ public class PartnerForStaffService {
 		Map<String, String> before = capture(partner);
 		PartnerStatus statusBeforeUpdate = partner.status();
 		String updatedName = command.specified("name") ? trim(command.name()) : partner.name();
-		if (!Objects.equals(updatedName, partner.name())
-			&& partnerRepository.existsByName(updatedName)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 파트너명입니다.");
-		}
 		partner.changeNames(
 			updatedName,
 			command.specified("english_name") ? trimToNull(command.englishName()) : partner.englishName()
@@ -490,7 +494,25 @@ public class PartnerForStaffService {
 				false
 			);
 		}
-		if (command.specified("main_image") || command.specified("existing_main_image_id")) {
+		boolean mainImageSpecified = command.specified("main_image")
+			|| command.specified("existing_main_image_id");
+		boolean interiorImagesSpecified = command.specified("interior_image_order")
+			|| command.specified("interior_images")
+			|| command.specified("existing_interior_image_ids");
+		if (mainImageSpecified && interiorImagesSpecified) {
+			mediaCommandService.synchronizePrimaryAndMany(
+				MediaOwnerType.PARTNER,
+				saved.id(),
+				MediaCollectionPolicy.PARTNER_MAIN_IMAGE,
+				MediaCollectionPolicy.PARTNER_INTERIOR_IMAGE,
+				command.mainImage(),
+				command.existingMainImageId(),
+				command.interiorImages(),
+				command.interiorImageOrder(),
+				true,
+				10
+			);
+		} else if (mainImageSpecified) {
 			mediaCommandService.synchronizeSingle(
 				MediaOwnerType.PARTNER,
 				saved.id(),
@@ -500,7 +522,7 @@ public class PartnerForStaffService {
 				false
 			);
 		}
-		if (command.specified("interior_image_order")) {
+		if (!mainImageSpecified && command.specified("interior_image_order")) {
 			mediaCommandService.synchronizeManyOrdered(
 				MediaOwnerType.PARTNER,
 				saved.id(),
@@ -510,7 +532,7 @@ public class PartnerForStaffService {
 				false,
 				9
 			);
-		} else if (command.specified("interior_images") || command.specified("existing_interior_image_ids")) {
+		} else if (!mainImageSpecified && interiorImagesSpecified) {
 			mediaCommandService.synchronizeMany(
 				MediaOwnerType.PARTNER,
 				saved.id(),
@@ -762,12 +784,6 @@ public class PartnerForStaffService {
 	}
 
 	@Transactional(readOnly = true)
-	public DuplicateCheckResult checkName(AuthenticatedActor actor, String name) {
-		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
-		return new DuplicateCheckResult(partnerRepository.existsByName(trim(name)));
-	}
-
-	@Transactional(readOnly = true)
 	public DuplicateCheckResult checkBusinessNumber(AuthenticatedActor actor, String businessNumber) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
 		return new DuplicateCheckResult(
@@ -785,7 +801,7 @@ public class PartnerForStaffService {
 				var accountJoin = root.join("accountPartner", JoinType.LEFT);
 				List<Predicate> searchPredicates = new ArrayList<>();
 				searchPredicates.add(criteriaBuilder.like(root.get("name"), "%" + q + "%"));
-				searchPredicates.add(criteriaBuilder.like(accountJoin.get("nickname"), "%" + q + "%"));
+				searchPredicates.add(criteriaBuilder.like(accountJoin.get("loginId"), "%" + q + "%"));
 				parseLong(q).ifPresent(value -> searchPredicates.add(criteriaBuilder.equal(root.get("id"), value)));
 				predicates.add(criteriaBuilder.or(searchPredicates.toArray(Predicate[]::new)));
 			}
@@ -840,7 +856,6 @@ public class PartnerForStaffService {
 					criteriaBuilder.desc(root.get("id"))
 				);
 			}
-			query.distinct(true);
 			return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
 		};
 	}
@@ -1050,7 +1065,8 @@ public class PartnerForStaffService {
 		List<CategoryReferenceResult> categories,
 		long specialistCount,
 		long optionCount,
-		PartnerAccountInvitation invitation
+		PartnerAccountInvitation invitation,
+		String representativeEmail
 	) {
 		return new PartnerListItemResult(
 			partner.id(),
@@ -1067,10 +1083,23 @@ public class PartnerForStaffService {
 			optionCount,
 			partner.registrationSource().name(),
 			accountLinkStatus(account, invitation).name(),
+			representativeEmail,
 			invitation == null ? null : invitation.email(),
 			invitation == null ? null : invitation.sentAt(),
 			invitation == null ? null : invitation.expiresAt()
 		);
+	}
+
+	private Map<Long, String> representativeEmailsByPartnerIds(List<Long> partnerIds) {
+		if (partnerIds.isEmpty()) {
+			return Map.of();
+		}
+		return partnerRepository.findRepresentativeEmailsByPartnerIds(partnerIds).stream()
+			.collect(Collectors.toMap(
+				PartnerRepresentativeEmail::getPartnerId,
+				PartnerRepresentativeEmail::getEmail,
+				(existing, ignored) -> existing
+			));
 	}
 
 	private Map<Long, Long> resourceCounts(List<PartnerResourceCount> counts) {
@@ -1175,12 +1204,15 @@ public class PartnerForStaffService {
 	}
 
 	private OperationHistoryResult latestStatusHistory(Partner partner) {
-		return operationHistoryRepository
-			.findByTargetTypeAndTargetIdOrderByCreatedAtDescIdDesc(OperationHistory.TARGET_PARTNER, partner.id())
-			.stream()
-			.filter(history -> history.changes().stream().anyMatch(change ->
-				"status".equals(change.fieldKey()) && partner.status().name().equals(change.afterValue())))
+		return operationHistoryRepository.findLatestIdsByChange(
+			OperationHistory.TARGET_PARTNER,
+			partner.id(),
+			"status",
+			partner.status().name(),
+			PageRequest.of(0, 1)
+		).stream()
 			.findFirst()
+			.flatMap(operationHistoryRepository::findWithChangesById)
 			.map(this::operationHistoryResult)
 			.orElse(null);
 	}
@@ -1327,7 +1359,7 @@ public class PartnerForStaffService {
 		if (partnerIds.isEmpty()) {
 			return Map.of();
 		}
-		return invitationRepository.findByPartner_IdInOrderByCreatedAtDescIdDesc(partnerIds)
+		return invitationRepository.findLatestByPartnerIds(partnerIds)
 			.stream()
 			.collect(Collectors.toMap(
 				PartnerAccountInvitation::partnerId,
@@ -1338,9 +1370,7 @@ public class PartnerForStaffService {
 	}
 
 	private PartnerAccountInvitation latestInvitation(Long partnerId) {
-		return invitationRepository.findByPartner_IdOrderByCreatedAtDescIdDesc(partnerId)
-			.stream()
-			.findFirst()
+		return invitationRepository.findFirstByPartner_IdOrderByCreatedAtDescIdDesc(partnerId)
 			.orElse(null);
 	}
 
@@ -1367,6 +1397,7 @@ public class PartnerForStaffService {
 			invitation.partnerId(),
 			invitation.email(),
 			invitation.status().name(),
+			invitation.deliveryStatus().name(),
 			invitation.expiresAt(),
 			invitation.sentAt(),
 			invitation.acceptedAt(),

@@ -3,8 +3,8 @@ package com.platform.application.partner.command;
 import com.platform.application.media.storage.MediaFileSource;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerStatus;
-import java.util.Set;
 import java.util.List;
+import java.util.Set;
 
 public record UpdatePartnerCommand(
 	String name,

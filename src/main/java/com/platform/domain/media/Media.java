@@ -102,6 +102,10 @@ public class Media extends BaseTimeEntity {
 		this.primary = primary;
 	}
 
+	public void changeCollection(String collection) {
+		this.collection = collection;
+	}
+
 	public void changeMetadata(String metadata) {
 		this.metadata = metadata;
 	}

@@ -5,6 +5,7 @@ import com.platform.application.auth.PermissionService;
 import com.platform.application.category.CategoryAssignmentService;
 import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.application.partner.command.SavePartnerOptionCommand;
+import com.platform.application.partner.command.ReplacePartnerOptionsCommand;
 import com.platform.application.partner.command.SavePartnerOptionCommand.SpecialistPriceCommand;
 import com.platform.application.partner.result.PartnerOptionResult;
 import com.platform.application.partner.result.PartnerOptionResult.SpecialistPriceResult;
@@ -26,9 +27,11 @@ import com.platform.infrastructure.persistence.specialist.SpecialistOptionReposi
 import com.platform.infrastructure.persistence.specialist.SpecialistRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -142,6 +145,46 @@ public class PartnerOptionForPartnerService {
 	}
 
 	@Transactional
+	public List<PartnerOptionResult> replaceForStaff(
+		AuthenticatedActor actor,
+		Long partnerId,
+		ReplacePartnerOptionsCommand command
+	) {
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
+		Partner partner = staffPartnerForUpdate(partnerId);
+		List<PartnerOption> existing = optionRepository
+			.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partnerId);
+		Map<Long, PartnerOption> existingById = existing.stream()
+			.collect(Collectors.toMap(PartnerOption::id, option -> option));
+		List<ReplacePartnerOptionsCommand.Item> requested = command.options() == null
+			? List.of()
+			: command.options();
+		Set<Long> requestedIds = new HashSet<>();
+
+		for (ReplacePartnerOptionsCommand.Item item : requested) {
+			if (item.id() != null
+				&& (!requestedIds.add(item.id()) || !existingById.containsKey(item.id()))) {
+				throw new ApiException(ErrorCode.INVALID_REQUEST, "Partner option id is invalid or duplicated.");
+			}
+			validate(partner, item.value());
+		}
+
+		for (ReplacePartnerOptionsCommand.Item item : requested) {
+			if (item.id() == null) {
+				createForPartner(partner, item.value());
+			} else {
+				updateForPartner(partner, item.id(), item.value());
+			}
+		}
+		for (PartnerOption option : existing) {
+			if (!requestedIds.contains(option.id())) {
+				deleteForPartner(partner, option.id());
+			}
+		}
+		return listByPartnerId(partnerId);
+	}
+
+	@Transactional
 	public PartnerOptionResult update(
 		AuthenticatedActor actor,
 		Long optionId,
@@ -235,6 +278,15 @@ public class PartnerOptionForPartnerService {
 		Partner partner = partnerRepository.findByIdAndDeletedAtIsNull(partnerId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner not found."));
 		if (editable && partner.status() == PartnerStatus.WITHDRAWN) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "A withdrawn partner cannot edit options.");
+		}
+		return partner;
+	}
+
+	private Partner staffPartnerForUpdate(Long partnerId) {
+		Partner partner = partnerRepository.findForUpdateByIdAndDeletedAtIsNull(partnerId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner not found."));
+		if (partner.status() == PartnerStatus.WITHDRAWN) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "A withdrawn partner cannot edit options.");
 		}
 		return partner;

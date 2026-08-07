@@ -63,4 +63,8 @@ public class CategoryAssignment extends BaseTimeEntity {
 	public boolean primary() {
 		return primary;
 	}
+
+	public void changePrimary(boolean primary) {
+		this.primary = primary;
+	}
 }

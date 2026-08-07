@@ -9,6 +9,7 @@ public record PartnerAccountInvitationListItemResult(
 	@JsonProperty("partner_name") String partnerName,
 	String email,
 	String status,
+	@JsonProperty("delivery_status") String deliveryStatus,
 	@JsonProperty("created_at") LocalDateTime createdAt,
 	@JsonProperty("sent_at") LocalDateTime sentAt,
 	@JsonProperty("expires_at") LocalDateTime expiresAt,

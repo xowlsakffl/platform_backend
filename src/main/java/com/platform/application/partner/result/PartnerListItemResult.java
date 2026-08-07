@@ -23,6 +23,7 @@ public record PartnerListItemResult(
 	@JsonProperty("option_count") long optionCount,
 	@JsonProperty("registration_source") String registrationSource,
 	@JsonProperty("account_link_status") String accountLinkStatus,
+	@JsonProperty("representative_email") String representativeEmail,
 	@JsonProperty("invitation_email") String invitationEmail,
 	@JsonProperty("invitation_sent_at") LocalDateTime invitationSentAt,
 	@JsonProperty("invitation_expires_at") LocalDateTime invitationExpiresAt

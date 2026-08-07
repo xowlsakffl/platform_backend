@@ -18,9 +18,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 public interface PartnerRepository extends JpaRepository<Partner, Long>, JpaSpecificationExecutor<Partner> {
 
-	boolean existsByName(String name);
-
-	Optional<Partner> findByName(String name);
+	Optional<Partner> findByBusinessRegistration_BusinessNumber(String businessNumber);
 
 	boolean existsByIdAndDeletedAtIsNull(Long id);
 
@@ -58,4 +56,15 @@ public interface PartnerRepository extends JpaRepository<Partner, Long>, JpaSpec
 		   or partner.deletedAt is not null
 		""")
 	long countWithdrawnOrDeleted();
+
+	@Query("""
+		select partner.id as partnerId, contact.value as email
+		from Partner partner
+		join partner.contacts contact
+		where partner.id in :partnerIds
+		  and contact.contactType = com.platform.domain.partner.PartnerContactType.REPRESENTATIVE_EMAIL
+		  and contact.active = true
+		  and contact.deletedAt is null
+		""")
+	List<PartnerRepresentativeEmail> findRepresentativeEmailsByPartnerIds(Collection<Long> partnerIds);
 }

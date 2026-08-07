@@ -10,6 +10,7 @@ public record PartnerAccountInvitationResult(
 	@JsonProperty("partner_id") Long partnerId,
 	String email,
 	String status,
+	@JsonProperty("delivery_status") String deliveryStatus,
 	@JsonProperty("expires_at") LocalDateTime expiresAt,
 	@JsonProperty("sent_at") LocalDateTime sentAt,
 	@JsonProperty("accepted_at") LocalDateTime acceptedAt,
