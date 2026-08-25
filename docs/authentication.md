@@ -4,8 +4,8 @@
 
 | Actor | namespace | 계정 테이블 | 로그인 방식 |
 |---|---|---|---|
-| Staff | `/api/v1/staff` | `account_staffs` | 이메일·비밀번호 |
-| Partner | `/api/v1/partner` | `account_partners` | 이메일·비밀번호 |
+| Staff | `/api/v1/staff` | `account_staffs` | 로그인 아이디·비밀번호 |
+| Partner | `/api/v1/partner` | `account_partners` | 로그인 아이디·비밀번호 |
 | User | `/api/v1/user` | `account_users` | 이메일·비밀번호 |
 
 각 Actor는 다음 인증 API를 독립적으로 제공한다.
