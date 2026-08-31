@@ -100,6 +100,24 @@ public class PartnerSchedulePolicyValidator {
 		return write(root, "휴무 정책");
 	}
 
+	public void assertWithinPartnerHours(String specialistHours, String partnerHours) {
+		JsonNode specialist = objectNode(specialistHours, true, "전문가 운영시간");
+		JsonNode partner = objectNode(partnerHours, true, "업체 운영시간");
+		for (String day : DAYS) {
+			JsonNode specialistDay = specialist.path(day);
+			if (specialistDay.path("is_closed").asBoolean(false)) {
+				continue;
+			}
+			List<Interval> partnerOpenings = openingIntervals(partner.path(day), day + " 업체 운영시간");
+			List<Interval> specialistOpenings = openingIntervals(specialistDay, day + " 전문가 운영시간");
+			if (partnerOpenings.isEmpty()
+				|| specialistOpenings.stream().anyMatch(specialistOpening ->
+					partnerOpenings.stream().noneMatch(partnerOpening -> partnerOpening.contains(specialistOpening)))) {
+				throw invalid("전문가 운영시간은 업체 운영시간 안에서만 설정할 수 있습니다.");
+			}
+		}
+	}
+
 	private void validateDay(String day, JsonNode schedule) {
 		boolean closed = schedule.path("is_closed").booleanValue();
 		if (schedule.has("is_24_hours") && !schedule.path("is_24_hours").isBoolean()) {
@@ -165,6 +183,24 @@ public class PartnerSchedulePolicyValidator {
 			));
 		}
 		return result;
+	}
+
+	private List<Interval> openingIntervals(JsonNode schedule, String fieldName) {
+		if (schedule.isMissingNode() || schedule.path("is_closed").asBoolean(false)) {
+			return List.of();
+		}
+		if (schedule.path("is_24_hours").asBoolean(false)) {
+			return List.of(new Interval(0, 1440));
+		}
+		if (schedule.has("periods")) {
+			return intervals(schedule.path("periods"), fieldName);
+		}
+		return List.of(interval(
+			requiredText(schedule, "start", fieldName + " 시작 시간"),
+			requiredText(schedule, "end", fieldName + " 종료 시간"),
+			false,
+			fieldName
+		));
 	}
 
 	private Interval interval(String start, String end, boolean endsNextDay, String fieldName) {

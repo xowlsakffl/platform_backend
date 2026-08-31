@@ -95,4 +95,5 @@ public class SpecialistOption extends BaseTimeEntity {
 			.divide(regularPrice, 0, RoundingMode.DOWN)
 			.intValue();
 	}
+
 }

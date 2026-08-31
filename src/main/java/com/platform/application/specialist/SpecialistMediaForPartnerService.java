@@ -23,8 +23,7 @@ public class SpecialistMediaForPartnerService {
 
 	private static final Set<String> SPECIALIST_COLLECTIONS = Set.of(
 		MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE,
-		MediaCollectionPolicy.SPECIALIST_LICENSE_IMAGE,
-		MediaCollectionPolicy.SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE
+		MediaCollectionPolicy.SPECIALIST_CERTIFICATION_IMAGE
 	);
 
 	private final OwnershipPolicy ownershipPolicy;
@@ -53,7 +52,7 @@ public class SpecialistMediaForPartnerService {
 		}
 		specialistRepository
 			.findByIdAndPartner_IdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(specialistId, partnerId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "스페셜리스트을 찾을 수 없습니다."));
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "전문가를 찾을 수 없습니다."));
 
 		Media media = mediaRepository.findByIdAndDeletedAtIsNull(mediaId)
 			.filter(item -> item.ownerType() == MediaOwnerType.SPECIALIST)

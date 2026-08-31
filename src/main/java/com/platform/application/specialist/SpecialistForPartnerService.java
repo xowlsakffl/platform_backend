@@ -75,10 +75,12 @@ public class SpecialistForPartnerService {
 		);
 		List<Specialist> specialists = page.getContent();
 		Map<Long, MediaResult> profileImages = resultAssembler.profileImages(specialists);
+		Map<Long, Long> optionCounts = resultAssembler.optionCounts(specialists);
 
 		return PaginatedResponse.from(page, specialist -> resultAssembler.listItem(
 			specialist,
 			profileImages.get(specialist.id()),
+			optionCounts.getOrDefault(specialist.id(), 0L),
 			SpecialistMediaAccessScope.PARTNER
 		));
 	}
@@ -105,6 +107,10 @@ public class SpecialistForPartnerService {
 		Specialist specialist = findLockedOwnedSpecialist(id, partnerId);
 		Map<String, String> before = historyService.capture(specialist);
 		Specialist saved = specialistWriteService.updatePartial(specialist, partner, command);
+		if (specialist.allowStatus() == SpecialistAllowStatus.REJECTED) {
+			saved.requestReview();
+			saved = specialistRepository.saveAndFlush(saved);
+		}
 		historyService.record(actor, saved, "UPDATED", null, before, historyService.capture(saved));
 		return resultAssembler.detail(saved, SpecialistMediaAccessScope.PARTNER);
 	}
@@ -146,10 +152,6 @@ public class SpecialistForPartnerService {
 			if (keyword != null) {
 				List<Predicate> matches = new ArrayList<>();
 				matches.add(builder.like(root.get("name"), "%" + keyword + "%"));
-				String digits = normalizeDigits(keyword);
-				if (!digits.isEmpty()) {
-					matches.add(builder.like(root.get("licenseNumber"), "%" + digits + "%"));
-				}
 				parseLong(keyword).ifPresent(id -> matches.add(builder.equal(root.get("id"), id)));
 				predicates.add(builder.or(matches.toArray(Predicate[]::new)));
 			}
@@ -182,24 +184,22 @@ public class SpecialistForPartnerService {
 	private SaveSpecialistCommand ownedCommand(SaveSpecialistCommand command, Long partnerId) {
 		return new SaveSpecialistCommand(
 			partnerId,
-			command.sortOrder(),
 			command.name(),
 			command.gender(),
 			command.position(),
 			command.careerStartedAt(),
-			command.licenseNumber(),
 			command.specialistField(),
+			command.introduction(),
+			command.scheduleMode(),
+			command.operationHours(),
+			command.holidayPolicy(),
 			command.status(),
-			SpecialistAllowStatus.PENDING,
-			command.educations(),
-			command.careers(),
-			command.etcContents(),
-			command.profileImage(),
-			command.existingProfileImageId(),
-			command.licenseImage(),
-			command.existingLicenseImageId(),
-			command.specialistCertificateImage(),
-			command.existingSpecialistCertificateImageId()
+			SpecialistAllowStatus.REVIEW_REQUESTED,
+			command.optionAssignments(),
+			command.profileImages(),
+			command.profileImageOrder(),
+			command.certificationImages(),
+			command.certificationImageOrder()
 		);
 	}
 
@@ -215,22 +215,18 @@ public class SpecialistForPartnerService {
 	private Specialist findOwnedSpecialist(Long id, Long partnerId) {
 		return specialistRepository
 			.findByIdAndPartner_IdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(id, partnerId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "스페셜리스트을 찾을 수 없습니다."));
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "전문가를 찾을 수 없습니다."));
 	}
 
 	private Specialist findLockedOwnedSpecialist(Long id, Long partnerId) {
 		return specialistRepository
 			.findForUpdateByIdAndPartner_IdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(id, partnerId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "스페셜리스트을 찾을 수 없습니다."));
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "전문가를 찾을 수 없습니다."));
 	}
 
 	private Partner findLockedPartner(Long id) {
 		return partnerRepository.findForUpdateByIdAndDeletedAtIsNull(id)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "파트너을 찾을 수 없습니다."));
-	}
-
-	private String normalizeDigits(String value) {
-		return value == null ? "" : value.replaceAll("\\D", "");
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "업체를 찾을 수 없습니다."));
 	}
 
 	private java.util.Optional<Long> parseLong(String value) {

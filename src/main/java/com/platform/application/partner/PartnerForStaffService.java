@@ -249,8 +249,11 @@ public class PartnerForStaffService {
 		return staffSummaryCache.remember(StaffSummaryCache.PARTNER, PartnerSummaryResult.class, () ->
 			new PartnerSummaryResult(
 				accountPartnerRepository.countDormantPartnerAccounts(LocalDateTime.now().minusDays(30)),
-				partnerRepository.countByAllowStatus(PartnerAllowStatus.PENDING),
-				partnerRepository.countByAllowStatus(PartnerAllowStatus.REJECTED),
+				partnerRepository.countByDeletedAtIsNullAndAllowStatusIn(Set.of(
+					PartnerAllowStatus.REVIEW_REQUESTED,
+					PartnerAllowStatus.IN_REVIEW
+				)),
+				partnerRepository.countByDeletedAtIsNullAndAllowStatus(PartnerAllowStatus.REJECTED),
 				partnerRepository.countByDeletedAtIsNullAndStatus(PartnerStatus.SUSPENDED),
 				partnerRepository.countWithdrawnOrDeleted()
 			)
@@ -331,7 +334,7 @@ public class PartnerForStaffService {
 			trimToNull(command.operatingHoursNotice()),
 			schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true),
 			trimToNull(command.direction()),
-			PartnerAllowStatus.PENDING,
+			PartnerAllowStatus.REVIEW_REQUESTED,
 			PartnerStatus.ACTIVE
 		);
 		partner.changeHolidayPolicy(schedulePolicyValidator.normalizeHolidayPolicy(command.holidayPolicy(), true));
@@ -411,12 +414,21 @@ public class PartnerForStaffService {
 		Partner partner = findActivePartner(id);
 		Map<String, String> before = capture(partner);
 		PartnerStatus statusBeforeUpdate = partner.status();
+		if (command.specified("allow_status") && command.allowStatus() == null) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "검수상태를 입력해주세요.");
+		}
+		if (command.specified("status") && command.status() == null) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "운영상태를 입력해주세요.");
+		}
 		String updatedName = command.specified("name") ? trim(command.name()) : partner.name();
 		partner.changeNames(
 			updatedName,
 			command.specified("english_name") ? trimToNull(command.englishName()) : partner.englishName()
 		);
-		if (command.specified("allow_status") && command.allowStatus() != null) {
+		boolean allowStatusChanged = command.specified("allow_status")
+			&& command.allowStatus() != null
+			&& command.allowStatus() != partner.allowStatus();
+		if (allowStatusChanged) {
 			assertPartnerAllowStatusTransition(partner.allowStatus(), command.allowStatus());
 		}
 		if (command.specified("status")) {
@@ -466,9 +478,15 @@ public class PartnerForStaffService {
 				? schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true)
 				: partner.operationHours(),
 			command.specified("direction") ? trimToNull(command.direction()) : partner.direction(),
-			command.allowStatus(),
-			command.status()
+			null,
+			null
 		);
+		if (allowStatusChanged) {
+			applyPartnerAllowStatus(partner, command.allowStatus(), actor);
+		}
+		if (command.specified("status") && command.status() != null) {
+			partner.changeStatus(command.status());
+		}
 		Partner saved = partnerRepository.saveAndFlush(partner);
 		revokePartnerAccountSessionsWhenWithdrawn(saved, statusBeforeUpdate);
 
@@ -691,23 +709,27 @@ public class PartnerForStaffService {
 			.filter(Objects::nonNull)
 			.filter(id -> id > 0)
 			.distinct()
+			.sorted()
 			.toList();
 		if (normalizedIds.isEmpty()) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "변경할 파트너을 선택해주세요.");
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "변경할 업체를 선택해주세요.");
 		}
 		List<Partner> partners = partnerRepository.findByIdInAndDeletedAtIsNull(normalizedIds);
-		if (partners.isEmpty()) {
-			throw new ApiException(ErrorCode.NOT_FOUND, "변경할 파트너을 찾을 수 없습니다.");
+		if (partners.size() != normalizedIds.size()) {
+			throw new ApiException(ErrorCode.NOT_FOUND, "변경할 업체를 찾을 수 없습니다.");
 		}
 
 		int updatedCount = 0;
+		AccountStaff reviewer = command.allowStatus() == PartnerAllowStatus.IN_REVIEW
+			? activeReviewStaff(actor)
+			: null;
 		for (Partner partner : partners) {
 			PartnerAllowStatus before = partner.allowStatus();
 			if (before == command.allowStatus()) {
 				continue;
 			}
 			assertPartnerAllowStatusTransition(before, command.allowStatus());
-			partner.changeAllowStatus(command.allowStatus());
+			applyPartnerAllowStatus(partner, command.allowStatus(), reviewer);
 			OperationHistory history = new OperationHistory(
 				OperationHistory.TARGET_PARTNER,
 				partner.id(),
@@ -746,7 +768,7 @@ public class PartnerForStaffService {
 		if (before == allowStatus) {
 			return toDetail(partner);
 		}
-		partner.changeAllowStatus(allowStatus);
+		applyPartnerAllowStatus(partner, allowStatus, actor);
 		Partner saved = partnerRepository.saveAndFlush(partner);
 		OperationHistory history = new OperationHistory(
 			OperationHistory.TARGET_PARTNER,
@@ -849,8 +871,9 @@ public class PartnerForStaffService {
 				query.orderBy(
 					criteriaBuilder.asc(
 						criteriaBuilder.<Integer>selectCase()
-							.when(criteriaBuilder.equal(root.get("allowStatus"), PartnerAllowStatus.PENDING), 0)
-							.otherwise(1)
+							.when(criteriaBuilder.equal(root.get("allowStatus"), PartnerAllowStatus.REVIEW_REQUESTED), 0)
+							.when(criteriaBuilder.equal(root.get("allowStatus"), PartnerAllowStatus.IN_REVIEW), 1)
+							.otherwise(2)
 					),
 					criteriaBuilder.desc(root.get("createdAt")),
 					criteriaBuilder.desc(root.get("id"))
@@ -894,12 +917,12 @@ public class PartnerForStaffService {
 
 	private Partner findActivePartner(Long id) {
 		return partnerRepository.findByIdAndDeletedAtIsNull(id)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "파트너을 찾을 수 없습니다."));
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "업체를 찾을 수 없습니다."));
 	}
 
 	private Partner findLockedActivePartner(Long id) {
 		return partnerRepository.findForUpdateByIdAndDeletedAtIsNull(id)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "파트너을 찾을 수 없습니다."));
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "업체를 찾을 수 없습니다."));
 	}
 
 	private Set<PartnerContact> buildContacts(PartnerContactSetCommand contacts, boolean requireRepresentative) {
@@ -1072,6 +1095,9 @@ public class PartnerForStaffService {
 			partner.id(),
 			partner.name(),
 			partner.allowStatus().name(),
+			staffId(partner.reviewerStaff()),
+			staffName(partner.reviewerStaff()),
+			partner.reviewStartedAt(),
 			partner.status().name(),
 			partner.createdAt(),
 			logo,
@@ -1136,6 +1162,9 @@ public class PartnerForStaffService {
 			partner.viewCount(),
 			0,
 			partner.allowStatus().name(),
+			staffId(partner.reviewerStaff()),
+			staffName(partner.reviewerStaff()),
+			partner.reviewStartedAt(),
 			partner.status().name(),
 			latestStatusHistory(partner),
 			partner.createdAt(),
@@ -1264,6 +1293,10 @@ public class PartnerForStaffService {
 
 	private Long staffId(AccountStaff staff) {
 		return staff == null ? null : staff.id();
+	}
+
+	private String staffName(AccountStaff staff) {
+		return staff == null ? null : staff.name();
 	}
 
 	private String stringValue(Object value) {
@@ -1426,6 +1459,11 @@ public class PartnerForStaffService {
 		values.put("holiday_policy", partner.holidayPolicy());
 		values.put("direction", partner.direction());
 		values.put("allow_status", partner.allowStatus().name());
+		values.put("reviewer_staff_id", stringValue(staffId(partner.reviewerStaff())));
+		values.put(
+			"review_started_at",
+			partner.reviewStartedAt() == null ? null : partner.reviewStartedAt().toString()
+		);
 		values.put("status", partner.status().name());
 		values.put("contacts", writeInternalJson(contacts(partner)));
 		PartnerBusinessRegistration registration = partner.businessRegistration();
@@ -1557,8 +1595,17 @@ public class PartnerForStaffService {
 	}
 
 	private void assertPartnerStatusTransition(PartnerStatus before, PartnerStatus after) {
+		if (after == null) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "운영상태를 입력해주세요.");
+		}
+		if (!after.staffSelectable() && before != after) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"탈퇴는 운영상태 변경으로 처리할 수 없습니다."
+			);
+		}
 		if (before == PartnerStatus.WITHDRAWN && after != PartnerStatus.WITHDRAWN) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "탈퇴한 파트너은 운영상태를 변경할 수 없습니다.");
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "탈퇴한 업체는 운영상태를 변경할 수 없습니다.");
 		}
 	}
 
@@ -1569,19 +1616,54 @@ public class PartnerForStaffService {
 		if (before == after) {
 			return;
 		}
-		boolean reviewDecision = before == PartnerAllowStatus.PENDING
-			&& (after == PartnerAllowStatus.APPROVED || after == PartnerAllowStatus.REJECTED);
-		if (!reviewDecision) {
+		if (!before.canTransitionTo(after)) {
 			throw new ApiException(
 				ErrorCode.INVALID_REQUEST,
-				"Staff can review only PENDING partners as APPROVED or REJECTED."
+				"검수 상태는 검수 신청 → 검수 중 → 승인/반려 순서로만 변경할 수 있습니다."
 			);
 		}
 	}
 
+	private void applyPartnerAllowStatus(
+		Partner partner,
+		PartnerAllowStatus allowStatus,
+		AuthenticatedActor actor
+	) {
+		applyPartnerAllowStatus(
+			partner,
+			allowStatus,
+			allowStatus == PartnerAllowStatus.IN_REVIEW ? activeReviewStaff(actor) : null
+		);
+	}
+
+	private void applyPartnerAllowStatus(
+		Partner partner,
+		PartnerAllowStatus allowStatus,
+		AccountStaff reviewer
+	) {
+		switch (allowStatus) {
+			case REVIEW_REQUESTED -> partner.requestReview();
+			case IN_REVIEW -> partner.startReview(reviewer);
+			case APPROVED, REJECTED -> partner.completeReview(allowStatus);
+			case DRAFT -> throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"Staff는 검수 상태를 임시저장으로 변경할 수 없습니다."
+			);
+		}
+	}
+
+	private AccountStaff activeReviewStaff(AuthenticatedActor actor) {
+		return accountStaffRepository.findByIdAndDeletedAtIsNull(actor.accountId())
+			.filter(AccountStaff::isActive)
+			.orElseThrow(() -> new ApiException(
+				ErrorCode.FORBIDDEN,
+				"검수를 시작할 활성 Staff 계정을 찾을 수 없습니다."
+			));
+	}
+
 	private void requireRejectionReason(PartnerAllowStatus status, String reason) {
 		if (status == PartnerAllowStatus.REJECTED && trimToNull(reason) == null) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "A rejection reason is required.");
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "반려 사유를 입력해주세요.");
 		}
 	}
 

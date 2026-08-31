@@ -166,11 +166,13 @@ Table partners {
   view_count bigint [not null, default: 0]
   evaluation_count int [not null, default: 0]
   evaluation_average_rating decimal(2,1) [not null, default: 0.0]
-  allow_status varchar(20) [not null, default: 'PENDING']
+  allow_status varchar(20) [not null, default: 'REVIEW_REQUESTED']
   status varchar(20) [not null, default: 'ACTIVE']
   registration_source varchar(30) [not null, default: 'STAFF_CREATED']
   created_by_staff_id bigint
   assigned_staff_id bigint
+  reviewer_staff_id bigint
+  review_started_at timestamp
   created_at timestamp [not null]
   updated_at timestamp [not null]
   deleted_at timestamp
@@ -325,13 +327,15 @@ Table partner_specialists {
   gender varchar(20)
   position varchar(50)
   career_started_at date
-  license_number varchar(100) [unique]
   specialist_field varchar(80) [not null]
-  educations json
-  careers json
-  etc_contents json
+  introduction varchar(500)
+  schedule_mode varchar(30) [not null, default: 'INHERIT_PARTNER_HOURS']
+  operation_hours json
+  holiday_policy json [not null]
   status varchar(20) [not null, default: 'HIDDEN']
-  allow_status varchar(20) [not null, default: 'PENDING']
+  allow_status varchar(20) [not null, default: 'REVIEW_REQUESTED']
+  reviewer_staff_id bigint
+  review_started_at timestamp
   view_count bigint [not null, default: 0]
   created_at timestamp [not null]
   updated_at timestamp [not null]
@@ -439,6 +443,7 @@ Ref: account_staff_roles.staff_role_id > staff_roles.id [delete: cascade]
 Ref: account_partners.partner_id > partners.id [delete: cascade]
 Ref: partners.created_by_staff_id > account_staffs.id [delete: set null]
 Ref: partners.assigned_staff_id > account_staffs.id [delete: set null]
+Ref: partners.reviewer_staff_id > account_staffs.id [delete: set null]
 Ref: partner_account_invitations.partner_id > partners.id [delete: cascade]
 Ref: partner_account_invitations.created_by_staff_id > account_staffs.id [delete: set null]
 Ref: partner_contacts.partner_id > partners.id [delete: cascade]
@@ -449,6 +454,7 @@ Ref: hashtag_relations.hashtag_id > hashtags.id [delete: cascade]
 Ref: partner_links.partner_id > partners.id [delete: cascade]
 Ref: partner_options.partner_id > partners.id [delete: cascade]
 Ref: partner_specialists.partner_id > partners.id [delete: cascade]
+Ref: partner_specialists.reviewer_staff_id > account_staffs.id [delete: set null]
 Ref: specialist_options.specialist_id > partner_specialists.id [delete: cascade]
 Ref: specialist_options.partner_option_id > partner_options.id [delete: cascade]
 Ref: categories.parent_id > categories.id

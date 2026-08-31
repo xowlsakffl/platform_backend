@@ -1,5 +1,6 @@
 package com.platform.domain.specialist;
 
+import com.platform.domain.account.AccountStaff;
 import com.platform.domain.common.BaseTimeEntity;
 import com.platform.domain.partner.Partner;
 import jakarta.persistence.Column;
@@ -15,6 +16,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "partner_specialists")
@@ -43,21 +45,22 @@ public class Specialist extends BaseTimeEntity {
 	@Column(name = "career_started_at")
 	private LocalDate careerStartedAt;
 
-	@Column(name = "license_number", unique = true, length = 100)
-	private String licenseNumber;
-
 	@Enumerated(EnumType.STRING)
 	@Column(name = "specialist_field", nullable = false, length = 80)
 	private SpecialistField specialistField;
 
-	@Column(columnDefinition = "json")
-	private String educations;
+	@Column(length = 500)
+	private String introduction;
 
-	@Column(columnDefinition = "json")
-	private String careers;
+	@Enumerated(EnumType.STRING)
+	@Column(name = "schedule_mode", nullable = false, length = 30)
+	private SpecialistScheduleMode scheduleMode = SpecialistScheduleMode.INHERIT_PARTNER_HOURS;
 
-	@Column(name = "etc_contents", columnDefinition = "json")
-	private String etcContents;
+	@Column(name = "operation_hours", columnDefinition = "json")
+	private String operationHours;
+
+	@Column(name = "holiday_policy", nullable = false, columnDefinition = "json")
+	private String holidayPolicy;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -65,7 +68,14 @@ public class Specialist extends BaseTimeEntity {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "allow_status", nullable = false, length = 20)
-	private SpecialistAllowStatus allowStatus = SpecialistAllowStatus.PENDING;
+	private SpecialistAllowStatus allowStatus = SpecialistAllowStatus.REVIEW_REQUESTED;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "reviewer_staff_id")
+	private AccountStaff reviewerStaff;
+
+	@Column(name = "review_started_at")
+	private LocalDateTime reviewStartedAt;
 
 	@Column(name = "view_count", nullable = false)
 	private long viewCount;
@@ -83,11 +93,11 @@ public class Specialist extends BaseTimeEntity {
 		String gender,
 		String position,
 		LocalDate careerStartedAt,
-		String licenseNumber,
 		SpecialistField specialistField,
-		String educations,
-		String careers,
-		String etcContents,
+		String introduction,
+		SpecialistScheduleMode scheduleMode,
+		String operationHours,
+		String holidayPolicy,
 		SpecialistStatus status,
 		SpecialistAllowStatus allowStatus
 	) {
@@ -97,41 +107,37 @@ public class Specialist extends BaseTimeEntity {
 		this.gender = gender;
 		this.position = position;
 		this.careerStartedAt = careerStartedAt;
-		this.licenseNumber = licenseNumber;
 		this.specialistField = specialistField;
-		this.educations = educations;
-		this.careers = careers;
-		this.etcContents = etcContents;
+		this.introduction = introduction;
+		this.scheduleMode = scheduleMode;
+		this.operationHours = operationHours;
+		this.holidayPolicy = holidayPolicy;
 		this.status = status == null ? SpecialistStatus.HIDDEN : status;
-		this.allowStatus = allowStatus == null ? SpecialistAllowStatus.PENDING : allowStatus;
+		this.allowStatus = allowStatus == null ? SpecialistAllowStatus.REVIEW_REQUESTED : allowStatus;
 	}
 
 	public void update(
-		Partner partner,
-		int sortOrder,
 		String name,
 		String gender,
 		String position,
 		LocalDate careerStartedAt,
-		String licenseNumber,
 		SpecialistField specialistField,
-		String educations,
-		String careers,
-		String etcContents,
+		String introduction,
+		SpecialistScheduleMode scheduleMode,
+		String operationHours,
+		String holidayPolicy,
 		SpecialistStatus status,
 		SpecialistAllowStatus allowStatus
 	) {
-		this.partner = partner;
-		this.sortOrder = sortOrder;
 		this.name = name;
 		this.gender = gender;
 		this.position = position;
 		this.careerStartedAt = careerStartedAt;
-		this.licenseNumber = licenseNumber;
 		this.specialistField = specialistField;
-		this.educations = educations;
-		this.careers = careers;
-		this.etcContents = etcContents;
+		this.introduction = introduction;
+		this.scheduleMode = scheduleMode;
+		this.operationHours = operationHours;
+		this.holidayPolicy = holidayPolicy;
 		this.status = status;
 		this.allowStatus = allowStatus;
 	}
@@ -140,8 +146,30 @@ public class Specialist extends BaseTimeEntity {
 		this.status = status;
 	}
 
-	public void changeAllowStatus(SpecialistAllowStatus allowStatus) {
-		this.allowStatus = allowStatus;
+	public void changeSortOrder(int sortOrder) {
+		if (sortOrder < 0) {
+			throw new IllegalArgumentException("Specialist sort order must not be negative.");
+		}
+		this.sortOrder = sortOrder;
+	}
+
+	public void requestReview() {
+		this.allowStatus = SpecialistAllowStatus.REVIEW_REQUESTED;
+		this.reviewerStaff = null;
+		this.reviewStartedAt = null;
+	}
+
+	public void startReview(AccountStaff reviewerStaff) {
+		this.allowStatus = SpecialistAllowStatus.IN_REVIEW;
+		this.reviewerStaff = Objects.requireNonNull(reviewerStaff);
+		this.reviewStartedAt = LocalDateTime.now();
+	}
+
+	public void completeReview(SpecialistAllowStatus decision) {
+		if (decision != SpecialistAllowStatus.APPROVED && decision != SpecialistAllowStatus.REJECTED) {
+			throw new IllegalArgumentException("Review decision must be APPROVED or REJECTED.");
+		}
+		this.allowStatus = decision;
 	}
 
 	public void softDelete() {
@@ -183,24 +211,24 @@ public class Specialist extends BaseTimeEntity {
 		return careerStartedAt;
 	}
 
-	public String licenseNumber() {
-		return licenseNumber;
-	}
-
 	public SpecialistField specialistField() {
 		return specialistField;
 	}
 
-	public String educations() {
-		return educations;
+	public String introduction() {
+		return introduction;
 	}
 
-	public String careers() {
-		return careers;
+	public SpecialistScheduleMode scheduleMode() {
+		return scheduleMode;
 	}
 
-	public String etcContents() {
-		return etcContents;
+	public String operationHours() {
+		return operationHours;
+	}
+
+	public String holidayPolicy() {
+		return holidayPolicy;
 	}
 
 	public SpecialistStatus status() {
@@ -209,6 +237,14 @@ public class Specialist extends BaseTimeEntity {
 
 	public SpecialistAllowStatus allowStatus() {
 		return allowStatus;
+	}
+
+	public AccountStaff reviewerStaff() {
+		return reviewerStaff;
+	}
+
+	public LocalDateTime reviewStartedAt() {
+		return reviewStartedAt;
 	}
 
 	public long viewCount() {

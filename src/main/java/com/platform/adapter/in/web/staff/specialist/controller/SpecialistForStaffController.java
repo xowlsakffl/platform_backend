@@ -1,15 +1,13 @@
 package com.platform.adapter.in.web.staff.specialist.controller;
 
 import com.platform.adapter.in.web.staff.specialist.request.SpecialistCreateForStaffRequest;
-import com.platform.adapter.in.web.staff.specialist.request.SpecialistListForStaffRequest;
+import com.platform.adapter.in.web.staff.specialist.request.SpecialistOrderUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.specialist.request.SpecialistStatusUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.specialist.request.SpecialistUpdateForStaffRequest;
-import com.platform.adapter.in.web.staff.specialist.request.PartnerOptionListForStaffRequest;
 import com.platform.application.specialist.SpecialistForStaffService;
 import com.platform.application.specialist.result.SpecialistDeletedResult;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.common.web.ApiResponse;
-import com.platform.common.web.PaginatedResponse;
 import com.platform.common.web.RequestTrace;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
-@RequestMapping("/api/v1/staff/specialists")
+@RequestMapping("/api/v1/staff/partners/{partnerId}/specialists")
 public class SpecialistForStaffController {
 
 	private final SpecialistForStaffService service;
@@ -41,77 +39,91 @@ public class SpecialistForStaffController {
 	@GetMapping
 	public ApiResponse list(
 		@AuthenticationPrincipal AuthenticatedActor actor,
-		@Valid @ModelAttribute SpecialistListForStaffRequest query,
+		@PathVariable Long partnerId,
 		HttpServletRequest request
 	) {
-		PaginatedResponse<?> response = service.list(actor, query.toQuery());
-		return ApiResponse.success(response.items(), response.meta(), RequestTrace.traceId(request));
+		return ApiResponse.success(service.list(actor, partnerId), RequestTrace.traceId(request));
 	}
 
-	@GetMapping("/partner-options")
-	public ApiResponse partnerOptions(
+	@GetMapping("/{specialistId}")
+	public ApiResponse get(
 		@AuthenticationPrincipal AuthenticatedActor actor,
-		@Valid @ModelAttribute PartnerOptionListForStaffRequest query,
+		@PathVariable Long partnerId,
+		@PathVariable Long specialistId,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(
-			service.partnerOptions(actor, query.q(), query.limit()),
+			service.get(actor, partnerId, specialistId),
 			RequestTrace.traceId(request)
 		);
-	}
-
-	@GetMapping("/{id}")
-	public ApiResponse get(
-		@AuthenticationPrincipal AuthenticatedActor actor,
-		@PathVariable Long id,
-		HttpServletRequest request
-	) {
-		return ApiResponse.success(service.get(actor, id), RequestTrace.traceId(request));
 	}
 
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ApiResponse create(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@Valid @ModelAttribute SpecialistCreateForStaffRequest body,
 		HttpServletRequest request
 	) {
-		return ApiResponse.success(service.create(actor, body.toCommand()), RequestTrace.traceId(request));
+		return ApiResponse.success(
+			service.create(actor, partnerId, body.toCommand(partnerId)),
+			RequestTrace.traceId(request)
+		);
 	}
 
 	@RequestMapping(
-		value = "/{id}",
+		value = "/{specialistId}",
 		method = {RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH},
 		consumes = MediaType.MULTIPART_FORM_DATA_VALUE
 	)
 	public ApiResponse update(
 		@AuthenticationPrincipal AuthenticatedActor actor,
-		@PathVariable Long id,
+		@PathVariable Long partnerId,
+		@PathVariable Long specialistId,
 		@Valid @ModelAttribute SpecialistUpdateForStaffRequest body,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(
-			service.update(actor, id, body.toCommand(request.getParameterMap().keySet())),
+			service.update(actor, partnerId, specialistId, body.toCommand(request.getParameterMap().keySet())),
 			RequestTrace.traceId(request)
 		);
 	}
 
-	@PatchMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PatchMapping(value = "/{specialistId}", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ApiResponse patch(
 		@AuthenticationPrincipal AuthenticatedActor actor,
-		@PathVariable Long id,
+		@PathVariable Long partnerId,
+		@PathVariable Long specialistId,
 		@Valid @RequestBody SpecialistStatusUpdateForStaffRequest body,
 		HttpServletRequest request
 	) {
-		return ApiResponse.success(service.patch(actor, id, body.toCommand()), RequestTrace.traceId(request));
+		return ApiResponse.success(
+			service.patch(actor, partnerId, specialistId, body.toCommand()),
+			RequestTrace.traceId(request)
+		);
 	}
 
-	@DeleteMapping("/{id}")
-	public ApiResponse delete(
+	@PatchMapping(value = "/order", consumes = MediaType.APPLICATION_JSON_VALUE)
+	public ApiResponse reorder(
 		@AuthenticationPrincipal AuthenticatedActor actor,
-		@PathVariable Long id,
+		@PathVariable Long partnerId,
+		@Valid @RequestBody SpecialistOrderUpdateForStaffRequest body,
 		HttpServletRequest request
 	) {
-		SpecialistDeletedResult response = service.delete(actor, id);
+		return ApiResponse.success(
+			service.reorder(actor, partnerId, body.toCommand()),
+			RequestTrace.traceId(request)
+		);
+	}
+
+	@DeleteMapping("/{specialistId}")
+	public ApiResponse delete(
+		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
+		@PathVariable Long specialistId,
+		HttpServletRequest request
+	) {
+		SpecialistDeletedResult response = service.delete(actor, partnerId, specialistId);
 		return ApiResponse.success(response, RequestTrace.traceId(request));
 	}
 }

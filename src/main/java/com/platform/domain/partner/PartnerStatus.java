@@ -14,4 +14,8 @@ public enum PartnerStatus {
 	public String label() {
 		return label;
 	}
+
+	public boolean staffSelectable() {
+		return this != WITHDRAWN;
+	}
 }

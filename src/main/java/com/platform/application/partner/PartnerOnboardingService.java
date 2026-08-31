@@ -252,7 +252,7 @@ public class PartnerOnboardingService {
 		Partner partner = editablePartner(actor);
 		validateSubmission(partner);
 		PartnerAllowStatus before = partner.allowStatus();
-		partner.changeAllowStatus(PartnerAllowStatus.PENDING);
+		partner.requestReview();
 		partnerRepository.saveAndFlush(partner);
 
 		OperationHistory history = new OperationHistory(
@@ -264,7 +264,7 @@ public class PartnerOnboardingService {
 			null,
 			null
 		);
-		history.addChange("allow_status", before.name(), PartnerAllowStatus.PENDING.name());
+		history.addChange("allow_status", before.name(), PartnerAllowStatus.REVIEW_REQUESTED.name());
 		operationHistoryRepository.save(history);
 		summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.PARTNER);
 		return result(actor, partner);

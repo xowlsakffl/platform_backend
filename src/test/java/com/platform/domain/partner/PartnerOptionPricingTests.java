@@ -6,6 +6,7 @@ import com.platform.domain.specialist.Specialist;
 import com.platform.domain.specialist.SpecialistAllowStatus;
 import com.platform.domain.specialist.SpecialistField;
 import com.platform.domain.specialist.SpecialistOption;
+import com.platform.domain.specialist.SpecialistScheduleMode;
 import com.platform.domain.specialist.SpecialistStatus;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
@@ -97,11 +98,11 @@ class PartnerOptionPricingTests {
 			null,
 			null,
 			null,
-			null,
 			SpecialistField.NAIL_ARTIST,
 			null,
+			SpecialistScheduleMode.INHERIT_PARTNER_HOURS,
 			null,
-			null,
+			"{\"enabled\":false}",
 			SpecialistStatus.VISIBLE,
 			SpecialistAllowStatus.APPROVED
 		);

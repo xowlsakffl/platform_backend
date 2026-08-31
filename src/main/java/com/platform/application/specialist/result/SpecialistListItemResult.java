@@ -3,23 +3,27 @@ package com.platform.application.specialist.result;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 public record SpecialistListItemResult(
 	Long id,
 	@JsonProperty("partner_id") Long partnerId,
 	@JsonProperty("partner_name") String partnerName,
+	@JsonProperty("sort_order") int sortOrder,
 	String name,
 	String gender,
 	String position,
-	SpecialistFieldResult specialist,
+	String introduction,
+	@JsonProperty("specialist_field") SpecialistFieldResult specialistField,
 	@JsonProperty("career_started_at") LocalDate careerStartedAt,
-	@JsonProperty("license_number") String licenseNumber,
+	String status,
+	@JsonProperty("status_label") String statusLabel,
 	@JsonProperty("allow_status") String allowStatus,
-	@JsonProperty("status") String status,
-	@JsonProperty("review_count") long reviewCount,
-	@JsonProperty("consultation_count") long consultationCount,
+	@JsonProperty("allow_status_label") String allowStatusLabel,
+	@JsonProperty("schedule_mode") String scheduleMode,
+	@JsonProperty("schedule_mode_label") String scheduleModeLabel,
+	@JsonProperty("option_count") long optionCount,
+	@JsonProperty("profile_image") SpecialistMediaResult profileImage,
 	@JsonProperty("created_at") LocalDateTime createdAt,
-	@JsonProperty("profile_image") SpecialistMediaResult profileImage
+	@JsonProperty("updated_at") LocalDateTime updatedAt
 ) {
 }

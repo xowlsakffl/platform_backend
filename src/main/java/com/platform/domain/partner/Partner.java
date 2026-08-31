@@ -22,6 +22,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Entity
@@ -80,7 +81,7 @@ public class Partner extends BaseTimeEntity {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "allow_status", nullable = false, length = 20)
-	private PartnerAllowStatus allowStatus = PartnerAllowStatus.PENDING;
+	private PartnerAllowStatus allowStatus = PartnerAllowStatus.REVIEW_REQUESTED;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -99,6 +100,13 @@ public class Partner extends BaseTimeEntity {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "assigned_staff_id")
 	private AccountStaff assignedStaff;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "reviewer_staff_id")
+	private AccountStaff reviewerStaff;
+
+	@Column(name = "review_started_at")
+	private LocalDateTime reviewStartedAt;
 
 	@OneToMany(mappedBy = "partner", cascade = CascadeType.ALL, orphanRemoval = true)
 	private Set<PartnerContact> contacts = new LinkedHashSet<>();
@@ -158,7 +166,7 @@ public class Partner extends BaseTimeEntity {
 		this.operatingHoursNotice = operatingHoursNotice;
 		this.operationHours = operationHours;
 		this.direction = direction;
-		this.allowStatus = allowStatus == null ? PartnerAllowStatus.PENDING : allowStatus;
+		this.allowStatus = allowStatus == null ? PartnerAllowStatus.REVIEW_REQUESTED : allowStatus;
 		this.status = status == null ? PartnerStatus.ACTIVE : status;
 	}
 
@@ -218,8 +226,23 @@ public class Partner extends BaseTimeEntity {
 		this.direction = direction;
 	}
 
-	public void changeAllowStatus(PartnerAllowStatus allowStatus) {
-		this.allowStatus = allowStatus;
+	public void requestReview() {
+		this.allowStatus = PartnerAllowStatus.REVIEW_REQUESTED;
+		this.reviewerStaff = null;
+		this.reviewStartedAt = null;
+	}
+
+	public void startReview(AccountStaff reviewerStaff) {
+		this.allowStatus = PartnerAllowStatus.IN_REVIEW;
+		this.reviewerStaff = Objects.requireNonNull(reviewerStaff);
+		this.reviewStartedAt = LocalDateTime.now();
+	}
+
+	public void completeReview(PartnerAllowStatus decision) {
+		if (decision != PartnerAllowStatus.APPROVED && decision != PartnerAllowStatus.REJECTED) {
+			throw new IllegalArgumentException("Review decision must be APPROVED or REJECTED.");
+		}
+		this.allowStatus = decision;
 	}
 
 	public void changeDetailAddress(String detailAddress) {
@@ -233,6 +256,10 @@ public class Partner extends BaseTimeEntity {
 
 	public void changeHolidayPolicy(String holidayPolicy) {
 		this.holidayPolicy = holidayPolicy;
+	}
+
+	public void changeOperationHours(String operationHours) {
+		this.operationHours = operationHours;
 	}
 
 	public void changeSubwayStations(String subwayStations) {
@@ -385,6 +412,14 @@ public class Partner extends BaseTimeEntity {
 
 	public AccountStaff assignedStaff() {
 		return assignedStaff;
+	}
+
+	public AccountStaff reviewerStaff() {
+		return reviewerStaff;
+	}
+
+	public LocalDateTime reviewStartedAt() {
+		return reviewStartedAt;
 	}
 
 	public Set<PartnerContact> contacts() {

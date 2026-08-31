@@ -16,15 +16,14 @@ public class MediaCollectionPolicy {
 	public static final String PARTNER_BUSINESS_REGISTRATION_FILE = "business_registration_file";
 	public static final String CATEGORY_ICON = "icon";
 	public static final String SPECIALIST_PROFILE_IMAGE = "profile_image";
-	public static final String SPECIALIST_LICENSE_IMAGE = "license_image";
-	public static final String SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE = "specialist_certificate_image";
+	public static final String SPECIALIST_CERTIFICATION_IMAGE = "certification_image";
 
 	private static final long CATEGORY_ICON_MAX_SIZE = 5L * 1024 * 1024;
 	private static final long PARTNER_LOGO_MAX_SIZE = 5L * 1024 * 1024;
 	private static final long PARTNER_IMAGE_MAX_SIZE = 10L * 1024 * 1024;
 	private static final long PARTNER_DOCUMENT_MAX_SIZE = 10L * 1024 * 1024;
 	private static final long SPECIALIST_PROFILE_MAX_SIZE = 5L * 1024 * 1024;
-	private static final long SPECIALIST_DOCUMENT_MAX_SIZE = 10L * 1024 * 1024;
+	private static final long SPECIALIST_CERTIFICATION_MAX_SIZE = 10L * 1024 * 1024;
 	private static final Set<String> APP_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 	private static final Set<String> PARTNER_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 	private static final Set<String> DOCUMENT_TYPES = Set.of(
@@ -35,8 +34,7 @@ public class MediaCollectionPolicy {
 	);
 	private static final Set<String> SPECIALIST_COLLECTIONS = Set.of(
 		SPECIALIST_PROFILE_IMAGE,
-		SPECIALIST_LICENSE_IMAGE,
-		SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE
+		SPECIALIST_CERTIFICATION_IMAGE
 	);
 
 	public void validateCollection(MediaOwnerType ownerType, String collection) {
@@ -91,16 +89,13 @@ public class MediaCollectionPolicy {
 				SPECIALIST_PROFILE_MAX_SIZE,
 				"스페셜리스트 프로필은 JPG, PNG, WebP 5MB 이하만 가능합니다."
 			);
-			if (file.width() == null || file.height() == null || !file.width().equals(file.height())) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, "스페셜리스트 프로필 이미지는 1:1 비율이어야 합니다.");
-			}
 			return;
 		}
 		requireTypeAndSize(
 			file,
-			DOCUMENT_TYPES,
-			SPECIALIST_DOCUMENT_MAX_SIZE,
-			"스페셜리스트 증빙 파일은 JPG, PNG, WebP, PDF 10MB 이하만 가능합니다."
+			APP_IMAGE_TYPES,
+			SPECIALIST_CERTIFICATION_MAX_SIZE,
+			"전문가 인증 이미지는 JPG, PNG, WebP 10MB 이하만 가능합니다."
 		);
 	}
 

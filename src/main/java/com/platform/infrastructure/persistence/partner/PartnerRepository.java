@@ -27,12 +27,13 @@ public interface PartnerRepository extends JpaRepository<Partner, Long>, JpaSpec
 		"businessRegistration",
 		"accountPartner",
 		"assignedStaff",
+		"reviewerStaff",
 		"features"
 	})
 	Optional<Partner> findByIdAndDeletedAtIsNull(Long id);
 
 	@Override
-	@EntityGraph(attributePaths = "assignedStaff")
+	@EntityGraph(attributePaths = {"assignedStaff", "reviewerStaff"})
 	Page<Partner> findAll(Specification<Partner> specification, Pageable pageable);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -47,7 +48,7 @@ public interface PartnerRepository extends JpaRepository<Partner, Long>, JpaSpec
 
 	long countByDeletedAtIsNullAndStatus(PartnerStatus status);
 
-	long countByAllowStatus(PartnerAllowStatus allowStatus);
+	long countByDeletedAtIsNullAndAllowStatusIn(Collection<PartnerAllowStatus> allowStatuses);
 
 	@Query("""
 		select count(partner)

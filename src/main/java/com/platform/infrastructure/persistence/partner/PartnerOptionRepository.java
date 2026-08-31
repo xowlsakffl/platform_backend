@@ -22,6 +22,8 @@ public interface PartnerOptionRepository extends JpaRepository<PartnerOption, Lo
 
 	List<PartnerOption> findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(Long partnerId);
 
+	List<PartnerOption> findByIdInAndPartner_IdAndDeletedAtIsNull(Collection<Long> ids, Long partnerId);
+
 	long countByPartner_IdAndDeletedAtIsNull(Long partnerId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

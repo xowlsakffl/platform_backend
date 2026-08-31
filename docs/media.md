@@ -15,9 +15,8 @@ owner_type + owner_id + collection
 | `PARTNER` | `interior_image` | 5 | JPG/PNG/WebP, 10MB, 760x490 |
 | `PARTNER_BUSINESS_REGISTRATION` | `business_registration_file` | 1 | 이미지/PDF, 10MB |
 | `CATEGORY` | `icon` | 1 | JPG/PNG/WebP, 5MB |
-| `SPECIALIST` | `profile_image` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
-| `SPECIALIST` | `license_image` | 1 | 이미지/PDF, 10MB |
-| `SPECIALIST` | `specialist_certificate_image` | 1 | 이미지/PDF, 10MB |
+| `SPECIALIST` | `profile_image` | 3 | JPG/PNG/WebP, 장당 5MB, 첫 번째 이미지가 대표 |
+| `SPECIALIST` | `certification_image` | 5 | JPG/PNG/WebP, 장당 10MB |
 
 저장 루트는 `app.media.local.root`이며 기본값은 `./storage/media`다. 파일명은 서버가 생성하고 원본 파일명은 메타데이터로 보존한다.
 

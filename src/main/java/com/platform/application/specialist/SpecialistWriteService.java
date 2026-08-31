@@ -1,23 +1,34 @@
 package com.platform.application.specialist;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.platform.application.specialist.command.SaveSpecialistCommand;
-import com.platform.application.specialist.command.UpdateSpecialistForStaffCommand;
-import com.platform.application.specialist.command.UpdateSpecialistForPartnerCommand;
 import com.platform.application.media.MediaCollectionPolicy;
 import com.platform.application.media.MediaCommandService;
-import com.platform.application.media.MediaReadService;
-import com.platform.application.media.result.MediaResult;
+import com.platform.application.partner.PartnerSchedulePolicyValidator;
+import com.platform.application.specialist.command.SaveSpecialistCommand;
+import com.platform.application.specialist.command.UpdateSpecialistForPartnerCommand;
+import com.platform.application.specialist.command.UpdateSpecialistForStaffCommand;
 import com.platform.common.error.ApiException;
 import com.platform.common.error.ErrorCode;
+import com.platform.domain.media.MediaOwnerType;
+import com.platform.domain.partner.Partner;
+import com.platform.domain.partner.PartnerOption;
 import com.platform.domain.specialist.Specialist;
 import com.platform.domain.specialist.SpecialistAllowStatus;
+import com.platform.domain.specialist.SpecialistField;
+import com.platform.domain.specialist.SpecialistOption;
+import com.platform.domain.specialist.SpecialistScheduleMode;
 import com.platform.domain.specialist.SpecialistStatus;
-import com.platform.domain.partner.Partner;
-import com.platform.domain.media.MediaOwnerType;
+import com.platform.infrastructure.persistence.partner.PartnerOptionRepository;
+import com.platform.infrastructure.persistence.specialist.SpecialistOptionRepository;
 import com.platform.infrastructure.persistence.specialist.SpecialistRepository;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,252 +41,327 @@ import org.springframework.util.StringUtils;
 @Service
 public class SpecialistWriteService {
 
-	private static final int MAX_TEXT_ITEM_COUNT = 20;
-	private static final int MAX_TEXT_ITEM_LENGTH = 1_000;
-	private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
+	private static final int MAX_OPTION_ASSIGNMENT_COUNT = 300;
+	private static final TypeReference<List<OptionAssignmentValue>> OPTION_ASSIGNMENT_LIST_TYPE = new TypeReference<>() {
 	};
 
 	private final SpecialistRepository specialistRepository;
+	private final SpecialistOptionRepository specialistOptionRepository;
+	private final PartnerOptionRepository partnerOptionRepository;
 	private final MediaCommandService mediaCommandService;
-	private final MediaReadService mediaReadService;
+	private final PartnerSchedulePolicyValidator schedulePolicyValidator;
 	private final ObjectMapper objectMapper;
 
 	public SpecialistWriteService(
 		SpecialistRepository specialistRepository,
+		SpecialistOptionRepository specialistOptionRepository,
+		PartnerOptionRepository partnerOptionRepository,
 		MediaCommandService mediaCommandService,
-		MediaReadService mediaReadService,
+		PartnerSchedulePolicyValidator schedulePolicyValidator,
 		ObjectMapper objectMapper
 	) {
 		this.specialistRepository = specialistRepository;
+		this.specialistOptionRepository = specialistOptionRepository;
+		this.partnerOptionRepository = partnerOptionRepository;
 		this.mediaCommandService = mediaCommandService;
-		this.mediaReadService = mediaReadService;
+		this.schedulePolicyValidator = schedulePolicyValidator;
 		this.objectMapper = objectMapper;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Specialist create(Partner partner, SaveSpecialistCommand command) {
-		String licenseNumber = normalizeLicenseNumber(command.licenseNumber());
-		ensureLicenseAvailable(licenseNumber, null);
-		SpecialistValues values = validateValues(command);
+		SpecialistValues values = validateValues(partner, command);
+		List<ResolvedOptionAssignment> optionAssignments = resolveOptionAssignments(
+			partner.id(),
+			command.optionAssignments()
+		);
 
 		Specialist saved = specialistRepository.saveAndFlush(new Specialist(
 			partner,
-			command.sortOrder() == null ? 0 : command.sortOrder(),
+			specialistRepository.nextSortOrder(partner.id()),
 			values.name(),
 			values.gender(),
 			values.position(),
 			command.careerStartedAt(),
-			licenseNumber,
-			command.specialistField(),
-			values.educationsJson(),
-			values.careersJson(),
-			values.etcContentsJson(),
+			values.specialistField(),
+			values.introduction(),
+			values.scheduleMode(),
+			values.operationHoursJson(),
+			values.holidayPolicyJson(),
 			command.status() == null ? SpecialistStatus.HIDDEN : command.status(),
-			command.allowStatus() == null ? SpecialistAllowStatus.PENDING : command.allowStatus()
+			command.allowStatus() == null ? SpecialistAllowStatus.REVIEW_REQUESTED : command.allowStatus()
 		));
+		replaceOptionAssignments(saved, optionAssignments);
 		syncMedia(saved.id(), command, true);
 		return saved;
-	}
-
-	@Transactional(propagation = Propagation.MANDATORY)
-	public Specialist update(Specialist specialist, Partner partner, SaveSpecialistCommand command) {
-		String licenseNumber = normalizeLicenseNumber(command.licenseNumber());
-		ensureLicenseAvailable(licenseNumber, specialist.id());
-		SpecialistValues values = validateValues(command);
-
-		specialist.update(
-			partner,
-			command.sortOrder() == null ? specialist.sortOrder() : command.sortOrder(),
-			values.name(),
-			values.gender(),
-			values.position(),
-			command.careerStartedAt(),
-			licenseNumber,
-			command.specialistField(),
-			values.educationsJson(),
-			values.careersJson(),
-			values.etcContentsJson(),
-			command.status(),
-			command.allowStatus()
-		);
-		syncMedia(specialist.id(), command, false);
-		return specialistRepository.saveAndFlush(specialist);
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Specialist updatePartial(Specialist specialist, Partner partner, UpdateSpecialistForStaffCommand command) {
 		SaveSpecialistCommand merged = new SaveSpecialistCommand(
 			partner.id(),
-			command.specified("sort_order") && command.sortOrder() != null ? command.sortOrder() : specialist.sortOrder(),
 			command.specified("name") ? command.name() : specialist.name(),
 			command.specified("gender") ? command.gender() : specialist.gender(),
 			command.specified("position") ? command.position() : specialist.position(),
 			command.specified("career_started_at") ? command.careerStartedAt() : specialist.careerStartedAt(),
-			command.specified("license_number") ? command.licenseNumber() : specialist.licenseNumber(),
 			command.specified("specialist_field") ? command.specialistField() : specialist.specialistField(),
+			command.specified("introduction") ? command.introduction() : specialist.introduction(),
+			command.specified("schedule_mode") ? command.scheduleMode() : specialist.scheduleMode(),
+			command.specified("operation_hours") ? command.operationHours() : specialist.operationHours(),
+			command.specified("holiday_policy") ? command.holidayPolicy() : specialist.holidayPolicy(),
 			command.specified("status") ? command.status() : specialist.status(),
 			command.specified("allow_status") ? command.allowStatus() : specialist.allowStatus(),
-			command.specified("educations") ? command.educations() : specialist.educations(),
-			command.specified("careers") ? command.careers() : specialist.careers(),
-			command.specified("etc_contents") ? command.etcContents() : specialist.etcContents(),
-			command.profileImage(),
-			resolveExistingMediaId(
-				specialist.id(),
-				MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE,
-				command.specified("existing_profile_image_id"),
-				command.existingProfileImageId(),
-				command.profileImage() != null
-			),
-			command.licenseImage(),
-			resolveExistingMediaId(
-				specialist.id(),
-				MediaCollectionPolicy.SPECIALIST_LICENSE_IMAGE,
-				command.specified("existing_license_image_id"),
-				command.existingLicenseImageId(),
-				command.licenseImage() != null
-			),
-			command.specialistCertificateImage(),
-			resolveExistingMediaId(
-				specialist.id(),
-				MediaCollectionPolicy.SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE,
-				command.specified("existing_specialist_certificate_image_id"),
-				command.existingSpecialistCertificateImageId(),
-				command.specialistCertificateImage() != null
-			)
+			command.optionAssignments(),
+			command.profileImages(),
+			command.profileImageOrder(),
+			command.certificationImages(),
+			command.certificationImageOrder()
 		);
-		return update(specialist, partner, merged);
+		Specialist saved = updateCore(specialist, partner, merged, command.specified("option_assignments"));
+		syncMediaIfSpecified(
+			saved.id(),
+			command.specified("profile_image_files") || command.specified("profile_image_order"),
+			command.profileImages(),
+			command.profileImageOrder(),
+			command.specified("certification_image_files") || command.specified("certification_image_order"),
+			command.certificationImages(),
+			command.certificationImageOrder()
+		);
+		return saved;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Specialist updatePartial(Specialist specialist, Partner partner, UpdateSpecialistForPartnerCommand command) {
 		SaveSpecialistCommand merged = new SaveSpecialistCommand(
 			partner.id(),
-			command.specified("sort_order") && command.sortOrder() != null ? command.sortOrder() : specialist.sortOrder(),
 			command.specified("name") ? command.name() : specialist.name(),
 			command.specified("gender") ? command.gender() : specialist.gender(),
 			command.specified("position") ? command.position() : specialist.position(),
 			command.specified("career_started_at") ? command.careerStartedAt() : specialist.careerStartedAt(),
-			command.specified("license_number") ? command.licenseNumber() : specialist.licenseNumber(),
 			command.specified("specialist_field") ? command.specialistField() : specialist.specialistField(),
+			command.specified("introduction") ? command.introduction() : specialist.introduction(),
+			command.specified("schedule_mode") ? command.scheduleMode() : specialist.scheduleMode(),
+			command.specified("operation_hours") ? command.operationHours() : specialist.operationHours(),
+			command.specified("holiday_policy") ? command.holidayPolicy() : specialist.holidayPolicy(),
 			command.specified("status") ? command.status() : specialist.status(),
 			specialist.allowStatus(),
-			command.specified("educations") ? command.educations() : specialist.educations(),
-			command.specified("careers") ? command.careers() : specialist.careers(),
-			command.specified("etc_contents") ? command.etcContents() : specialist.etcContents(),
-			command.profileImage(),
-			resolveExistingMediaId(
-				specialist.id(),
-				MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE,
-				command.specified("existing_profile_image_id"),
-				command.existingProfileImageId(),
-				command.profileImage() != null
-			),
-			command.licenseImage(),
-			resolveExistingMediaId(
-				specialist.id(),
-				MediaCollectionPolicy.SPECIALIST_LICENSE_IMAGE,
-				command.specified("existing_license_image_id"),
-				command.existingLicenseImageId(),
-				command.licenseImage() != null
-			),
-			command.specialistCertificateImage(),
-			resolveExistingMediaId(
-				specialist.id(),
-				MediaCollectionPolicy.SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE,
-				command.specified("existing_specialist_certificate_image_id"),
-				command.existingSpecialistCertificateImageId(),
-				command.specialistCertificateImage() != null
-			)
+			command.optionAssignments(),
+			command.profileImages(),
+			command.profileImageOrder(),
+			command.certificationImages(),
+			command.certificationImageOrder()
 		);
-		return update(specialist, partner, merged);
+		Specialist saved = updateCore(specialist, partner, merged, command.specified("option_assignments"));
+		syncMediaIfSpecified(
+			saved.id(),
+			command.specified("profile_image_files") || command.specified("profile_image_order"),
+			command.profileImages(),
+			command.profileImageOrder(),
+			command.specified("certification_image_files") || command.specified("certification_image_order"),
+			command.certificationImages(),
+			command.certificationImageOrder()
+		);
+		return saved;
 	}
 
-	private SpecialistValues validateValues(SaveSpecialistCommand command) {
-		if (command.specialistField() == null) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "스페셜리스트 분야는 필수입니다.");
+	private Specialist updateCore(
+		Specialist specialist,
+		Partner partner,
+		SaveSpecialistCommand command,
+		boolean replaceOptions
+	) {
+		SpecialistValues values = validateValues(partner, command);
+		List<ResolvedOptionAssignment> optionAssignments = replaceOptions
+			? resolveOptionAssignments(partner.id(), command.optionAssignments())
+			: List.of();
+		specialist.update(
+			values.name(),
+			values.gender(),
+			values.position(),
+			command.careerStartedAt(),
+			values.specialistField(),
+			values.introduction(),
+			values.scheduleMode(),
+			values.operationHoursJson(),
+			values.holidayPolicyJson(),
+			command.status(),
+			command.allowStatus()
+		);
+		if (replaceOptions) {
+			replaceOptionAssignments(specialist, optionAssignments);
 		}
-		String name = required(command.name(), "스페셜리스트명은 필수입니다.");
+		return specialistRepository.saveAndFlush(specialist);
+	}
+
+	private SpecialistValues validateValues(Partner partner, SaveSpecialistCommand command) {
+		if (command.careerStartedAt() != null && command.careerStartedAt().isAfter(LocalDate.now())) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "총 경력 시작일은 오늘 이후로 설정할 수 없습니다.");
+		}
+		SpecialistField specialistField = command.specialistField();
+		if (specialistField == null) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가 분야는 필수입니다.");
+		}
+		String name = required(command.name(), "전문가명은 필수입니다.");
 		String gender = normalizeGender(command.gender());
 		if (gender != null && !Set.of("남", "여").contains(gender)) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "성별 값이 올바르지 않습니다.");
 		}
 		String position = trimToNull(command.position());
+		String introduction = trimToNull(command.introduction());
 		if (name.length() > 255 || (position != null && position.length() > 50)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "스페셜리스트명 또는 직책 길이가 제한을 초과했습니다.");
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가명 또는 직책 길이가 제한을 초과했습니다.");
 		}
+		if (introduction != null && introduction.length() > 500) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가 소개는 500자까지 입력할 수 있습니다.");
+		}
+		SpecialistScheduleMode scheduleMode = command.scheduleMode() == null
+			? SpecialistScheduleMode.INHERIT_PARTNER_HOURS
+			: command.scheduleMode();
+		String operationHours = null;
+		if (scheduleMode == SpecialistScheduleMode.CUSTOM_HOURS) {
+			operationHours = schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true);
+			schedulePolicyValidator.assertWithinPartnerHours(operationHours, partner.operationHours());
+		}
+		Object holidayPolicy = command.holidayPolicy() == null ? Map.of("enabled", false) : command.holidayPolicy();
 		return new SpecialistValues(
 			name,
 			gender,
 			position,
-			toJsonList(command.educations(), "학력사항"),
-			toJsonList(command.careers(), "경력사항"),
-			toJsonList(command.etcContents(), "활동사항")
+			specialistField,
+			introduction,
+			scheduleMode,
+			operationHours,
+			schedulePolicyValidator.normalizeHolidayPolicy(holidayPolicy, true)
 		);
 	}
 
-	private void syncMedia(
-		Long specialistId,
-		SaveSpecialistCommand command,
-		boolean creating
+	private List<ResolvedOptionAssignment> resolveOptionAssignments(Long partnerId, String raw) {
+		List<OptionAssignmentValue> values;
+		try {
+			values = StringUtils.hasText(raw) ? objectMapper.readValue(raw, OPTION_ASSIGNMENT_LIST_TYPE) : List.of();
+		} catch (JsonProcessingException exception) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가 시술 옵션 형식이 올바르지 않습니다.");
+		}
+		if (values.size() > MAX_OPTION_ASSIGNMENT_COUNT) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가 시술 옵션은 최대 300개까지 연결할 수 있습니다.");
+		}
+		Set<Long> optionIds = new HashSet<>();
+		for (OptionAssignmentValue value : values) {
+			if (value == null || value.partnerOptionId() == null || value.partnerOptionId() <= 0
+				|| !optionIds.add(value.partnerOptionId())) {
+				throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가 시술 옵션 선택값이 올바르지 않습니다.");
+			}
+			validateOverride(value);
+		}
+		if (optionIds.isEmpty()) {
+			return List.of();
+		}
+		Map<Long, PartnerOption> options = new LinkedHashMap<>();
+		partnerOptionRepository.findByIdInAndPartner_IdAndDeletedAtIsNull(optionIds, partnerId)
+			.forEach(option -> options.put(option.id(), option));
+		if (options.size() != optionIds.size()) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "해당 업체에서 사용할 수 없는 시술 옵션이 포함되어 있습니다.");
+		}
+		List<ResolvedOptionAssignment> resolved = new ArrayList<>();
+		for (OptionAssignmentValue value : values) {
+			resolved.add(new ResolvedOptionAssignment(options.get(value.partnerOptionId()), value));
+		}
+		return List.copyOf(resolved);
+	}
+
+	private void validateOverride(OptionAssignmentValue value) {
+		BigDecimal regularPrice = value.regularPriceOverride();
+		BigDecimal salePrice = value.salePriceOverride();
+		if (regularPrice == null && salePrice != null) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "할인가를 다르게 설정하려면 정상가도 함께 입력해 주세요.");
+		}
+		if (!validPrice(regularPrice)
+			|| !validPrice(salePrice)
+			|| salePrice != null && salePrice.compareTo(regularPrice) >= 0) {
+			throw new ApiException(ErrorCode.INVALID_REQUEST, "전문가별 가격이 올바르지 않습니다.");
+		}
+	}
+
+	private boolean validPrice(BigDecimal value) {
+		if (value == null) {
+			return true;
+		}
+		return value.signum() >= 0 && value.scale() <= 2 && value.precision() - value.scale() <= 10;
+	}
+
+	private void replaceOptionAssignments(
+		Specialist specialist,
+		List<ResolvedOptionAssignment> assignments
 	) {
-		mediaCommandService.synchronizeSingle(
+		specialistOptionRepository.deleteBySpecialist_Id(specialist.id());
+		specialistOptionRepository.flush();
+		if (assignments.isEmpty()) {
+			return;
+		}
+		specialistOptionRepository.saveAll(assignments.stream()
+			.map(assignment -> new SpecialistOption(
+				specialist,
+				assignment.option(),
+				assignment.value().regularPriceOverride(),
+				assignment.value().salePriceOverride()
+			))
+			.toList());
+	}
+
+	private void syncMedia(Long specialistId, SaveSpecialistCommand command, boolean creating) {
+		if (!creating) {
+			return;
+		}
+		mediaCommandService.synchronizeManyOrdered(
 			MediaOwnerType.SPECIALIST,
 			specialistId,
 			MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE,
-			command.profileImage(),
-			creating ? null : command.existingProfileImageId(),
-			false
+			command.profileImages(),
+			command.profileImageOrder(),
+			false,
+			3
 		);
-		mediaCommandService.synchronizeSingle(
+		mediaCommandService.synchronizeManyOrdered(
 			MediaOwnerType.SPECIALIST,
 			specialistId,
-			MediaCollectionPolicy.SPECIALIST_LICENSE_IMAGE,
-			command.licenseImage(),
-			creating ? null : command.existingLicenseImageId(),
-			false
-		);
-		mediaCommandService.synchronizeSingle(
-			MediaOwnerType.SPECIALIST,
-			specialistId,
-			MediaCollectionPolicy.SPECIALIST_SPECIALIST_CERTIFICATE_IMAGE,
-			command.specialistCertificateImage(),
-			creating ? null : command.existingSpecialistCertificateImageId(),
-			false
+			MediaCollectionPolicy.SPECIALIST_CERTIFICATION_IMAGE,
+			command.certificationImages(),
+			command.certificationImageOrder(),
+			false,
+			5
 		);
 	}
 
-	private void ensureLicenseAvailable(String licenseNumber, Long excludedId) {
-		if (!StringUtils.hasText(licenseNumber)) {
-			return;
+	private void syncMediaIfSpecified(
+		Long specialistId,
+		boolean profileSpecified,
+		List<com.platform.application.media.storage.MediaFileSource> profileImages,
+		List<String> profileImageOrder,
+		boolean certificationSpecified,
+		List<com.platform.application.media.storage.MediaFileSource> certificationImages,
+		List<String> certificationImageOrder
+	) {
+		if (profileSpecified) {
+			mediaCommandService.synchronizeManyOrdered(
+				MediaOwnerType.SPECIALIST,
+				specialistId,
+				MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE,
+				profileImages,
+				profileImageOrder,
+				false,
+				3
+			);
 		}
-		boolean exists = excludedId == null
-			? specialistRepository.existsByLicenseNumber(licenseNumber)
-			: specialistRepository.existsByLicenseNumberAndIdNot(licenseNumber, excludedId);
-		if (exists) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 자격 증빙 번호입니다.");
-		}
-	}
-
-	private String normalizeLicenseNumber(String licenseNumber) {
-		String normalized = licenseNumber == null ? "" : licenseNumber.replaceAll("\\D", "");
-		return normalized.isEmpty() ? null : normalized;
-	}
-
-	private String toJsonList(String raw, String fieldName) {
-		if (!StringUtils.hasText(raw)) {
-			return "[]";
-		}
-		try {
-			List<String> values = objectMapper.readValue(raw, STRING_LIST_TYPE).stream()
-				.map(String::trim)
-				.filter(value -> !value.isEmpty())
-				.toList();
-			if (values.size() > MAX_TEXT_ITEM_COUNT || values.stream().anyMatch(value -> value.length() > MAX_TEXT_ITEM_LENGTH)) {
-				throw new ApiException(ErrorCode.INVALID_REQUEST, fieldName + " 입력 개수 또는 길이가 제한을 초과했습니다.");
-			}
-			return objectMapper.writeValueAsString(values);
-		} catch (JsonProcessingException | NullPointerException exception) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, fieldName + " JSON 배열이 올바르지 않습니다.");
+		if (certificationSpecified) {
+			mediaCommandService.synchronizeManyOrdered(
+				MediaOwnerType.SPECIALIST,
+				specialistId,
+				MediaCollectionPolicy.SPECIALIST_CERTIFICATION_IMAGE,
+				certificationImages,
+				certificationImageOrder,
+				false,
+				5
+			);
 		}
 	}
 
@@ -284,20 +370,6 @@ public class SpecialistWriteService {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, message);
 		}
 		return value.trim();
-	}
-
-	private Long resolveExistingMediaId(
-		Long specialistId,
-		String collection,
-		boolean existingFieldSpecified,
-		Long requestedExistingId,
-		boolean newFileSpecified
-	) {
-		if (newFileSpecified || existingFieldSpecified) {
-			return requestedExistingId;
-		}
-		MediaResult current = mediaReadService.primary(MediaOwnerType.SPECIALIST, specialistId, collection);
-		return current == null ? null : current.id();
 	}
 
 	private String normalizeGender(String value) {
@@ -320,9 +392,21 @@ public class SpecialistWriteService {
 		String name,
 		String gender,
 		String position,
-		String educationsJson,
-		String careersJson,
-		String etcContentsJson
+		SpecialistField specialistField,
+		String introduction,
+		SpecialistScheduleMode scheduleMode,
+		String operationHoursJson,
+		String holidayPolicyJson
 	) {
+	}
+
+	private record OptionAssignmentValue(
+		@JsonProperty("partner_option_id") Long partnerOptionId,
+		@JsonProperty("regular_price_override") BigDecimal regularPriceOverride,
+		@JsonProperty("sale_price_override") BigDecimal salePriceOverride
+	) {
+	}
+
+	private record ResolvedOptionAssignment(PartnerOption option, OptionAssignmentValue value) {
 	}
 }

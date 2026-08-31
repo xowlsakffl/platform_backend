@@ -9,7 +9,7 @@ public record PartnerSpecialistForStaffResult(
 	@JsonProperty("partner_id") Long partnerId,
 	String name,
 	String position,
-	SpecialistFieldResult specialist,
+	@JsonProperty("specialist_field") SpecialistFieldResult specialistField,
 	@JsonProperty("sort_order") int sortOrder,
 	@JsonProperty("allow_status") String allowStatus,
 	String status,

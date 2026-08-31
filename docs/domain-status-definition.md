@@ -8,16 +8,18 @@
 
 | 필드 | 값 | 의미 |
 |---|---|---|
-| `allow_status` | `PENDING` | 신청 |
+| `allow_status` | `DRAFT` | 임시저장 |
+|  | `REVIEW_REQUESTED` | 검수 신청 |
+|  | `IN_REVIEW` | 검수 중 |
 |  | `APPROVED` | 승인 |
 |  | `REJECTED` | 반려 |
 | `status` | `ACTIVE` | 정상 운영 |
 |  | `SUSPENDED` | 운영 중지 |
 |  | `WITHDRAWN` | 탈퇴 |
 
-승인 중간 상태는 사용하지 않는다. Staff가 승인상태나 운영상태를 바꾸면 변경 전후 값과 사유를 운영 이력에 남긴다.
+Staff는 `REVIEW_REQUESTED -> IN_REVIEW -> APPROVED/REJECTED` 순서로만 검수 상태를 변경한다. `IN_REVIEW`로 변경할 때 검수 담당 Staff와 검수 시작 시각을 저장한다. 상태 변경 전후 값과 사유는 운영 이력에 남긴다.
 
-`WITHDRAWN`은 최종 상태다. 탈퇴 처리된 파트너은 운영상태를 정상이나 운영중지로 되돌릴 수 없다.
+`WITHDRAWN`은 최종 상태다. 일반 운영상태 변경 API에서는 `ACTIVE`, `SUSPENDED`만 선택할 수 있고, `WITHDRAWN`은 향후 별도 탈퇴 절차로만 설정한다. 탈퇴 처리된 업체는 운영상태를 되돌릴 수 없다.
 
 파트너 관리자 계정은 `ACTIVE`, `BLOCKED`만 사용하고 화면에서는 각각 `로그인 가능`, `로그인 차단`으로 표시한다. 파트너의 운영 중지와 탈퇴는 파트너 `status`로 관리하고 계정 상태에 중복 저장하지 않는다. 파트너 관리자 계정을 `BLOCKED`로 바꾸거나 파트너이 `WITHDRAWN` 또는 soft delete되면 기존 인증 세션을 폐기한다. 직원 관리자, 뷰티 관리자, 일반 사용자 계정은 `ACTIVE`, `SUSPENDED`, `BLOCKED`, `WITHDRAWN`을 모두 사용한다.
 
@@ -68,38 +70,40 @@ Partner API 삭제는 soft delete다. 연결된 Specialist도 soft delete하고,
 
 | 필드 | 값 | 의미 |
 |---|---|---|
-| `allow_status` | `PENDING` | 신청 |
+| `allow_status` | `REVIEW_REQUESTED` | 검수 신청 |
+|  | `IN_REVIEW` | 검수 중 |
 |  | `APPROVED` | 승인 |
 |  | `REJECTED` | 반려 |
 | `status` | `VISIBLE` | 노출 |
 |  | `HIDDEN` | 미노출 |
 
-Partner Actor가 신규 등록하면 검수 상태는 `PENDING`이다. Partner Actor는 노출 상태만 바꿀 수 있고 검수 상태를 승인할 수 없다. 반려 처리에는 사유가 필요하다.
+Partner Actor가 신규 등록하면 검수 상태는 `REVIEW_REQUESTED`이다. Staff는 `REVIEW_REQUESTED -> IN_REVIEW -> APPROVED/REJECTED` 순서로만 변경한다. Partner Actor는 노출 상태만 바꿀 수 있고 검수 상태를 승인할 수 없다. 반려 처리에는 사유가 필요하다.
 
 ### 핵심 규칙
 
 - Specialist는 반드시 하나의 Partner에 속한다.
-- `license_number`는 선택값이다. 값이 있으면 숫자로 정규화하며 서비스 전체에서 unique다.
-- 스페셜리스트 분야는 필수이고 코드 목록은 `SpecialistField` enum이 기준이다.
-- 시술 분야 Category는 최대 5개며 첫 항목을 primary로 저장한다.
-- 학력·경력·활동사항은 각 20개, 항목당 1,000자까지 JSON 배열로 저장한다.
-- soft delete 시 상태를 `HIDDEN`으로 바꾸고 연결 미디어와 Category 할당을 정리한다.
+- 전문가 분야는 필수 단일 값이며 코드 목록은 `SpecialistField` enum이 기준이다.
+- `career_started_at`은 총 경력의 기준이 되는 시작일이며 미래 날짜를 허용하지 않는다.
+- 제공 시술은 업체의 활성 `PartnerOption`을 `SpecialistOption`으로 연결하며 별도 전문가 Category를 중복 저장하지 않는다.
+- 근무시간은 `INHERIT_PARTNER_HOURS` 또는 `CUSTOM_HOURS`이며 개별 근무시간은 업체 운영시간을 벗어날 수 없다.
+- 전문가별 휴무 정책은 근무시간 방식과 무관하게 추가 적용한다.
+- 전문가 정렬 순서는 등록·수정 폼에서 받지 않는다. 신규 전문가는 해당 업체 목록의 마지막 순서로 자동 등록하고, 별도 목록 정렬 기능에서만 변경한다.
+- soft delete 시 상태를 `HIDDEN`으로 바꾸고 연결 미디어를 정리한다. 옵션 연결은 이력 보존을 위해 유지하지만 활성 조회에서는 제외한다.
 
 ### 미디어 공개 범위
 
 | 컬렉션 | Staff | 소속 Partner | User 앱 공개 |
 |---|---:|---:|---:|
-| `profile_image` | O | O | 승인+노출일 때 O |
-| `license_image` | O | O | X |
-| `specialist_certificate_image` | O | O | X |
+| `profile_image` (최대 3장) | O | O | 승인+노출일 때 O |
+| `certification_image` (최대 5장) | O | O | X |
 
 ## Category
 
 - 도메인: `PARTNER_EVALUATION`, `TALK`, `PARTNER`, `FAQ`
 - 상태: `ACTIVE`, `INACTIVE`
-- 파트너 카테고리는 `PARTNER` domain의 1뎁스 업체 분류다.
-- 파트너·스페셜리스트는 1뎁스, 이벤트·후기는 3뎁스 카테고리를 복수 선택한다.
-- 파트너에 연결한 1뎁스 카테고리는 화면에서 `파트너 분류`로 부르며 대표 분류를 지정하지 않는다.
+- 파트너 카테고리는 `PARTNER` domain의 1뎁스 업체 분류이며 업체당 하나를 선택한다.
+- 업체 분류 아래 2뎁스 카테고리는 업체·전문가가 제공하는 시술 옵션을 분류한다.
+- 전문가 분야는 공통 카테고리 할당이 아니라 `SpecialistField` 단일 값으로 관리한다.
 - 같은 그룹의 루트와 같은 부모 아래 이름, 도메인 내 code는 중복할 수 없다.
 - 하위 Category는 상위 Category의 group code를 상속한다.
 - 이름이나 group이 바뀌면 모든 하위 `full_path`와 group을 동기화한다.

@@ -131,7 +131,7 @@ public class PartnerOptionForPartnerService {
 		);
 		replaceSpecialists(partner, option, value.specialists());
 		return result(option, specialistOptionRepository
-			.findByPartnerOption_IdOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()), optionCategory(option.id()));
+			.findByPartnerOption_IdAndSpecialist_DeletedAtIsNullOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()), optionCategory(option.id()));
 	}
 
 	@Transactional
@@ -220,7 +220,7 @@ public class PartnerOptionForPartnerService {
 		);
 		replaceSpecialists(partner, option, value.specialists());
 		return result(option, specialistOptionRepository
-			.findByPartnerOption_IdOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()), optionCategory(option.id()));
+			.findByPartnerOption_IdAndSpecialist_DeletedAtIsNullOrderBySpecialist_SortOrderAscSpecialist_IdAsc(option.id()), optionCategory(option.id()));
 	}
 
 	@Transactional
@@ -268,7 +268,8 @@ public class PartnerOptionForPartnerService {
 		if (partner.status() == PartnerStatus.WITHDRAWN) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "A withdrawn partner cannot edit options.");
 		}
-		if (partner.allowStatus() == PartnerAllowStatus.PENDING) {
+		if (partner.allowStatus() == PartnerAllowStatus.REVIEW_REQUESTED
+			|| partner.allowStatus() == PartnerAllowStatus.IN_REVIEW) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "Options cannot be changed while review is pending.");
 		}
 		return partner;
@@ -385,9 +386,9 @@ public class PartnerOptionForPartnerService {
 		List<SpecialistOption> assignments = commands.stream()
 			.map(command -> new SpecialistOption(
 				specialists.get(command.specialistId()),
-				option,
-				command.regularPriceOverride(),
-				command.salePriceOverride()
+					option,
+					command.regularPriceOverride(),
+					command.salePriceOverride()
 			))
 			.toList();
 		specialistOptionRepository.saveAll(assignments);
@@ -398,7 +399,7 @@ public class PartnerOptionForPartnerService {
 			return List.of();
 		}
 		Map<Long, List<SpecialistOption>> byOptionId = specialistOptionRepository
-			.findByPartnerOption_IdIn(options.stream().map(PartnerOption::id).toList())
+				.findByPartnerOption_IdInAndSpecialist_DeletedAtIsNull(options.stream().map(PartnerOption::id).toList())
 			.stream()
 			.collect(Collectors.groupingBy(
 				assignment -> assignment.partnerOption().id(),
@@ -437,12 +438,12 @@ public class PartnerOptionForPartnerService {
 				.map(assignment -> new SpecialistPriceResult(
 					assignment.specialist().id(),
 					assignment.specialist().name(),
-					assignment.regularPriceOverride(),
-					assignment.salePriceOverride(),
-					assignment.effectiveRegularPrice(),
+						assignment.regularPriceOverride(),
+						assignment.salePriceOverride(),
+						assignment.effectiveRegularPrice(),
 					assignment.effectiveSalePrice(),
 					assignment.effectivePrice(),
-					assignment.effectiveDiscountRate()
+						assignment.effectiveDiscountRate()
 				))
 				.toList(),
 			option.createdAt(),

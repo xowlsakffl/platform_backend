@@ -1,6 +1,7 @@
 package com.platform.application.partner;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -128,5 +129,44 @@ class PartnerSchedulePolicyValidatorTests {
 		assertThat(validator.normalizeHolidayPolicy(policy, true))
 			.contains("\"regular_rules\":[]")
 			.contains("\"substitute_holidays\":[]");
+	}
+
+	@Test
+	void acceptsSpecialistHoursInsidePartnerHours() {
+		String partnerHours = validator.normalizeOperationHours(schedule("10:00", "19:00"), true);
+		String specialistHours = validator.normalizeOperationHours(schedule("11:00", "18:00"), true);
+
+		validator.assertWithinPartnerHours(specialistHours, partnerHours);
+	}
+
+	@Test
+	void samplePartnerHoursUseTheDetailedScheduleFormat() {
+		String partnerHours = validator.normalizeOperationHours(
+			PartnerSampleBootstrapService.OPERATION_HOURS,
+			true
+		);
+
+		assertThatCode(() -> validator.assertWithinPartnerHours(partnerHours, partnerHours))
+			.doesNotThrowAnyException();
+	}
+
+	@Test
+	void rejectsSpecialistHoursOutsidePartnerHours() {
+		String partnerHours = validator.normalizeOperationHours(schedule("10:00", "19:00"), true);
+		String specialistHours = validator.normalizeOperationHours(schedule("09:00", "18:00"), true);
+
+		assertThatThrownBy(() -> validator.assertWithinPartnerHours(specialistHours, partnerHours))
+			.isInstanceOf(ApiException.class)
+			.hasMessageContaining("업체 운영시간 안에서만");
+	}
+
+	private String schedule(String start, String end) {
+		return """
+			{
+			  "mon":{"is_closed":false,"periods":[{"start":"%s","end":"%s"}],"breaks":[]},
+			  "tue":{"is_closed":true},"wed":{"is_closed":true},"thu":{"is_closed":true},
+			  "fri":{"is_closed":true},"sat":{"is_closed":true},"sun":{"is_closed":true}
+			}
+			""".formatted(start, end);
 	}
 }

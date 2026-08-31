@@ -43,8 +43,20 @@ import org.springframework.util.StringUtils;
 @Profile("local")
 public class PartnerSampleBootstrapService {
 
-	private static final String OPERATION_HOURS = """
+	private static final String LEGACY_OPERATION_HOURS = """
 		{"monday":"09:30-18:30","tuesday":"09:30-18:30","wednesday":"09:30-18:30","thursday":"09:30-18:30","friday":"09:30-20:00","saturday":"09:30-14:00","sunday":"휴무"}
+		""".trim();
+	static final String OPERATION_HOURS = """
+		{
+		  "timezone":"Asia/Seoul",
+		  "mon":{"is_closed":false,"is_24_hours":false,"periods":[{"start":"09:30","end":"18:30","ends_next_day":false}],"breaks":[]},
+		  "tue":{"is_closed":false,"is_24_hours":false,"periods":[{"start":"09:30","end":"18:30","ends_next_day":false}],"breaks":[]},
+		  "wed":{"is_closed":false,"is_24_hours":false,"periods":[{"start":"09:30","end":"18:30","ends_next_day":false}],"breaks":[]},
+		  "thu":{"is_closed":false,"is_24_hours":false,"periods":[{"start":"09:30","end":"18:30","ends_next_day":false}],"breaks":[]},
+		  "fri":{"is_closed":false,"is_24_hours":false,"periods":[{"start":"09:30","end":"20:00","ends_next_day":false}],"breaks":[]},
+		  "sat":{"is_closed":false,"is_24_hours":false,"periods":[{"start":"09:30","end":"14:00","ends_next_day":false}],"breaks":[]},
+		  "sun":{"is_closed":true,"is_24_hours":false,"periods":[],"breaks":[]}
+		}
 		""".trim();
 
 	private static final List<PartnerSample> SAMPLES = List.of(
@@ -66,7 +78,7 @@ public class PartnerSampleBootstrapService {
 		),
 		new PartnerSample(
 			"[샘플] 청담 벨라왁싱", "서울 강남구 압구정로 303", "2층", "37.5250", "127.0472",
-			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			PartnerAllowStatus.REVIEW_REQUESTED, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
 			"박청담", "partner03@platform.local", "platform_partner_03", "1209900003",
 			"KB_WAXING",
 			List.of("PRIVATE_ROOM", "AFTERCARE", "PARKING"),
@@ -90,7 +102,7 @@ public class PartnerSampleBootstrapService {
 		),
 		new PartnerSample(
 			"[샘플] 잠실 브로우랩", "서울 송파구 올림픽로 606", "3층", "37.5133", "127.1002",
-			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
+			PartnerAllowStatus.IN_REVIEW, PartnerStatus.ACTIVE, SampleAccountState.CONNECTED_ACTIVE,
 			"한잠실", "partner06@platform.local", "platform_partner_06", "1209900006",
 			"KB_SEMI_PERMANENT",
 			List.of("NIGHT_OPERATION", "WOMEN_SPECIALIST", "PARKING"),
@@ -122,7 +134,7 @@ public class PartnerSampleBootstrapService {
 		),
 		new PartnerSample(
 			"[샘플] 여의도 메이크업룸", "서울 영등포구 국제금융로 1010", "10층", "37.5249", "126.9252",
-			PartnerAllowStatus.PENDING, PartnerStatus.ACTIVE, SampleAccountState.INVITED,
+			PartnerAllowStatus.REVIEW_REQUESTED, PartnerStatus.ACTIVE, SampleAccountState.INVITED,
 			"서여의", "partner10@platform.local", "platform_partner_10", "1209900010",
 			"KB_MAKEUP",
 			List.of("WEEKEND_OPERATION"),
@@ -190,6 +202,7 @@ public class PartnerSampleBootstrapService {
 				.findByBusinessRegistration_BusinessNumber(sample.businessNumber())
 				.orElse(null);
 			if (existingPartner != null) {
+				migrateLegacyOperationHours(existingPartner);
 				ensureCategory(existingPartner, sample, categories);
 				if (existingPartner.assignedStaff() == null && defaultAssignedStaff != null) {
 					existingPartner.assignStaff(defaultAssignedStaff);
@@ -204,6 +217,14 @@ public class PartnerSampleBootstrapService {
 			createdCount++;
 		}
 		return createdCount;
+	}
+
+	private void migrateLegacyOperationHours(Partner partner) {
+		String operationHours = partner.operationHours();
+		if (LEGACY_OPERATION_HOURS.equals(operationHours)
+			|| StringUtils.hasText(operationHours) && operationHours.contains("\"monday\"")) {
+			partner.changeOperationHours(OPERATION_HOURS);
+		}
 	}
 
 	public int sampleCount() {
@@ -235,6 +256,9 @@ public class PartnerSampleBootstrapService {
 		partner.replaceBusinessRegistration(createBusinessRegistration(sequence, sample));
 		partner.replaceFeatures(resolveCodes(sample.featureCodes(), features));
 		partner.assignStaff(assignedStaff);
+		if (sample.allowStatus() == PartnerAllowStatus.IN_REVIEW && assignedStaff != null) {
+			partner.startReview(assignedStaff);
+		}
 
 		Partner savedPartner = partnerRepository.saveAndFlush(partner);
 		ensureCategory(savedPartner, sample, categories);

@@ -134,8 +134,8 @@ account_staffs
 | 권한 | 변경 대상 |
 |---|---|
 | `platform.partner.account_status.update` | 파트너 관리자 로그인 가능·로그인 차단 |
-| `platform.partner.allow_status.update` | 파트너 신청·승인·반려 |
-| `platform.partner.status.update` | 파트너 정상·운영중지·탈퇴 |
+| `platform.partner.allow_status.update` | 파트너 검수 신청·검수 중·승인·반려 |
+| `platform.partner.status.update` | 파트너 정상·운영중지 (탈퇴는 별도 절차) |
 
 `platform.partner.update`는 파트너 기본정보 수정 권한이며 위 상태 변경 권한을 대신하지 않는다. 일반 수정 API에 상태 필드가 포함된 경우에도 해당 전용 권한을 추가로 검사한다. `platform.super_admin` 역할은 마이그레이션 시 등록된 모든 권한을 갖도록 동기화하며, 서비스 코드에서 최고관리자를 별도로 우회 처리하지 않는다.
 
