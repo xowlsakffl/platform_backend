@@ -17,12 +17,15 @@ owner_type + owner_id + collection
 | `CATEGORY` | `icon` | 1 | JPG/PNG/WebP, 5MB |
 | `SPECIALIST` | `profile_image` | 3 | JPG/PNG/WebP, 장당 5MB, 첫 번째 이미지가 대표 |
 | `SPECIALIST` | `certification_image` | 5 | JPG/PNG/WebP, 장당 10MB |
+| `NOTICE` | `attachment` | 5 | JPG/PNG/WebP/PDF/DOCX/XLSX/PPTX, 파일당 20MB |
+| `NOTICE` | `editor_image` | 30 | JPG/PNG/WebP, 장당 5MB |
+| `NOTICE_TEMP` | `editor_image` | 임시 | 업로드 직원 소유, 저장 시 공지 귀속, 24시간 후 미사용 파일 정리 |
 
 저장 루트는 `app.media.storage.root`이며 기본값은 `./storage/media`다. 파일명은 서버가 생성하고 원본 파일명은 메타데이터로 보존한다.
 
 ## 쓰기 책임
 
-공통 미디어 CRUD Controller는 두지 않는다. Partner, Category, Specialist의 생성·수정 API가 소유자와 컬렉션 정책을 알고 `MediaCommandService`를 호출한다.
+공통 미디어 CRUD Controller는 두지 않는다. Partner, Category, Specialist, Notice의 생성·수정 API가 소유자와 컬렉션 정책을 알고 `MediaCommandService`를 호출한다.
 
 - 단건: 새 파일, 유지할 기존 ID, 명시적 삭제를 구분한다.
 - 다건: 유지할 기존 ID와 신규 파일을 합쳐 최대 개수를 검증한다.
@@ -44,6 +47,8 @@ Partner 또는 Specialist soft delete도 연결 Media를 soft delete하고 커�
 ## 조회 경로
 
 ### Staff
+
+공지 파일은 공통 조회 경로로 제공하지 않는다. Staff/Partner 모두 [공지 전용 파일 API](./notices.md)를 사용하며, Partner 요청은 게시기간과 공개 여부를 검사한다.
 
 `GET /api/v1/staff/media/{id}/content`
 

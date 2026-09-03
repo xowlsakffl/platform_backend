@@ -43,7 +43,10 @@ public class LocalMediaStorage implements MediaStorage {
 		"image/png", "png",
 		"image/webp", "webp",
 		"image/gif", "gif",
-		"application/pdf", "pdf"
+		"application/pdf", "pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation", "pptx"
 	);
 
 	private final Path root;
@@ -201,7 +204,27 @@ public class LocalMediaStorage implements MediaStorage {
 		if (startsWithAscii(header, "%PDF-")) {
 			return "application/pdf";
 		}
+		if (startsWith(header, 0x50, 0x4B, 0x03, 0x04)) {
+			return detectOfficeDocument(path);
+		}
 		throw invalid("허용되지 않거나 파일 형식을 확인할 수 없습니다.");
+	}
+
+	private String detectOfficeDocument(Path path) throws IOException {
+		try (var zip = new java.util.zip.ZipFile(path.toFile())) {
+			if (zip.size() > 10_000 || zip.getEntry("[Content_Types].xml") == null) throw invalid("지원하지 않는 문서 형식입니다.");
+			var entries = zip.entries();
+			while (entries.hasMoreElements()) {
+				var entry = entries.nextElement();
+				if (entry.getName().toLowerCase(Locale.ROOT).endsWith("vbaproject.bin")) throw invalid("매크로가 포함된 문서는 등록할 수 없습니다.");
+			}
+			if (zip.getEntry("word/document.xml") != null) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+			if (zip.getEntry("xl/workbook.xml") != null) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+			if (zip.getEntry("ppt/presentation.xml") != null) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+		} catch (java.util.zip.ZipException exception) {
+			throw invalid("문서 파일이 손상되었거나 올바른 형식이 아닙니다.");
+		}
+		throw invalid("DOCX, XLSX, PPTX 문서만 등록할 수 있습니다.");
 	}
 
 	private void validateContentType(String claimedContentType, String detectedContentType) {

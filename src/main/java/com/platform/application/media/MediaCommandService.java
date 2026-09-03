@@ -349,6 +349,15 @@ public class MediaCommandService {
 		);
 	}
 
+	@Transactional(propagation = Propagation.MANDATORY)
+	public MediaResult append(MediaOwnerType ownerType, Long ownerId, String collection, MediaFileSource file) {
+		collectionPolicy.validateCollection(ownerType, collection);
+		StoredMediaFile stored = store(file);
+		registerRollbackCleanup(stored.path());
+		collectionPolicy.validateFile(ownerType, collection, stored);
+		return readService.toResult(mediaRepository.saveAndFlush(createMedia(ownerType, ownerId, collection, stored, 0, false, null)));
+	}
+
 	private void softDelete(List<Media> media) {
 		media.forEach(this::softDelete);
 	}

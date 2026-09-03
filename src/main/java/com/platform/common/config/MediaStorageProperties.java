@@ -17,7 +17,10 @@ public class MediaStorageProperties {
 		"image/png",
 		"image/webp",
 		"image/gif",
-		"application/pdf"
+		"application/pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	));
 
 	public String root() {

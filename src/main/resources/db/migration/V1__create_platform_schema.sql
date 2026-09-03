@@ -470,8 +470,8 @@ CREATE TABLE `operation_history_changes` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `operation_history_id` bigint NOT NULL,
   `field_key` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `before_value` text COLLATE utf8mb4_unicode_ci,
-  `after_value` text COLLATE utf8mb4_unicode_ci,
+  `before_value` mediumtext COLLATE utf8mb4_unicode_ci,
+  `after_value` mediumtext COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
@@ -530,6 +530,30 @@ CREATE TABLE `password_reset_tokens` (
   UNIQUE KEY `password_reset_tokens_actor_email_unique` (`actor_type`,`email`),
   KEY `password_reset_tokens_expires_at_index` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Actor 공통 비밀번호 재설정 토큰 테이블';
+
+CREATE TABLE `notices` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `version` bigint NOT NULL DEFAULT 0,
+  `title` varchar(100) NOT NULL,
+  `content` mediumtext NOT NULL,
+  `plain_content` mediumtext NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `publish_start_at` datetime(6) DEFAULT NULL,
+  `publish_end_at` datetime(6) DEFAULT NULL,
+  `is_pinned` tinyint(1) NOT NULL DEFAULT 0,
+  `is_popup` tinyint(1) NOT NULL DEFAULT 0,
+  `author_staff_id` bigint NOT NULL,
+  `author_name` varchar(100) NOT NULL,
+  `revision_at` datetime(6) NOT NULL,
+  `deleted_at` datetime(6) DEFAULT NULL,
+  `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  KEY `notices_publication_idx` (`deleted_at`,`status`,`publish_start_at`,`publish_end_at`),
+  KEY `notices_order_idx` (`deleted_at`,`is_pinned`,`created_at`,`id`),
+  KEY `notices_popup_idx` (`deleted_at`,`status`,`is_popup`,`publish_end_at`),
+  CONSTRAINT `fk_notices_author` FOREIGN KEY (`author_staff_id`) REFERENCES `account_staffs` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO staff_roles (name, display_name) VALUES
     ('platform.super_admin', '최고 관리자'),

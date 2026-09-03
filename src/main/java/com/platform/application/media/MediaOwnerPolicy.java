@@ -59,7 +59,7 @@ class MediaOwnerPolicy {
 					.filter(specialist -> specialist.partner().status() == PartnerStatus.ACTIVE)
 					.filter(specialist -> specialist.partner().allowStatus() == PartnerAllowStatus.APPROVED)
 					.isPresent();
-			case PARTNER, PARTNER_BUSINESS_REGISTRATION -> false;
+			case PARTNER, PARTNER_BUSINESS_REGISTRATION, NOTICE, NOTICE_TEMP -> false;
 		};
 		if (!readable) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "공개된 미디어를 찾을 수 없습니다.");
@@ -73,6 +73,7 @@ class MediaOwnerPolicy {
 				.existsByIdAndPartner_DeletedAtIsNull(ownerId);
 			case CATEGORY -> categoryRepository.existsById(ownerId);
 			case SPECIALIST -> specialistRepository.existsByIdAndDeletedAtIsNullAndPartner_DeletedAtIsNull(ownerId);
+			case NOTICE, NOTICE_TEMP -> false;
 		};
 		if (!exists) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "미디어 연결 대상을 찾을 수 없습니다.");
@@ -84,6 +85,7 @@ class MediaOwnerPolicy {
 			case PARTNER, PARTNER_BUSINESS_REGISTRATION -> AccessPermissions.PARTNER_SHOW;
 			case CATEGORY -> AccessPermissions.CATEGORY_MANAGE;
 			case SPECIALIST -> AccessPermissions.SPECIALIST_SHOW;
+			case NOTICE, NOTICE_TEMP -> AccessPermissions.NOTICE_SHOW;
 		};
 	}
 

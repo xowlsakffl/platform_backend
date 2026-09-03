@@ -17,6 +17,12 @@ public class MediaCollectionPolicy {
 	public static final String CATEGORY_ICON = "icon";
 	public static final String SPECIALIST_PROFILE_IMAGE = "profile_image";
 	public static final String SPECIALIST_CERTIFICATION_IMAGE = "certification_image";
+	public static final String NOTICE_ATTACHMENT = "attachment";
+	public static final String NOTICE_EDITOR_IMAGE = "editor_image";
+	private static final Set<String> NOTICE_DOCUMENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp", "application/pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation");
 
 	private static final long CATEGORY_ICON_MAX_SIZE = 5L * 1024 * 1024;
 	private static final long PARTNER_LOGO_MAX_SIZE = 5L * 1024 * 1024;
@@ -42,6 +48,8 @@ public class MediaCollectionPolicy {
 			case PARTNER_BUSINESS_REGISTRATION -> PARTNER_BUSINESS_REGISTRATION_FILE.equals(collection);
 			case CATEGORY -> CATEGORY_ICON.equals(collection);
 			case SPECIALIST -> SPECIALIST_COLLECTIONS.contains(collection);
+			case NOTICE -> Set.of(NOTICE_ATTACHMENT, NOTICE_EDITOR_IMAGE).contains(collection);
+			case NOTICE_TEMP -> NOTICE_EDITOR_IMAGE.equals(collection);
 		};
 		if (!valid) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "해당 도메인에서 사용할 수 없는 미디어 컬렉션입니다.");
@@ -60,6 +68,13 @@ public class MediaCollectionPolicy {
 			);
 			case CATEGORY -> validateCategoryIcon(file);
 			case SPECIALIST -> validateSpecialistFile(collection, file);
+			case NOTICE, NOTICE_TEMP -> {
+				boolean image = NOTICE_EDITOR_IMAGE.equals(collection);
+				requireTypeAndSize(file, image ? APP_IMAGE_TYPES : NOTICE_DOCUMENT_TYPES,
+					(image ? 5L : 20L) * 1024 * 1024,
+					image ? "본문 이미지는 JPG, PNG, WebP 5MB 이하만 가능합니다."
+						: "첨부파일은 JPG, PNG, WebP, PDF, DOCX, XLSX, PPTX 20MB 이하만 가능합니다.");
+			}
 		}
 	}
 

@@ -26,10 +26,10 @@ public class OperationHistoryChange extends BaseTimeEntity {
 	@Column(name = "field_key", nullable = false, length = 80)
 	private String fieldKey;
 
-	@Column(name = "before_value", columnDefinition = "text")
+	@Column(name = "before_value", columnDefinition = "mediumtext")
 	private String beforeValue;
 
-	@Column(name = "after_value", columnDefinition = "text")
+	@Column(name = "after_value", columnDefinition = "mediumtext")
 	private String afterValue;
 
 	protected OperationHistoryChange() {

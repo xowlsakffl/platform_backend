@@ -452,12 +452,38 @@ Table operation_history_changes {
   id bigint [pk, increment]
   operation_history_id bigint [not null]
   field_key varchar(80) [not null]
-  before_value text
-  after_value text
+  before_value mediumtext
+  after_value mediumtext
   created_at timestamp [not null]
   updated_at timestamp [not null]
 }
 
+Table notices {
+  id bigint [pk, increment]
+  version bigint [not null, default: 0]
+  title varchar(100) [not null]
+  content mediumtext [not null]
+  plain_content mediumtext [not null]
+  status varchar(20) [not null]
+  publish_start_at datetime
+  publish_end_at datetime
+  is_pinned boolean [not null, default: false]
+  is_popup boolean [not null, default: false]
+  author_staff_id bigint [not null]
+  author_name varchar(100) [not null]
+  revision_at datetime [not null]
+  deleted_at datetime
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (deleted_at, status, publish_start_at, publish_end_at)
+    (deleted_at, is_pinned, created_at, id)
+    (deleted_at, status, is_popup, publish_end_at)
+  }
+}
+
+Ref: notices.author_staff_id > account_staffs.id
 Ref: staff_role_permission_assignments.staff_role_id > staff_roles.id [delete: cascade]
 Ref: staff_role_permission_assignments.staff_permission_id > staff_permissions.id [delete: cascade]
 Ref: staff_role_assignments.account_staff_id > account_staffs.id [delete: cascade]

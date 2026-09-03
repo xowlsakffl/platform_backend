@@ -58,6 +58,14 @@ public class MediaReadService {
 	}
 
 	@Transactional(readOnly = true)
+	public Map<Long, List<MediaResult>> listByOwners(MediaOwnerType ownerType, Set<Long> ownerIds, String collection) {
+		if (ownerIds == null || ownerIds.isEmpty()) return Map.of();
+		return mediaRepository.findByOwnerTypeAndOwnerIdInAndCollectionAndDeletedAtIsNullOrderByOwnerIdAscSortOrderAscIdAsc(
+			ownerType, ownerIds, collection).stream().map(this::toResult)
+			.collect(java.util.stream.Collectors.groupingBy(MediaResult::ownerId, LinkedHashMap::new, java.util.stream.Collectors.toList()));
+	}
+
+	@Transactional(readOnly = true)
 	public Map<Long, MediaResult> primaries(MediaOwnerType ownerType, Set<Long> ownerIds, String collection) {
 		if (ownerIds == null || ownerIds.isEmpty()) {
 			return Map.of();

@@ -106,6 +106,11 @@ public class Media extends BaseTimeEntity {
 		this.collection = collection;
 	}
 
+	public void assignOwner(MediaOwnerType ownerType, Long ownerId) {
+		this.ownerType = ownerType;
+		this.ownerId = ownerId;
+	}
+
 	public void changeMetadata(String metadata) {
 		this.metadata = metadata;
 	}

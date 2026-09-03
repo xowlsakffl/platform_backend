@@ -20,6 +20,12 @@ public class MediaLifecycleService {
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
+	public void softDelete(Media media) {
+		media.softDelete();
+		fileCleanup.deleteAfterCommit(List.of(media.path()));
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
 	public void softDeleteOwnedMedia(MediaOwnerType ownerType, Long ownerId) {
 		List<Media> mediaItems = mediaRepository.findByOwnerTypeAndOwnerIdAndDeletedAtIsNull(ownerType, ownerId);
 		for (Media media : mediaItems) {

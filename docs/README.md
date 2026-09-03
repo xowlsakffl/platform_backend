@@ -16,6 +16,7 @@
 - [업체 특징](./partner-feature.md)
 - [미디어](./media.md)
 - [운영 이력](./operation-history.md)
+- [공지사항](./notices.md)
 - [Redis 캐시](./cache.md)
 - [현재 DB 스키마](./schema.dbml)
 

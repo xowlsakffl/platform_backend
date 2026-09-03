@@ -17,7 +17,7 @@ operation_history_changes
   after_value
 ```
 
-현재 target은 `PARTNER`, `SPECIALIST`, `CATEGORY`다.
+현재 target은 `PARTNER`, `PARTNER_ACCOUNT`, `SPECIALIST`, `CATEGORY`, `NOTICE`다. 공지 본문을 포함한 전후 값은 `mediumtext`로 보존한다. 공지 이력과 파일 보존 범위는 [공지사항](./notices.md)을 따른다.
 
 ## 기록 기준
 

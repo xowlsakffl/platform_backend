@@ -20,6 +20,7 @@ public class OperationHistory extends BaseTimeEntity {
 	public static final String TARGET_PARTNER_ACCOUNT = "PARTNER_ACCOUNT";
 	public static final String TARGET_CATEGORY = "CATEGORY";
 	public static final String TARGET_SPECIALIST = "SPECIALIST";
+	public static final String TARGET_NOTICE = "NOTICE";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -23,6 +23,10 @@ public final class AccessPermissions {
 	public static final String SPECIALIST_DELETE = "platform.specialist.delete";
 
 	public static final String CATEGORY_MANAGE = "platform.category.manage";
+	public static final String NOTICE_SHOW = "platform.notice.show";
+	public static final String NOTICE_CREATE = "platform.notice.create";
+	public static final String NOTICE_UPDATE = "platform.notice.update";
+	public static final String NOTICE_DELETE = "platform.notice.delete";
 
 	private AccessPermissions() {
 	}

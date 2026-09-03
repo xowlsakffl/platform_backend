@@ -70,7 +70,7 @@ public class PartnerMediaForPartnerService {
 			case PARTNER_BUSINESS_REGISTRATION -> partner.businessRegistration() != null
 				&& partner.businessRegistration().id().equals(media.ownerId())
 				&& MediaCollectionPolicy.PARTNER_BUSINESS_REGISTRATION_FILE.equals(media.collection());
-			case CATEGORY, SPECIALIST -> false;
+			case CATEGORY, SPECIALIST, NOTICE, NOTICE_TEMP -> false;
 		};
 	}
 }
