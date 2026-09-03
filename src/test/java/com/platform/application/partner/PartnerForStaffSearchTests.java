@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.mock;
 
 import com.platform.application.partner.query.SearchPartnersQuery;
+import com.platform.domain.account.AccountPartnerStatus;
 import com.platform.domain.partner.Partner;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
 import java.lang.reflect.Method;
@@ -37,8 +38,37 @@ class PartnerForStaffSearchTests {
 			List.of(),
 			List.of(),
 			List.of(),
-			List.of(),
 			false,
+			null,
+			null,
+			null,
+			null,
+			null,
+			"desc",
+			1,
+			15
+		);
+		@SuppressWarnings("unchecked")
+		Specification<Partner> specification = (Specification<Partner>) method.invoke(service, query);
+
+		assertDoesNotThrow(() -> partnerRepository.findAll(specification, PageRequest.of(0, 15)));
+	}
+
+	@Test
+	void accountStatusAndDormantFiltersBuildAValidJpaQuery() throws Exception {
+		PartnerForStaffService service = serviceWithMockedDependencies();
+		Method method = PartnerForStaffService.class.getDeclaredMethod(
+			"specification",
+			SearchPartnersQuery.class
+		);
+		method.setAccessible(true);
+		SearchPartnersQuery query = new SearchPartnersQuery(
+			null,
+			List.of(),
+			List.of(AccountPartnerStatus.ACTIVE),
+			List.of(),
+			List.of(),
+			true,
 			null,
 			null,
 			null,

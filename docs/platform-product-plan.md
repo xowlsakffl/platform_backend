@@ -22,7 +22,7 @@
 - 이벤트 관리
 - 상담/예약 요청 확인 및 처리
 
-`AccountPartner`는 로그인 계정이고 `Partner`는 해당 계정이 운영하는 업체정보다. 파트너와 스태프는 이메일이 아닌 `login_id`로 로그인한다. 파트너 계정에는 담당자명이나 업체명을 중복 저장하지 않고 화면 표시명은 `Partner.name`을 사용한다.
+`AccountPartner`는 로그인 계정이고 `Partner`는 업체정보다. 둘은 `PartnerMembership`으로 연결하며 한 계정은 여러 업체를 운영할 수 있다. 파트너와 스태프는 이메일이 아닌 `login_id`로 로그인한다. 계정에는 담당자명이나 업체명을 중복 저장하지 않고, 업체 화면 표시명은 선택한 `Partner.name`을 사용한다.
 
 ### User
 
@@ -32,7 +32,20 @@
 
 ## 3. 입점 흐름
 
-직접 입점 요청 화면은 계정정보부터 받되 업체명은 계정 단계에서 받지 않는다. 사용자가 첫 업체 기본정보까지 입력한 시점에 `AccountPartner`와 `Partner`를 한 트랜잭션으로 생성한다. 최초 `Partner.allow_status`는 `DRAFT`다.
+직접 입점은 계정을 먼저 만든 뒤 업체를 등록하는 순서다. 계정 가입 단계에서는 업체명을 받지 않고 `AccountPartner`만 생성한다. 로그인 후 기본정보를 제출하면 `Partner`와 소유자 `PartnerMembership`을 한 트랜잭션으로 생성하며, 외부에 노출되는 최초 `Partner.allow_status`는 `REVIEW_REQUESTED`다.
+
+```text
+파트너 포털 (인증 불필요)
+  |- 공지사항·FAQ 조회
+  |- 파트너 가입 -> 로그인 -> 내 업체 목록에서 업체 선택 -> 업체 관리자
+  `- 업체 신규 등록 -> 로그인 필요 -> 업체 등록
+```
+
+파트너 포털은 인증 없이 접근할 수 있는 공개 진입 화면이며 공지사항과 FAQ를 제공한다. 비로그인 상태의 내 업체 영역에는 로그인 안내를 표시하고, 내 업체 조회·업체 등록·업체 관리자 진입은 인증된 파트너만 사용할 수 있다. 로그인 후에도 등록 업체 수와 관계없이 포털을 먼저 표시한다. 별도의 업체 선택 전용 페이지는 두지 않는다. 업체 관리자에 진입한 뒤 계정에 연결된 업체가 2개 이상일 때만 헤더에 업체 전환 선택기를 표시하고, 1개인 경우에는 전환 UI를 표시하지 않는다.
+
+파트너 포털 상단 배너는 여러 건을 순환하는 슬라이드로 제공한다. Staff가 배너 이미지, 제목, 설명, 연결 URL, 노출 시작·종료 시각, 노출상태와 정렬순서를 관리하며, 파트너 포털은 현재 노출기간에 해당하는 활성 배너만 정렬순서대로 조회한다. 배너가 한 건이면 자동 전환과 페이지 표시를 숨기고, 여러 건이면 자동 전환·이전·다음·페이지 표시를 제공한다. 배너 관리 권한과 변경 이력은 Staff 기준으로 기록한다.
+
+업체별 API는 URL의 `partnerId`와 인증 계정의 활성 `PartnerMembership`을 매 요청마다 검증한다. 프론트에서 선택한 업체 ID를 권한 근거로 사용하지 않는다. 업체의 검수·운영상태, 정보, 옵션과 전문가는 다른 업체와 독립적으로 관리한다.
 
 ```text
 DRAFT -> REVIEW_REQUESTED -> IN_REVIEW -> APPROVED
@@ -45,7 +58,7 @@ DRAFT -> REVIEW_REQUESTED -> IN_REVIEW -> APPROVED
 - `APPROVED`: 입점 승인
 - `REJECTED`: 반려 사유 확인 후 수정·재신청 가능
 
-파트너는 `DRAFT` 또는 `REJECTED`에서만 입점정보를 수정한다. `REVIEW_REQUESTED`, `IN_REVIEW`에서는 검수 대상이 바뀌지 않도록 수정할 수 없다.
+파트너는 모든 검수상태에서 업체 정보를 수정할 수 있다. 운영시간, 이미지, 시술 옵션, 전문가처럼 검수 대상이 아닌 노출정보 수정은 검수상태에 영향을 주지 않는다. `IN_REVIEW` 또는 `APPROVED`에서 대표 업체명, 업종, 주소, 대표 연락처 또는 사업자정보를 변경하면 기존 검수 결과를 무효화하고 `REVIEW_REQUESTED`로 되돌린다.
 
 스태프는 `REVIEW_REQUESTED`를 `IN_REVIEW`로 가져온 뒤 `APPROVED` 또는 `REJECTED`로 변경한다. 검수 시작 시 담당 Staff와 시작 시각을 저장하고, 반려 사유는 필수다. 별도의 입점신청 데이터와 메뉴를 만들지 않고 업체 목록에서 `allow_status`로 구분한다. `DRAFT`는 기본 목록에서 제외하고 명시적인 필터가 있을 때만 조회한다.
 
@@ -55,29 +68,33 @@ DRAFT -> REVIEW_REQUESTED -> IN_REVIEW -> APPROVED
 - `Partner.status`: 업체 운영상태
 - `AccountPartner.status`: 파트너 계정상태
 
-### 내부관리자 등록
+### 업체 소유 계정
 
-스태프가 업체를 대신 등록할 때는 `Partner`만 먼저 생성하고 `AccountPartner`는 생성하지 않는다. `Partner.registration_source`는 `STAFF_CREATED`로 기록하고 생성한 스태프 ID를 보관한다.
+업체는 가입된 파트너 계정이 직접 등록한다. Staff는 업체를 대신 생성하지 않으며, 모든 `Partner`는 생성 트랜잭션에서 등록 계정과 `PartnerMembership(OWNER, ACTIVE)`으로 연결된다. 따라서 업체에 계정 미연결 상태나 계정 생성 초대 흐름은 존재하지 않는다.
 
-스태프 등록 시 업체의 대표 전화번호와 대표 이메일을 `partner_contacts`에 필수 연락처로 저장한다. 이 연락처는 계정정보나 계정 초대 이메일로 사용하지 않는다. 초대 수신 이메일은 발송 시 별도로 입력하고 해당 초대 이력 행에 기록한다. 재발송할 때만 직전 초대 이메일을 기본값으로 사용할 수 있다.
+업체 하나에는 활성 OWNER가 정확히 하나 존재한다. 한 `AccountPartner`는 여러 업체의 OWNER가 될 수 있으며, 업체 관리자 API는 매 요청마다 활성 멤버십을 확인한다.
 
-스태프가 이메일로 계정 초대 링크를 보내면 수신자는 링크에서 로그인 아이디, 전화번호와 비밀번호를 입력한다. 업체명과 담당자명은 받지 않는다. 수락 시점에 `AccountPartner`를 생성해 기존 `Partner`와 연결하며, 계정 이메일은 초대 수신 이메일을 사용한다. 임시 비밀번호나 비밀번호가 설정된 가계정은 발급하지 않는다.
+운영상 소유 계정을 바꿔야 할 때 Staff는 이미 가입된 활성 파트너 계정을 로그인 아이디로 조회해 소유권을 변경한다. 변경 트랜잭션에서 기존 OWNER 멤버십을 `INACTIVE`로 전환하고 대상 계정의 OWNER 멤버십을 `ACTIVE`로 생성하거나 재활성화한다. 업체 정보, 검수상태와 운영상태는 유지하며 변경 전후 로그인 아이디를 업체 운영 이력에 기록한다. 기존 계정이 소유한 다른 업체의 권한에는 영향을 주지 않는다.
 
-초대 링크는 72시간 동안 유효하고 한 번만 사용할 수 있다. 원본 토큰은 저장하지 않고 SHA-256 해시만 저장한다.
+### 업체 등록 신청
 
-`partner_account_invitations`는 현재 초대상태만 저장하는 테이블이 아니라 초대 이력의 원본이다. 최초 발송과 재발송은 각각 새 행으로 추가한다. 신규 메일 발송에 성공한 뒤 아직 유효한 기존 초대를 `CANCELED`로 전환해 토큰을 무효화하고 이력 화면에는 `무효처리`로 표시한다. 메일 발송이 실패하면 신규 초대만 무효화하며 기존 유효 링크는 유지한다. 이미 만료된 초대는 `PENDING` 상태와 지난 `expires_at`을 그대로 보존하고 이력 화면에서 `초대 만료`로 계산한다. 수동 취소 API는 제공하지 않는다. 향후 추가할 종합 운영 이력은 업체 전반의 변경 추적용으로 분리하며, 초대 상세 이력은 이 테이블을 기준으로 조회한다.
+파트너 업체 등록은 다음 순서로 진행한다.
 
-초대 수락은 `Partner.allow_status`를 변경하지 않는다. `DRAFT` 업체는 계정 연결 후 정보를 완성해 제출할 수 있고, 스태프가 검증까지 마친 `APPROVED` 업체는 계정 연결 후 바로 관리할 수 있다.
+1. 대표 업체 카테고리 선택
+2. 등록 방식 선택 후 사업자등록증 업로드
+3. 한 화면에서 업체 기본정보와 사업자정보를 확인·수정한 뒤 검수 신청
 
-계정 연결상태는 업체 검수상태와 별도로 다음과 같이 계산한다.
+업종을 선택하거나 사업자등록증 파일을 선택하면 별도 다음 버튼 없이 다음 화면으로 이동한다. 사업자등록증 OCR 분석은 상단 진행 단계에 포함하지 않고 파일 선택 직후 전용 로딩 화면으로 표시한다. 분석이 끝나면 상호, 사업자등록번호, 대표자명, 주소, 업태와 종목을 자동 입력한 3단계로 이동한다. 인식 실패 시에도 3단계로 이동해 직접 입력할 수 있다.
 
-```text
-NOT_INVITED
-INVITED
-CONNECTED
-```
+3단계 검수 신청이 완료되면 `REVIEW_REQUESTED` 상태의 업체와 `PartnerMembership(OWNER, ACTIVE)`를 생성한다. 업체 기본정보에는 대표 업체명, 대표 카테고리, 대표 전화번호, 대표 이메일과 주소를 포함하고, 사업자정보에는 등록한 사업자등록증, 상호, 사업자등록번호, 대표자명, 업태와 종목을 포함한다.
 
-`초대 만료`는 별도의 계정 연결상태가 아니라 `INVITED`와 `expires_at`을 기준으로 프론트에서 표시한다.
+등록 방식 선택 화면에는 `사업자등록증으로 등록`과 `국세청 정보로 등록`을 함께 표시한다. 현재는 `사업자등록증으로 등록`만 선택할 수 있으며, `국세청 정보로 등록`은 비활성 상태와 `추후 예정` 안내만 노출한다. 보류된 방식의 국세청 API, 공공 마이데이터 동의, 추가 데이터 모델은 구현하지 않는다.
+
+OCR은 입력 보조 기능이며 인식 실패가 입점 신청을 막지 않는다. 실패하거나 신뢰도가 낮은 항목은 파트너가 직접 입력·수정한다. 현재 어댑터는 CLOVA OCR의 사업자등록증 Document OCR을 사용하며, 공급자 교체가 가능하도록 `BusinessRegistrationOcrClient` 뒤에 격리한다.
+
+OCR이 유효한 사업자등록번호를 인식하면 기본정보 화면으로 이동하기 전에 기존 업체 중복 여부를 검사한다. 중복 기준은 대표 업체명이나 상호가 아니라 정규화된 사업자등록번호다. 중복이면 등록을 중단하고 내 업체 목록 확인 또는 Staff를 통한 소유 계정 변경을 안내한다. OCR이 번호를 읽지 못한 경우에는 기본정보에서 직접 입력하게 하며, 최종 생성 트랜잭션의 중복 검사와 DB 유니크 키로 다시 차단한다.
+
+검수 신청에는 기본정보와 사업자정보만 필요하다. 운영시간, 휴무일, 업체 이미지, 편의시설, 외부 링크, 시술 옵션과 전문가는 검수 중에도 추가하거나 수정할 수 있다.
 
 ## 4. 업체정보
 
@@ -320,22 +337,24 @@ inflow_source          required
 
 ## 9. 백엔드 API
 
-파트너 입점:
+파트너 계정과 내 업체:
 
 ```text
-POST   /api/v1/partner/onboarding/signup
-GET    /api/v1/partner/onboarding
-PATCH  /api/v1/partner/onboarding
-POST   /api/v1/partner/onboarding/submit
+POST   /api/v1/partner/auth/signup
+GET    /api/v1/partner/partners
+POST   /api/v1/partner/partners
+GET    /api/v1/partner/partners/{partnerId}/onboarding
+PATCH  /api/v1/partner/partners/{partnerId}/onboarding
+POST   /api/v1/partner/partners/{partnerId}/onboarding/submit
 ```
 
 가격 옵션:
 
 ```text
-GET    /api/v1/partner/options
-POST   /api/v1/partner/options
-PATCH  /api/v1/partner/options/{id}
-DELETE /api/v1/partner/options/{id}
+GET    /api/v1/partner/partners/{partnerId}/options
+POST   /api/v1/partner/partners/{partnerId}/options
+PATCH  /api/v1/partner/partners/{partnerId}/options/{id}
+DELETE /api/v1/partner/partners/{partnerId}/options/{id}
 ```
 
 스태프 가격 옵션:
@@ -352,31 +371,35 @@ DELETE /api/v1/staff/partners/{partnerId}/options/{optionId}
 
 ```text
 GET    /api/v1/staff/partners
-POST   /api/v1/staff/partners
 GET    /api/v1/staff/partners/{id}
 PATCH  /api/v1/staff/partners/{id}/fields
 PATCH  /api/v1/staff/partners/{id}/allow-status
 PATCH  /api/v1/staff/partners/{id}/status
 PATCH  /api/v1/staff/partners/{id}/account-status
+GET    /api/v1/staff/partners/owner-account-options?q={loginId}
+PATCH  /api/v1/staff/partners/{id}/owner-account
 ```
 
-스태프 계정 초대관리:
+스태프 파트너 계정 관리:
 
 ```text
-GET    /api/v1/staff/partner-account-invitations
-GET    /api/v1/staff/partners/{partnerId}/account-invitations
-POST   /api/v1/staff/partners/{partnerId}/account-invitations
-POST   /api/v1/staff/partners/{partnerId}/account-invitations/{id}/resend
+GET    /api/v1/staff/partner-accounts
+GET    /api/v1/staff/partner-accounts/{id}
+PATCH  /api/v1/staff/partner-accounts/{id}/status
+POST   /api/v1/staff/partner-accounts/{id}/password-reset-link
+GET    /api/v1/staff/partner-accounts/{id}/security
+POST   /api/v1/staff/partner-accounts/{id}/login-lock/unlock
+DELETE /api/v1/staff/partner-accounts/{id}/sessions/{sessionId}
+DELETE /api/v1/staff/partner-accounts/{id}/sessions
+GET    /api/v1/staff/partner-accounts/{id}/access-events?page={page}&per_page={perPage}
+GET    /api/v1/staff/partner-accounts/{id}/management-histories?page={page}&per_page={perPage}
 ```
 
-목록 API는 최신순 초대 이력을 반환한다. 재발송 API 응답의 ID는 기존 초대 ID가 아니라 새로 생성된 초대 이력 ID다.
+계정 상세는 `계정정보`, `관리업체`, `접속·보안`, `히스토리`로 구성한다. 비밀번호 재설정 링크 전송은 계정정보에서 수행한다. 접속이력은 인증 성공·실패 이벤트를 별도 보관하여 페이지네이션한다.
 
-초대 확인 및 계정 생성:
+히스토리는 내부관리자의 계정 상태 변경·잠금 해제·개별 세션 종료와 파트너 본인의 업체정보 수정, 옵션 변경, 전문가 변경·순서 변경, 비밀번호 재설정 완료를 포함한다. 업체 변경은 대표키워드·링크·사업자정보의 개업일까지 전후값을 기록하며, 동일한 값 저장과 금액의 소수점 표기 차이만으로는 이력을 만들지 않는다. 대상과 작업자 각각의 조회 인덱스를 사용한다. 내부관리자의 전체 세션 일괄 종료 API는 제공하지 않는다.
 
-```text
-GET  /api/v1/partner/account-invitations/verify?token={token}
-POST /api/v1/partner/account-invitations/accept
-```
+Staff·Partner의 업체 수정과 전문가 수정은 업체 행 잠금을 공유한다. 업체 운영시간을 줄일 때 개별 근무시간이 범위를 벗어나는 전문가가 있으면 해당 전문가를 안내하고 저장을 거부한다. 업체 운영시간을 따르는 전문가는 변경된 시간을 그대로 사용한다. 옵션 목록은 양쪽 Actor 모두 일괄 저장 API로 검증·수정·삭제·이력 기록을 한 트랜잭션에서 처리한다.
 
 ## 10. 입점 제출 필수조건
 

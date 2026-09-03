@@ -1,7 +1,7 @@
 package com.platform.adapter.in.web.staff.partner.controller;
 
 import com.platform.adapter.in.web.staff.partner.request.PartnerOptionCreateForStaffRequest;
-import com.platform.adapter.in.web.staff.partner.request.PartnerOptionReplaceForStaffRequest;
+import com.platform.common.web.partner.PartnerOptionsReplaceRequest;
 import com.platform.application.partner.PartnerOptionForPartnerService;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.common.web.ApiResponse;
@@ -44,7 +44,7 @@ public class PartnerOptionForStaffController {
 	public ApiResponse replace(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@PathVariable Long partnerId,
-		@Valid @RequestBody PartnerOptionReplaceForStaffRequest body,
+		@Valid @RequestBody PartnerOptionsReplaceRequest body,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(

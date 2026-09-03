@@ -196,7 +196,11 @@ public class SpecialistForStaffService {
 		}
 
 		for (int index = 0; index < requestedIds.size(); index++) {
-			specialistsById.get(requestedIds.get(index)).changeSortOrder(index);
+			Specialist specialist = specialistsById.get(requestedIds.get(index));
+			Map<String, String> before = Map.of("sort_order", String.valueOf(specialist.sortOrder()));
+			specialist.changeSortOrder(index);
+			historyService.record(actor, specialist, "ORDER_UPDATED", null, before,
+				Map.of("sort_order", String.valueOf(index)));
 		}
 		specialistRepository.flush();
 		return new SpecialistOrderResult(List.copyOf(requestedIds));

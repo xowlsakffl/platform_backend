@@ -29,6 +29,6 @@ app:
     password-reset:
       mail-mode: log
       mail-from-address: no-reply@test.local
-      staff-url: http://localhost:4001/reset-password
-      partner-url: http://localhost:4003/reset-password
+      staff-url: http://localhost:4000/reset-password
+      partner-url: http://localhost:4001/reset-password
       user-url: http://localhost:4002/reset-password

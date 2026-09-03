@@ -5,6 +5,7 @@ import com.platform.domain.auth.AuthSession;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -19,6 +20,12 @@ public interface AuthSessionRepository extends JpaRepository<AuthSession, String
 
 	boolean existsByIdAndActorTypeAndAccountIdAndRevokedAtIsNullAndExpiresAtAfter(
 		String id,
+		AccountActorType actorType,
+		Long accountId,
+		LocalDateTime now
+	);
+
+	List<AuthSession> findByActorTypeAndAccountIdAndRevokedAtIsNullAndExpiresAtAfterOrderByLastUsedAtDesc(
 		AccountActorType actorType,
 		Long accountId,
 		LocalDateTime now

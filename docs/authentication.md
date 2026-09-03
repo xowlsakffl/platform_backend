@@ -50,7 +50,8 @@
 - 일반 API가 `401` 또는 `419`를 반환하면 공통 API client가 갱신을 한 번 수행하고 원 요청을 한 번만 재시도한다.
 - 갱신 실패 또는 재시도 실패 때만 로컬 상태를 지우고 로그인 화면으로 이동한다.
 - 로그아웃은 서버 API가 성공하거나 실패한 뒤 클라이언트 메모리를 정리한다.
-- Staff 웹은 `Referrer-Policy: no-referrer`를 적용해 쿼리 문자열의 재설정 토큰이 외부 요청의 `Referer` 헤더로 전달되지 않게 한다.
+- Staff·Partner의 비밀번호 재설정 페이지는 `Referrer-Policy: no-referrer`를 적용해 쿼리 문자열의 재설정 토큰이 외부 요청의 `Referer` 헤더로 전달되지 않게 한다.
+- 네트워크·5xx 오류로 토큰 갱신을 확인하지 못하면 클라이언트는 세션을 지우지 않고 재시도를 제공한다. 인증 만료가 확정된 경우에만 로그인 화면으로 전환한다.
 
 ## 쿠키와 CSRF
 
@@ -84,7 +85,7 @@ platform_refresh_user      /api/v1/user/auth
 
 ## 비밀번호 찾기와 재설정
 
-네 Actor가 동일한 계약을 사용한다.
+세 Actor가 동일한 계약을 사용한다.
 
 | 메서드 | 경로 | 용도 |
 |---|---|---|
@@ -95,9 +96,11 @@ platform_refresh_user      /api/v1/user/auth
 - 링크 요청은 계정 존재 여부와 활성 상태에 관계없이 동일한 성공 문구를 반환한다.
 - 토큰은 48바이트 난수로 생성하고 DB에는 SHA-256 해시만 저장한다.
 - Actor·이메일별 최신 토큰 하나만 유지하며 기본 60분 후 만료된다.
+- 토큰 교체와 메일 발송은 같은 트랜잭션에서 처리한다. SMTP 실패 시 교체를 롤백해 기존 유효 링크를 유지한다.
+- 파트너는 `ACTIVE`, `BLOCKED` 상태에서 재설정할 수 있으며 `WITHDRAWN`은 제외한다. 재설정으로 차단 상태가 해제되지는 않는다.
 - 같은 Actor·이메일은 60초 안에 토큰을 다시 만들거나 메일을 중복 발송하지 않는다.
 - 비밀번호는 8자 이상, BCrypt 제약에 맞춰 UTF-8 72바이트 이하로 받고 기존 비밀번호와 같으면 거부한다.
-- 변경은 토큰 행 잠금, 계정 비밀번호 변경, 토큰 단일 사용 처리, 해당 Actor 계정의 전체 세션 폐기를 하나의 트랜잭션에서 처리한다.
+- 변경은 토큰 행 잠금, 계정 비밀번호 변경, 토큰 단일 사용 처리, 해당 Actor 계정의 전체 세션 폐기와 `PASSWORD_RESET_COMPLETED` 이력을 하나의 트랜잭션에서 처리한다. 비밀번호·토큰 원문은 이력에 남기지 않는다.
 - 유효하지 않거나 만료된 링크는 `419 TOKEN_ERROR`, 요청 제한은 `429 RATE_LIMITED`다.
 
 | 단계 | 제한 기준 | 허용되는 요청 | 차단되는 요청 | 다시 시도 가능한 시점 |
@@ -113,7 +116,7 @@ platform_refresh_user      /api/v1/user/auth
 
 ## 계정 상태와 권한
 
-직원 관리자, 뷰티 관리자, 일반 사용자 계정은 `ACTIVE`, `SUSPENDED`, `BLOCKED`, `WITHDRAWN`을 사용한다. 파트너 관리자 계정은 파트너 운영상태와 계정 상태의 중복을 피하기 위해 `ACTIVE`, `BLOCKED`만 사용한다.
+Staff·User 계정은 `ACTIVE`, `SUSPENDED`, `BLOCKED`, `WITHDRAWN`을 사용한다. Partner 계정은 `ACTIVE`, `BLOCKED`, `WITHDRAWN`을 사용하며 내부관리자가 선택 가능한 상태는 `ACTIVE`, `BLOCKED`다.
 
 모든 Actor 계정은 `ACTIVE`일 때만 로그인과 인증을 유지할 수 있으며 `deleted_at`이 있는 계정은 인증할 수 없다. 파트너 관리자 계정의 화면 표기는 `ACTIVE`를 `로그인 가능`, `BLOCKED`를 `로그인 차단`으로 사용한다. 파트너 관리자는 계정이 `ACTIVE`여도 소속 파트너의 운영상태가 `WITHDRAWN`이면 인증할 수 없다. 파트너 관리자 계정을 로그인 차단하거나 파트너이 탈퇴·삭제되면 해당 계정의 인증 세션을 모두 폐기한다.
 
@@ -121,9 +124,9 @@ Staff만 역할 기반 권한을 사용한다.
 
 ```text
 account_staffs
-  -> account_staff_roles
+  -> staff_role_assignments
   -> staff_roles
-  -> staff_role_permissions
+  -> staff_role_permission_assignments
   -> staff_permissions
 ```
 
@@ -154,4 +157,4 @@ account_staffs
 - JWT secret 교체는 기존 액세스 토큰을 즉시 무효화한다. 무중단 key rotation이 필요해지면 `kid` 기반 비대칭 키 방식으로 확장한다.
 - 만료 세션, 오래된 폐기 세션, 만료된 비밀번호 재설정 토큰은 기본 매일 04:20에 정리한다.
 
-SMTP 장애가 발생하면 발급한 토큰을 폐기하고 오류를 서버 로그와 모니터링에 남기되, 계정 존재 여부 보호를 위해 API 응답 문구는 바꾸지 않는다.
+SMTP 장애는 토큰 교체를 롤백하고 서버 로그에 기록한다. 공개 재설정 요청은 계정 존재 여부 보호를 위해 응답 문구를 바꾸지 않는다. 권한이 검증된 내부관리자 발송 요청은 `503 SERVICE_UNAVAILABLE`로 실패를 알린다.

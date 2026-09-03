@@ -25,6 +25,7 @@ public record PartnerOnboardingResult(
 		@JsonProperty("detail_address") String detailAddress,
 		String latitude,
 		String longitude,
+		@JsonProperty("subway_stations") Object subwayStations,
 		@JsonProperty("operating_hours_notice") String operatingHoursNotice,
 		@JsonProperty("operation_hours") Object operationHours,
 		@JsonProperty("holiday_policy") Object holidayPolicy,

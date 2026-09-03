@@ -59,7 +59,7 @@ public class SpecialistHistoryService {
 			action,
 			reason,
 			null
-		);
+		).captureActor(actor.name(), actor.loginId());
 		Set<String> keys = new LinkedHashSet<>();
 		keys.addAll(before.keySet());
 		keys.addAll(after.keySet());

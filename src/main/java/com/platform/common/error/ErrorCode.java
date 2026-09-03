@@ -10,6 +10,7 @@ public enum ErrorCode {
 	FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
 	NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 정보를 찾을 수 없습니다."),
 	METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "허용되지 않는 HTTP 메서드입니다."),
+	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "외부 서비스에 연결할 수 없습니다."),
 	TOKEN_ERROR(HttpStatusCode.valueOf(419), "토큰이 유효하지 않습니다."),
 	DB_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "데이터베이스 오류가 발생했습니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),

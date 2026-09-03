@@ -30,7 +30,7 @@ public class StaffRole extends BaseTimeEntity {
 
 	@ManyToMany(fetch = FetchType.LAZY)
 	@JoinTable(
-		name = "staff_role_permissions",
+		name = "staff_role_permission_assignments",
 		joinColumns = @JoinColumn(name = "staff_role_id"),
 		inverseJoinColumns = @JoinColumn(name = "staff_permission_id")
 	)

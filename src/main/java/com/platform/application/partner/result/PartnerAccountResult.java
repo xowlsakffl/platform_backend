@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 public record PartnerAccountResult(
 	Long id,
+	String name,
 	@JsonProperty("login_id") String loginId,
 	String email,
 	String phone,

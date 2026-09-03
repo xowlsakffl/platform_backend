@@ -18,9 +18,6 @@ spring:
     host: ${MAIL_HOST:localhost}
 
 app:
-  partner-account-invitation:
-    frontend-url: ${PARTNER_ACCOUNT_INVITATION_URL:http://localhost:4003/account/setup}
-    mail-mode: ${PARTNER_ACCOUNT_INVITATION_MAIL_MODE:log}
   auth:
     jwt:
       secret: ${AUTH_JWT_SECRET:platform-local-development-jwt-secret-change-me-2026}
@@ -29,8 +26,8 @@ app:
     password-reset:
       mail-mode: ${PASSWORD_RESET_MAIL_MODE:log}
       mail-from-address: ${MAIL_FROM_ADDRESS:no-reply@platform.local}
-      staff-url: ${PASSWORD_RESET_STAFF_URL:http://localhost:4001/password/reset}
-      partner-url: ${PASSWORD_RESET_PARTNER_URL:http://localhost:4003/password/reset}
+      staff-url: ${PASSWORD_RESET_STAFF_URL:http://localhost:4000/password/reset}
+      partner-url: ${PASSWORD_RESET_PARTNER_URL:http://localhost:4001/password/reset}
       user-url: ${PASSWORD_RESET_USER_URL:http://localhost:4002/password/reset}
   bootstrap:
     staff:

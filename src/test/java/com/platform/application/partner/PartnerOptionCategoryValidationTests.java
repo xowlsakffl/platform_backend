@@ -35,6 +35,7 @@ class PartnerOptionCategoryValidationTests {
 		optionRepository = mock(PartnerOptionRepository.class);
 		service = new PartnerOptionForPartnerService(
 			mock(OwnershipPolicy.class),
+			mock(PartnerHistoryService.class),
 			mock(PermissionService.class),
 			categoryAssignmentService,
 			mock(PartnerRepository.class),

@@ -6,7 +6,6 @@ import com.platform.common.error.ErrorCode;
 import com.platform.domain.account.AccountPartnerStatus;
 import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerStatus;
-import com.platform.domain.partner.PartnerRegistrationSource;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
@@ -24,8 +23,6 @@ public record PartnerListForStaffRequest(
 	@BindParam("allow_status")
 	List<PartnerAllowStatus> allowStatus,
 	@BindParam("category_ids") List<@Min(1) Long> categoryIds,
-	@BindParam("registration_source")
-	List<PartnerRegistrationSource> registrationSources,
 	Boolean dormant,
 	@BindParam("start_date")
 	String startDate,
@@ -55,7 +52,6 @@ public record PartnerListForStaffRequest(
 			accountStatus,
 			allowStatus,
 			categoryIds,
-			registrationSources,
 			dormant,
 			startDate,
 			endDate,

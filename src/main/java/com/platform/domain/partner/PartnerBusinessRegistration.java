@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "partner_business_registrations")
@@ -34,17 +35,8 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 	@Column(name = "ceo_name", length = 100)
 	private String ceoName;
 
-	@Column(name = "business_type", length = 100)
-	private String businessType;
-
-	@Column(name = "business_item", length = 100)
-	private String businessItem;
-
-	@Column(name = "business_address")
-	private String businessAddress;
-
-	@Column(name = "business_address_detail")
-	private String businessAddressDetail;
+	@Column(name = "opening_date")
+	private LocalDate openingDate;
 
 	@Column(name = "settlement_bank_name", length = 50)
 	private String settlementBankName;
@@ -66,10 +58,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		String businessNumber,
 		String companyName,
 		String ceoName,
-		String businessType,
-		String businessItem,
-		String businessAddress,
-		String businessAddressDetail,
+		LocalDate openingDate,
 		String settlementBankName,
 		String settlementAccountNumber,
 		String settlementAccountHolder
@@ -77,10 +66,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		this.businessNumber = businessNumber;
 		this.companyName = companyName;
 		this.ceoName = ceoName;
-		this.businessType = businessType;
-		this.businessItem = businessItem;
-		this.businessAddress = businessAddress;
-		this.businessAddressDetail = businessAddressDetail;
+		this.openingDate = openingDate;
 		this.settlementBankName = settlementBankName;
 		this.settlementAccountNumber = settlementAccountNumber;
 		this.settlementAccountHolder = settlementAccountHolder;
@@ -94,10 +80,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		String businessNumber,
 		String companyName,
 		String ceoName,
-		String businessType,
-		String businessItem,
-		String businessAddress,
-		String businessAddressDetail,
+		LocalDate openingDate,
 		String settlementBankName,
 		String settlementAccountNumber,
 		String settlementAccountHolder
@@ -105,10 +88,7 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		this.businessNumber = businessNumber;
 		this.companyName = companyName;
 		this.ceoName = ceoName;
-		this.businessType = businessType;
-		this.businessItem = businessItem;
-		this.businessAddress = businessAddress;
-		this.businessAddressDetail = businessAddressDetail;
+		this.openingDate = openingDate;
 		this.settlementBankName = settlementBankName;
 		this.settlementAccountNumber = settlementAccountNumber;
 		this.settlementAccountHolder = settlementAccountHolder;
@@ -130,20 +110,8 @@ public class PartnerBusinessRegistration extends BaseTimeEntity {
 		return ceoName;
 	}
 
-	public String businessType() {
-		return businessType;
-	}
-
-	public String businessItem() {
-		return businessItem;
-	}
-
-	public String businessAddress() {
-		return businessAddress;
-	}
-
-	public String businessAddressDetail() {
-		return businessAddressDetail;
+	public LocalDate openingDate() {
+		return openingDate;
 	}
 
 	public String settlementBankName() {

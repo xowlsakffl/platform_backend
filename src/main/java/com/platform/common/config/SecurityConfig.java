@@ -7,7 +7,6 @@ import com.platform.common.security.JwtAuthenticationFilter;
 import com.platform.common.security.JwtProperties;
 import com.platform.common.security.LoginAttemptProperties;
 import com.platform.common.security.PasswordResetProperties;
-import com.platform.common.security.PartnerAccountInvitationProperties;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +47,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 	AuthSessionProperties.class,
 	LoginAttemptProperties.class,
 	PasswordResetProperties.class,
-	PartnerAccountInvitationProperties.class,
 	CorsProperties.class
 })
 class SecurityConfig {
@@ -72,10 +70,9 @@ class SecurityConfig {
 					"/api/v1/staff/auth/login",
 					"/api/v1/staff/auth/refresh",
 					"/api/v1/partner/auth/login",
+					"/api/v1/partner/auth/signup",
 					"/api/v1/partner/auth/check-login-id",
 					"/api/v1/partner/auth/refresh",
-					"/api/v1/partner/onboarding/signup",
-					"/api/v1/partner/account-invitations/**",
 					"/api/v1/user/auth/login",
 					"/api/v1/user/auth/refresh",
 					"/api/v1/*/auth/password-reset-link",

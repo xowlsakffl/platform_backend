@@ -114,6 +114,22 @@ public class AuthSession extends BaseTimeEntity {
 		return expiresAt;
 	}
 
+	public LocalDateTime lastUsedAt() {
+		return lastUsedAt;
+	}
+
+	public LocalDateTime revokedAt() {
+		return revokedAt;
+	}
+
+	public String ipAddress() {
+		return ipAddress;
+	}
+
+	public String userAgent() {
+		return userAgent;
+	}
+
 	public boolean isActive(LocalDateTime now) {
 		return revokedAt == null && expiresAt.isAfter(now);
 	}

@@ -1,6 +1,25 @@
 Project platform_backend {
   database_type: 'MySQL'
-  Note: '현재 Flyway V1~V2 기준. 실행 기준은 src/main/resources/db/migration이다.'
+  Note: '현재 통합 Flyway V1 기준. 실행 기준은 src/main/resources/db/migration이다.'
+}
+
+Table authentication_events {
+  id bigint [pk, increment]
+  actor_type varchar(20) [not null]
+  account_id bigint
+  result varchar(20) [not null]
+  failure_code varchar(60)
+  ip_address varchar(45)
+  user_agent varchar(500)
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (actor_type, account_id, created_at, id)
+    (created_at, id)
+  }
+
+  Note: 'Actor 공통 로그인 접속 이력. 존재하지 않는 아이디의 실패 이벤트는 account_id가 null이며 계정 상세에서는 조회하지 않는다.'
 }
 
 Table auth_sessions {
@@ -81,7 +100,7 @@ Table staff_permissions {
   updated_at timestamp [not null]
 }
 
-Table staff_role_permissions {
+Table staff_role_permission_assignments {
   id bigint [pk, increment]
   staff_role_id bigint [not null]
   staff_permission_id bigint [not null]
@@ -93,7 +112,7 @@ Table staff_role_permissions {
   }
 }
 
-Table account_staff_roles {
+Table staff_role_assignments {
   id bigint [pk, increment]
   account_staff_id bigint [not null]
   staff_role_id bigint [not null]
@@ -107,7 +126,7 @@ Table account_staff_roles {
 
 Table account_partners {
   id bigint [pk, increment]
-  partner_id bigint [not null, unique]
+  name varchar(50) [not null]
   login_id varchar(30) [not null, unique]
   email varchar(255) [not null, unique]
   phone varchar(50)
@@ -118,6 +137,20 @@ Table account_partners {
   created_at timestamp [not null]
   updated_at timestamp [not null]
   deleted_at timestamp
+}
+
+Table partner_memberships {
+  id bigint [pk, increment]
+  account_partner_id bigint [not null]
+  partner_id bigint [not null]
+  role varchar(20) [not null, default: 'OWNER']
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (account_partner_id, partner_id) [unique]
+  }
 }
 
 
@@ -150,7 +183,7 @@ Table account_users {
 
 Table partners {
   id bigint [pk, increment]
-  name varchar(30) [not null, unique]
+  name varchar(30) [not null]
   english_name varchar(90)
   description text
   road_address varchar(255)
@@ -168,29 +201,12 @@ Table partners {
   evaluation_average_rating decimal(2,1) [not null, default: 0.0]
   allow_status varchar(20) [not null, default: 'REVIEW_REQUESTED']
   status varchar(20) [not null, default: 'ACTIVE']
-  registration_source varchar(30) [not null, default: 'STAFF_CREATED']
-  created_by_staff_id bigint
   assigned_staff_id bigint
   reviewer_staff_id bigint
   review_started_at timestamp
   created_at timestamp [not null]
   updated_at timestamp [not null]
   deleted_at timestamp
-}
-
-Table partner_account_invitations {
-  id bigint [pk, increment]
-  partner_id bigint [not null]
-  email varchar(255) [not null]
-  token_hash varchar(64) [not null, unique]
-  status varchar(20) [not null, default: 'PENDING']
-  expires_at timestamp [not null]
-  sent_at timestamp
-  accepted_at timestamp
-  canceled_at timestamp
-  created_by_staff_id bigint
-  created_at timestamp [not null]
-  updated_at timestamp [not null]
 }
 
 Table partner_contacts {
@@ -214,10 +230,7 @@ Table partner_business_registrations {
   business_number varchar(20) [unique]
   company_name varchar(255)
   ceo_name varchar(100)
-  business_type varchar(100)
-  business_item varchar(100)
-  business_address varchar(255)
-  business_address_detail varchar(255)
+  opening_date date
   settlement_bank_name varchar(50)
   settlement_account_number varchar(50)
   settlement_account_holder varchar(100)
@@ -419,11 +432,20 @@ Table operation_histories {
   target_id bigint [not null]
   actor_type varchar(20) [not null, default: 'STAFF']
   actor_id bigint
+  actor_name_snapshot varchar(100)
+  actor_login_id_snapshot varchar(100)
   action varchar(60) [not null]
   reason varchar(500)
   memo varchar(500)
+  ip_address varchar(45)
+  user_agent varchar(500)
   created_at timestamp [not null]
   updated_at timestamp [not null]
+
+  indexes {
+    (target_type, target_id, created_at, id)
+    (actor_type, actor_id, created_at, id)
+  }
 }
 
 Table operation_history_changes {
@@ -436,16 +458,14 @@ Table operation_history_changes {
   updated_at timestamp [not null]
 }
 
-Ref: staff_role_permissions.staff_role_id > staff_roles.id [delete: cascade]
-Ref: staff_role_permissions.staff_permission_id > staff_permissions.id [delete: cascade]
-Ref: account_staff_roles.account_staff_id > account_staffs.id [delete: cascade]
-Ref: account_staff_roles.staff_role_id > staff_roles.id [delete: cascade]
-Ref: account_partners.partner_id > partners.id [delete: cascade]
-Ref: partners.created_by_staff_id > account_staffs.id [delete: set null]
+Ref: staff_role_permission_assignments.staff_role_id > staff_roles.id [delete: cascade]
+Ref: staff_role_permission_assignments.staff_permission_id > staff_permissions.id [delete: cascade]
+Ref: staff_role_assignments.account_staff_id > account_staffs.id [delete: cascade]
+Ref: staff_role_assignments.staff_role_id > staff_roles.id [delete: cascade]
+Ref: partner_memberships.account_partner_id > account_partners.id [delete: cascade]
+Ref: partner_memberships.partner_id > partners.id [delete: cascade]
 Ref: partners.assigned_staff_id > account_staffs.id [delete: set null]
 Ref: partners.reviewer_staff_id > account_staffs.id [delete: set null]
-Ref: partner_account_invitations.partner_id > partners.id [delete: cascade]
-Ref: partner_account_invitations.created_by_staff_id > account_staffs.id [delete: set null]
 Ref: partner_contacts.partner_id > partners.id [delete: cascade]
 Ref: partner_business_registrations.partner_id > partners.id [delete: cascade]
 Ref: partner_feature_assignments.partner_id > partners.id [delete: cascade]

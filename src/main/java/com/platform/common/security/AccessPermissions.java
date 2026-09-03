@@ -8,10 +8,11 @@ public final class AccessPermissions {
 	public static final String COMMON_PROFILE_UPDATE = "common.profile.update";
 
 	public static final String PARTNER_SHOW = "platform.partner.show";
-	public static final String PARTNER_CREATE = "platform.partner.create";
 	public static final String PARTNER_UPDATE = "platform.partner.update";
 	public static final String PARTNER_DELETE = "platform.partner.delete";
 	public static final String PARTNER_ASSIGN_STAFF = "platform.partner.assign_staff";
+	public static final String PARTNER_ACCOUNT_PASSWORD_RESET = "platform.partner.account_password_reset";
+	public static final String PARTNER_ACCOUNT_SECURITY_UPDATE = "platform.partner.account_security.update";
 	public static final String PARTNER_ACCOUNT_STATUS_UPDATE = "platform.partner.account_status.update";
 	public static final String PARTNER_ALLOW_STATUS_UPDATE = "platform.partner.allow_status.update";
 	public static final String PARTNER_STATUS_UPDATE = "platform.partner.status.update";

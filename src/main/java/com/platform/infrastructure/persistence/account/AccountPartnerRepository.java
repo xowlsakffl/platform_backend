@@ -3,41 +3,63 @@ package com.platform.infrastructure.persistence.account;
 import com.platform.domain.account.AccountPartner;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface AccountPartnerRepository extends JpaRepository<AccountPartner, Long> {
+public interface AccountPartnerRepository extends JpaRepository<AccountPartner, Long>, JpaSpecificationExecutor<AccountPartner> {
 
 	boolean existsByEmail(String email);
 
 	boolean existsByLoginId(String loginId);
 
-	boolean existsByPartner_IdAndDeletedAtIsNull(Long partnerId);
-
 	Optional<AccountPartner> findByEmailAndDeletedAtIsNull(String email);
 
 	Optional<AccountPartner> findByLoginIdAndDeletedAtIsNull(String loginId);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		select account
+		from AccountPartner account
+		where account.loginId = :loginId
+		  and account.deletedAt is null
+		""")
+	Optional<AccountPartner> findForUpdateByLoginIdAndDeletedAtIsNull(@Param("loginId") String loginId);
+
 	Optional<AccountPartner> findByIdAndDeletedAtIsNull(Long id);
 
-	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	Optional<AccountPartner> findForUpdateByPartner_IdAndDeletedAtIsNull(Long partnerId);
+	@Query("""
+		select account
+		from AccountPartner account
+		where account.deletedAt is null
+		  and account.status = com.platform.domain.account.AccountPartnerStatus.ACTIVE
+		  and lower(account.loginId) like :query
+		order by account.loginId asc, account.id asc
+		""")
+	List<AccountPartner> searchActiveByLoginId(
+		@Param("query") String query,
+		Pageable pageable
+	);
 
-	List<AccountPartner> findByPartner_IdInAndDeletedAtIsNull(Collection<Long> partnerIds);
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		select account
+		from AccountPartner account
+		where account.id = :accountId
+		  and account.deletedAt is null
+		""")
+	Optional<AccountPartner> findForUpdateByIdAndDeletedAtIsNull(@Param("accountId") Long accountId);
 
 	@Query("""
 		select count(account)
 		from AccountPartner account
-		join account.partner partner
 		where account.deletedAt is null
 		  and account.status = com.platform.domain.account.AccountPartnerStatus.ACTIVE
-		  and partner.deletedAt is null
-		  and partner.status <> com.platform.domain.partner.PartnerStatus.WITHDRAWN
 		  and (account.lastLoginAt is null or account.lastLoginAt < :cutoff)
 		""")
 	long countDormantPartnerAccounts(@Param("cutoff") LocalDateTime cutoff);

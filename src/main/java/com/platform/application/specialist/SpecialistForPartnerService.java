@@ -2,11 +2,13 @@ package com.platform.application.specialist;
 
 import com.platform.application.auth.OwnershipPolicy;
 import com.platform.application.specialist.command.SaveSpecialistCommand;
+import com.platform.application.specialist.command.ReorderSpecialistsForStaffCommand;
 import com.platform.application.specialist.command.UpdateSpecialistForPartnerCommand;
 import com.platform.application.specialist.query.SearchSpecialistsForPartnerQuery;
 import com.platform.application.specialist.result.SpecialistDeletedResult;
 import com.platform.application.specialist.result.SpecialistDetailResult;
 import com.platform.application.specialist.result.SpecialistListItemResult;
+import com.platform.application.specialist.result.SpecialistOrderResult;
 import com.platform.application.media.result.MediaResult;
 import com.platform.common.error.ApiException;
 import com.platform.common.error.ErrorCode;
@@ -20,8 +22,10 @@ import com.platform.infrastructure.persistence.specialist.SpecialistRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -62,9 +66,10 @@ public class SpecialistForPartnerService {
 	@Transactional(readOnly = true)
 	public PaginatedResponse<SpecialistListItemResult> list(
 		AuthenticatedActor actor,
+		Long partnerId,
 		SearchSpecialistsForPartnerQuery condition
 	) {
-		Long partnerId = requirePartnerId(actor);
+		requirePartnerId(actor, partnerId);
 		Page<Specialist> page = specialistRepository.findAll(
 			specification(partnerId, condition),
 			PageRequest.of(
@@ -86,14 +91,14 @@ public class SpecialistForPartnerService {
 	}
 
 	@Transactional(readOnly = true)
-	public SpecialistDetailResult get(AuthenticatedActor actor, Long id) {
-		Long partnerId = requirePartnerId(actor);
+	public SpecialistDetailResult get(AuthenticatedActor actor, Long partnerId, Long id) {
+		requirePartnerId(actor, partnerId);
 		return resultAssembler.detail(findOwnedSpecialist(id, partnerId), SpecialistMediaAccessScope.PARTNER);
 	}
 
 	@Transactional
-	public SpecialistDetailResult create(AuthenticatedActor actor, SaveSpecialistCommand command) {
-		Long partnerId = requirePartnerId(actor);
+	public SpecialistDetailResult create(AuthenticatedActor actor, Long partnerId, SaveSpecialistCommand command) {
+		requirePartnerId(actor, partnerId);
 		Partner partner = findLockedPartner(partnerId);
 		Specialist saved = specialistWriteService.create(partner, ownedCommand(command, partnerId));
 		historyService.record(actor, saved, "SUBMITTED", null, Map.of(), historyService.capture(saved));
@@ -101,8 +106,8 @@ public class SpecialistForPartnerService {
 	}
 
 	@Transactional
-	public SpecialistDetailResult update(AuthenticatedActor actor, Long id, UpdateSpecialistForPartnerCommand command) {
-		Long partnerId = requirePartnerId(actor);
+	public SpecialistDetailResult update(AuthenticatedActor actor, Long partnerId, Long id, UpdateSpecialistForPartnerCommand command) {
+		requirePartnerId(actor, partnerId);
 		Partner partner = findLockedPartner(partnerId);
 		Specialist specialist = findLockedOwnedSpecialist(id, partnerId);
 		Map<String, String> before = historyService.capture(specialist);
@@ -116,11 +121,11 @@ public class SpecialistForPartnerService {
 	}
 
 	@Transactional
-	public SpecialistDetailResult changeStatus(AuthenticatedActor actor, Long id, SpecialistStatus status) {
+	public SpecialistDetailResult changeStatus(AuthenticatedActor actor, Long partnerId, Long id, SpecialistStatus status) {
 		if (status == null) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "운영 상태는 필수입니다.");
 		}
-		Long partnerId = requirePartnerId(actor);
+		requirePartnerId(actor, partnerId);
 		findLockedPartner(partnerId);
 		Specialist specialist = findLockedOwnedSpecialist(id, partnerId);
 		Map<String, String> before = historyService.capture(specialist);
@@ -131,8 +136,8 @@ public class SpecialistForPartnerService {
 	}
 
 	@Transactional
-	public SpecialistDeletedResult delete(AuthenticatedActor actor, Long id) {
-		Long partnerId = requirePartnerId(actor);
+	public SpecialistDeletedResult delete(AuthenticatedActor actor, Long partnerId, Long id) {
+		requirePartnerId(actor, partnerId);
 		findLockedPartner(partnerId);
 		Specialist specialist = findLockedOwnedSpecialist(id, partnerId);
 		Map<String, String> before = historyService.capture(specialist);
@@ -140,6 +145,42 @@ public class SpecialistForPartnerService {
 		historyService.record(actor, specialist, "DELETED", null, before, Map.of());
 		specialistRepository.saveAndFlush(specialist);
 		return new SpecialistDeletedResult(specialist.id(), specialist.deletedAt());
+	}
+
+	@Transactional
+	public SpecialistOrderResult reorder(
+		AuthenticatedActor actor,
+		Long partnerId,
+		ReorderSpecialistsForStaffCommand command
+	) {
+		requirePartnerId(actor, partnerId);
+		findLockedPartner(partnerId);
+		List<Specialist> specialists = specialistRepository
+			.findForUpdateByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partnerId);
+		List<Long> requestedIds = command.specialistIds();
+		if (requestedIds.size() != specialists.size()
+			|| new HashSet<>(requestedIds).size() != requestedIds.size()) {
+			throw invalidSpecialistOrder();
+		}
+
+		Map<Long, Specialist> specialistsById = specialists.stream()
+			.collect(Collectors.toMap(Specialist::id, specialist -> specialist));
+		if (!specialistsById.keySet().equals(new HashSet<>(requestedIds))) {
+			throw invalidSpecialistOrder();
+		}
+
+		for (int index = 0; index < requestedIds.size(); index++) {
+			Specialist specialist = specialistsById.get(requestedIds.get(index));
+			int previousOrder = specialist.sortOrder();
+			specialist.changeSortOrder(index);
+			if (previousOrder != index) {
+				historyService.record(actor, specialist, "ORDER_UPDATED", null,
+					Map.of("sort_order", String.valueOf(previousOrder)),
+					Map.of("sort_order", String.valueOf(index)));
+			}
+		}
+		specialistRepository.flush();
+		return new SpecialistOrderResult(List.copyOf(requestedIds));
 	}
 
 	private Specification<Specialist> specification(Long partnerId, SearchSpecialistsForPartnerQuery condition) {
@@ -203,8 +244,7 @@ public class SpecialistForPartnerService {
 		);
 	}
 
-	private Long requirePartnerId(AuthenticatedActor actor) {
-		Long partnerId = actor == null ? null : actor.partnerId();
+	private Long requirePartnerId(AuthenticatedActor actor, Long partnerId) {
 		ownershipPolicy.requirePartnerOwner(actor, partnerId);
 		if (partnerId == null) {
 			throw new ApiException(ErrorCode.FORBIDDEN);
@@ -239,5 +279,9 @@ public class SpecialistForPartnerService {
 
 	private String trimToNull(String value) {
 		return StringUtils.hasText(value) ? value.trim() : null;
+	}
+
+	private ApiException invalidSpecialistOrder() {
+		return new ApiException(ErrorCode.INVALID_REQUEST, "전문가 순서 정보가 올바르지 않습니다.");
 	}
 }

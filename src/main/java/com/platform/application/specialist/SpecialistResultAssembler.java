@@ -73,17 +73,17 @@ public class SpecialistResultAssembler {
 				MediaOwnerType.SPECIALIST,
 				specialist.id(),
 				MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE
-			), specialist.id(), scope),
+			), specialist.id(), specialist.partnerId(), scope),
 			mediaList(mediaReadService.list(
 				MediaOwnerType.SPECIALIST,
 				specialist.id(),
 				MediaCollectionPolicy.SPECIALIST_PROFILE_IMAGE
-			), specialist.id(), scope),
+			), specialist.id(), specialist.partnerId(), scope),
 			mediaList(mediaReadService.list(
 				MediaOwnerType.SPECIALIST,
 				specialist.id(),
 				MediaCollectionPolicy.SPECIALIST_CERTIFICATION_IMAGE
-			), specialist.id(), scope),
+			), specialist.id(), specialist.partnerId(), scope),
 			specialist.viewCount(),
 			specialist.createdAt(),
 			specialist.updatedAt()
@@ -114,7 +114,7 @@ public class SpecialistResultAssembler {
 			specialist.scheduleMode().name(),
 			specialist.scheduleMode().label(),
 			optionCount,
-			media(profileImage, specialist.id(), scope),
+			media(profileImage, specialist.id(), specialist.partnerId(), scope),
 			specialist.createdAt(),
 			specialist.updatedAt()
 		);
@@ -145,13 +145,19 @@ public class SpecialistResultAssembler {
 		return specialists.stream().map(Specialist::id).collect(Collectors.toCollection(LinkedHashSet::new));
 	}
 
-	private SpecialistMediaResult media(MediaResult media, Long specialistId, SpecialistMediaAccessScope scope) {
+	private SpecialistMediaResult media(
+		MediaResult media,
+		Long specialistId,
+		Long partnerId,
+		SpecialistMediaAccessScope scope
+	) {
 		if (media == null) {
 			return null;
 		}
 		String url = switch (scope) {
 			case STAFF -> media.contentUrl();
-			case PARTNER -> "/api/v1/partner/specialists/%d/media/%d/content".formatted(specialistId, media.id());
+			case PARTNER -> "/api/v1/partner/partners/%d/specialists/%d/media/%d/content"
+				.formatted(partnerId, specialistId, media.id());
 		};
 		return new SpecialistMediaResult(
 			media.id(),
@@ -167,9 +173,10 @@ public class SpecialistResultAssembler {
 	private List<SpecialistMediaResult> mediaList(
 		List<MediaResult> media,
 		Long specialistId,
+		Long partnerId,
 		SpecialistMediaAccessScope scope
 	) {
-		return media.stream().map(item -> media(item, specialistId, scope)).toList();
+		return media.stream().map(item -> media(item, specialistId, partnerId, scope)).toList();
 	}
 
 	private SpecialistFieldResult specialistField(Specialist specialist) {

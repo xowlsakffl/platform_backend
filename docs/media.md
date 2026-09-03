@@ -13,12 +13,12 @@ owner_type + owner_id + collection
 | `PARTNER` | `logo` | 1 | JPG/PNG/WebP, 5MB, 1:1 |
 | `PARTNER` | `main_image` | 1 | JPG/PNG/WebP, 10MB, 760x490 |
 | `PARTNER` | `interior_image` | 5 | JPG/PNG/WebP, 10MB, 760x490 |
-| `PARTNER_BUSINESS_REGISTRATION` | `business_registration_file` | 1 | 이미지/PDF, 10MB |
+| `PARTNER_BUSINESS_REGISTRATION` | `business_registration_file` | 1 | JPG/PNG/PDF, 10MB |
 | `CATEGORY` | `icon` | 1 | JPG/PNG/WebP, 5MB |
 | `SPECIALIST` | `profile_image` | 3 | JPG/PNG/WebP, 장당 5MB, 첫 번째 이미지가 대표 |
 | `SPECIALIST` | `certification_image` | 5 | JPG/PNG/WebP, 장당 10MB |
 
-저장 루트는 `app.media.local.root`이며 기본값은 `./storage/media`다. 파일명은 서버가 생성하고 원본 파일명은 메타데이터로 보존한다.
+저장 루트는 `app.media.storage.root`이며 기본값은 `./storage/media`다. 파일명은 서버가 생성하고 원본 파일명은 메타데이터로 보존한다.
 
 ## 쓰기 책임
 
@@ -51,9 +51,9 @@ Staff 권한과 소유 도메인 존재를 확인한다. Partner 사업자등록
 
 ### Partner
 
-`GET /api/v1/partner/specialists/{specialistId}/media/{mediaId}/content`
+`GET /api/v1/partner/partners/{partnerId}/specialists/{specialistId}/media/{mediaId}/content`
 
-인증한 Partner 소유의 Specialist 미디어만 조회한다.
+인증 계정이 URL의 업체에 대한 활성 멤버십을 보유하고, 해당 업체 소속인 Specialist 미디어만 조회한다.
 
 ### User 앱 공개
 

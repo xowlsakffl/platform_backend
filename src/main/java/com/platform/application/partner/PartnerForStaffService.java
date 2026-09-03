@@ -2,7 +2,6 @@ package com.platform.application.partner;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.platform.application.auth.AuthSessionService;
 import com.platform.application.auth.PermissionService;
 import com.platform.application.cache.StaffSummaryCache;
 import com.platform.application.cache.StaffSummaryCacheInvalidator;
@@ -11,20 +10,15 @@ import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.application.hashtag.HashtagAssignmentService;
 import com.platform.application.specialist.SpecialistLifecycleService;
 import com.platform.application.specialist.result.SpecialistFieldResult;
-import com.platform.application.partner.command.CreatePartnerCommand;
-import com.platform.application.partner.command.ChangePartnerAccountStatusCommand;
 import com.platform.application.partner.command.ChangePartnerAllowStatusCommand;
 import com.platform.application.partner.command.ChangePartnerStatusCommand;
 import com.platform.application.partner.command.PartnerBusinessRegistrationCommand;
 import com.platform.application.partner.command.PartnerContactSetCommand;
-import com.platform.application.partner.command.SavePartnerOptionCommand;
 import com.platform.application.partner.command.UpdatePartnerCommand;
 import com.platform.application.partner.query.SearchPartnersQuery;
 import com.platform.application.partner.query.GetPartnerForStaffQuery;
 import com.platform.application.partner.query.SearchPartnerOperationHistoriesForStaffQuery;
-import com.platform.application.partner.result.DuplicateCheckResult;
 import com.platform.application.partner.result.PartnerAccountResult;
-import com.platform.application.partner.result.PartnerAccountInvitationResult;
 import com.platform.application.partner.result.PartnerAssignedStaffResult;
 import com.platform.application.partner.result.PartnerAllowStatusBulkUpdateResult;
 import com.platform.application.partner.result.PartnerBusinessRegistrationResult;
@@ -53,19 +47,18 @@ import com.platform.common.security.AccessPermissions;
 import com.platform.common.web.PaginatedResponse;
 import com.platform.domain.account.AccountPartner;
 import com.platform.domain.account.AccountPartnerStatus;
-import com.platform.domain.account.AccountActorType;
 import com.platform.domain.account.AccountStaff;
 import com.platform.domain.category.CategoryAssignment;
 import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.partner.Partner;
 import com.platform.domain.partner.PartnerAllowStatus;
-import com.platform.domain.partner.PartnerAccountInvitation;
-import com.platform.domain.partner.PartnerAccountLinkStatus;
 import com.platform.domain.partner.PartnerBusinessRegistration;
 import com.platform.domain.partner.PartnerContact;
 import com.platform.domain.partner.PartnerContactType;
 import com.platform.domain.partner.PartnerFeature;
 import com.platform.domain.partner.PartnerFeatureStatus;
+import com.platform.domain.partner.PartnerMembership;
+import com.platform.domain.partner.PartnerMembershipStatus;
 import com.platform.domain.hashtag.HashtagTargetType;
 import com.platform.domain.partner.PartnerStatus;
 import com.platform.domain.specialist.Specialist;
@@ -74,16 +67,14 @@ import com.platform.domain.operationhistory.OperationHistory;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.account.AccountStaffRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
-import com.platform.infrastructure.persistence.partner.PartnerAccountInvitationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerLinkRepository;
+import com.platform.infrastructure.persistence.partner.PartnerMembershipRepository;
 import com.platform.infrastructure.persistence.partner.PartnerOptionRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
-import com.platform.infrastructure.persistence.partner.PartnerRepresentativeEmail;
 import com.platform.infrastructure.persistence.partner.PartnerResourceCount;
 import com.platform.infrastructure.persistence.specialist.SpecialistRepository;
 import com.platform.infrastructure.persistence.operationhistory.OperationHistoryRepository;
-import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -103,7 +94,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -112,20 +102,20 @@ import org.springframework.util.StringUtils;
 @Service
 public class PartnerForStaffService {
 
-	private static final String ACTION_CREATED = "ACTION_CREATED";
 	private static final String ACTION_UPDATED = "ACTION_UPDATED";
 	private static final String ACTION_STATUS_UPDATED = "ACTION_STATUS_UPDATED";
 	private static final String ACTION_ALLOW_STATUS_UPDATED = "ACTION_ALLOW_STATUS_UPDATED";
-	private static final String ACTION_ACCOUNT_STATUS_UPDATED = "ACTION_ACCOUNT_STATUS_UPDATED";
 	private static final String ACTION_ASSIGNED_STAFF_UPDATED = "ACTION_ASSIGNED_STAFF_UPDATED";
+	private static final String ACTION_OWNER_ACCOUNT_UPDATED = "ACTION_OWNER_ACCOUNT_UPDATED";
 	private static final String ACTION_DELETED = "ACTION_DELETED";
 	private final PermissionService permissionService;
-	private final AuthSessionService authSessionService;
+	private final PartnerHistoryService historyService;
+	private final PartnerScheduleChangePolicy scheduleChangePolicy;
 	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
 	private final AccountPartnerRepository accountPartnerRepository;
+	private final PartnerMembershipRepository membershipRepository;
 	private final AccountStaffRepository accountStaffRepository;
-	private final PartnerAccountInvitationRepository invitationRepository;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final PartnerFeatureRepository featureRepository;
 	private final HashtagAssignmentService hashtagAssignmentService;
@@ -148,12 +138,13 @@ public class PartnerForStaffService {
 
 	public PartnerForStaffService(
 		PermissionService permissionService,
-		AuthSessionService authSessionService,
+		PartnerHistoryService historyService,
+		PartnerScheduleChangePolicy scheduleChangePolicy,
 		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
 		AccountPartnerRepository accountPartnerRepository,
+		PartnerMembershipRepository membershipRepository,
 		AccountStaffRepository accountStaffRepository,
-		PartnerAccountInvitationRepository invitationRepository,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		PartnerFeatureRepository featureRepository,
 		HashtagAssignmentService hashtagAssignmentService,
@@ -175,12 +166,13 @@ public class PartnerForStaffService {
 		ObjectMapper objectMapper
 	) {
 		this.permissionService = permissionService;
-		this.authSessionService = authSessionService;
+		this.historyService = historyService;
+		this.scheduleChangePolicy = scheduleChangePolicy;
 		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
 		this.accountPartnerRepository = accountPartnerRepository;
+		this.membershipRepository = membershipRepository;
 		this.accountStaffRepository = accountStaffRepository;
-		this.invitationRepository = invitationRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.featureRepository = featureRepository;
 		this.hashtagAssignmentService = hashtagAssignmentService;
@@ -213,8 +205,6 @@ public class PartnerForStaffService {
 		Page<Partner> page = partnerRepository.findAll(specification(condition), pageable);
 		List<Long> partnerIds = page.getContent().stream().map(Partner::id).toList();
 		Map<Long, AccountPartner> accounts = accountsByPartnerIds(page.getContent());
-		Map<Long, PartnerAccountInvitation> invitations = latestInvitationsByPartnerIds(page.getContent());
-		Map<Long, String> representativeEmails = representativeEmailsByPartnerIds(partnerIds);
 		Map<Long, List<CategoryReferenceResult>> categories = categoryAssignmentService.referencesByTargetIds(
 			CategoryAssignmentTarget.PARTNER,
 			partnerIds
@@ -237,9 +227,7 @@ public class PartnerForStaffService {
 			logos.get(partner.id()),
 			categories.getOrDefault(partner.id(), List.of()),
 			specialistCounts.getOrDefault(partner.id(), 0L),
-			optionCounts.getOrDefault(partner.id(), 0L),
-			invitations.get(partner.id()),
-			representativeEmails.get(partner.id())
+			optionCounts.getOrDefault(partner.id(), 0L)
 		));
 	}
 
@@ -271,6 +259,20 @@ public class PartnerForStaffService {
 		return accountStaffRepository.searchActiveOptions(searchPattern)
 			.stream()
 			.map(this::assignedStaffResponse)
+			.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public List<PartnerAccountResult> ownerAccountOptions(AuthenticatedActor actor, String query) {
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
+		String normalizedQuery = trimToNull(query);
+		if (normalizedQuery == null) {
+			return List.of();
+		}
+		String searchPattern = "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
+		return accountPartnerRepository.searchActiveByLoginId(searchPattern, PageRequest.of(0, 10))
+			.stream()
+			.map(this::accountResponse)
 			.toList();
 	}
 
@@ -314,95 +316,6 @@ public class PartnerForStaffService {
 	}
 
 	@Transactional
-	public PartnerDetailResult create(AuthenticatedActor actor, CreatePartnerCommand command) {
-		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
-		String name = trim(command.name());
-		PartnerBusinessRegistrationCommand businessCommand = requireBusinessRegistration(command.businessRegistration());
-		String businessNumber = businessNumberPolicy.normalize(businessCommand.businessNumber());
-		if (businessRegistrationRepository.existsByBusinessNumber(businessNumber)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "이미 등록된 사업자등록번호입니다.");
-		}
-		List<SavePartnerOptionCommand> options =
-			command.options() == null ? List.of() : command.options();
-
-		Partner partner = new Partner(
-			name,
-			trimToNull(command.description()),
-			trimToNull(command.roadAddress()),
-			trimToNull(command.latitude()),
-			trimToNull(command.longitude()),
-			trimToNull(command.operatingHoursNotice()),
-			schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true),
-			trimToNull(command.direction()),
-			PartnerAllowStatus.REVIEW_REQUESTED,
-			PartnerStatus.ACTIVE
-		);
-		partner.changeHolidayPolicy(schedulePolicyValidator.normalizeHolidayPolicy(command.holidayPolicy(), true));
-		partner.changeSubwayStations(accessInformationValidator.normalizeSubwayStations(command.subwayStationsJson()));
-		partner.changeNames(name, trimToNull(command.englishName()));
-		partner.changeDetailAddress(trimToNull(command.detailAddress()));
-		partner.markStaffCreated(actor.accountId());
-		partner.replaceContacts(buildContacts(requireContacts(command.contacts()), true));
-		partner.replaceBusinessRegistration(toBusinessRegistration(businessCommand, businessNumber));
-		partner.replaceFeatures(loadFeatures(command.featureIds()));
-
-		Partner saved;
-		try {
-			saved = partnerRepository.saveAndFlush(partner);
-		} catch (DataIntegrityViolationException exception) {
-			throw new ApiException(
-				ErrorCode.INVALID_REQUEST,
-				"이미 등록된 사업자등록번호입니다."
-			);
-		}
-		categoryAssignmentService.replacePrimary(
-			CategoryAssignmentTarget.PARTNER,
-			saved.id(),
-			command.categoryId()
-		);
-		options.forEach(option -> optionService.createForPartner(saved, option));
-		hashtagAssignmentService.replace(HashtagTargetType.PARTNER, saved.id(), command.hashtags());
-		linkAssignmentService.replace(saved, command.linksJson());
-		mediaCommandService.synchronizeSingle(
-			MediaOwnerType.PARTNER,
-			saved.id(),
-			MediaCollectionPolicy.PARTNER_LOGO,
-			command.logo(),
-			null,
-			true
-		);
-		mediaCommandService.synchronizeSingle(
-			MediaOwnerType.PARTNER,
-			saved.id(),
-			MediaCollectionPolicy.PARTNER_MAIN_IMAGE,
-			command.mainImage(),
-			null,
-			true
-		);
-		mediaCommandService.synchronizeMany(
-			MediaOwnerType.PARTNER,
-			saved.id(),
-			MediaCollectionPolicy.PARTNER_INTERIOR_IMAGE,
-			command.interiorImages(),
-			List.of(),
-			false,
-			9
-		);
-		mediaCommandService.synchronizeSingle(
-			MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
-			saved.businessRegistration().id(),
-			MediaCollectionPolicy.PARTNER_BUSINESS_REGISTRATION_FILE,
-			command.businessRegistrationFile(),
-			null,
-			true
-		);
-		recordSimpleHistory(actor, saved, ACTION_CREATED, null);
-		summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.PARTNER);
-
-		return toDetail(findActivePartner(saved.id()));
-	}
-
-	@Transactional
 	public PartnerDetailResult update(AuthenticatedActor actor, Long id, UpdatePartnerCommand command) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
 		if (command.specified("allow_status")) {
@@ -411,7 +324,7 @@ public class PartnerForStaffService {
 		if (command.specified("status")) {
 			permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_STATUS_UPDATE);
 		}
-		Partner partner = findActivePartner(id);
+		Partner partner = findLockedActivePartner(id);
 		Map<String, String> before = capture(partner);
 		PartnerStatus statusBeforeUpdate = partner.status();
 		if (command.specified("allow_status") && command.allowStatus() == null) {
@@ -468,6 +381,10 @@ public class PartnerForStaffService {
 			);
 		}
 
+		if (command.specified("operation_hours")) {
+			scheduleChangePolicy.assertCompatible(partner.id(),
+				schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true));
+		}
 		partner.updateProfile(
 			command.specified("description") ? trimToNull(command.description()) : partner.description(),
 			command.specified("road_address") ? trimToNull(command.roadAddress()) : partner.roadAddress(),
@@ -488,7 +405,6 @@ public class PartnerForStaffService {
 			partner.changeStatus(command.status());
 		}
 		Partner saved = partnerRepository.saveAndFlush(partner);
-		revokePartnerAccountSessionsWhenWithdrawn(saved, statusBeforeUpdate);
 
 		if (command.specified("category_id")) {
 			optionService.validatePartnerCategoryChange(saved.id(), command.categoryId());
@@ -591,7 +507,6 @@ public class PartnerForStaffService {
 		}
 		partner.changeStatus(command.status());
 		Partner saved = partnerRepository.saveAndFlush(partner);
-		revokePartnerAccountSessionsWhenWithdrawn(saved, before);
 
 		OperationHistory history = new OperationHistory(
 			OperationHistory.TARGET_PARTNER,
@@ -610,39 +525,55 @@ public class PartnerForStaffService {
 	}
 
 	@Transactional
-	public PartnerAccountResult changeAccountStatus(
+	public PartnerAccountResult changeOwnerAccount(
 		AuthenticatedActor actor,
 		Long id,
-		ChangePartnerAccountStatusCommand command
+		String loginId
 	) {
-		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_ACCOUNT_STATUS_UPDATE);
-		findActivePartner(id);
-		AccountPartner account = accountPartnerRepository.findForUpdateByPartner_IdAndDeletedAtIsNull(id)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "파트너 관리자 계정을 찾을 수 없습니다."));
-		AccountPartnerStatus before = account.status();
-		if (before == command.status()) {
-			return accountResponse(account);
+		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
+		Partner partner = findLockedActivePartner(id);
+		String normalizedLoginId = trim(loginId).toLowerCase(Locale.ROOT);
+		AccountPartner targetAccount = accountPartnerRepository
+			.findForUpdateByLoginIdAndDeletedAtIsNull(normalizedLoginId)
+			.filter(AccountPartner::isActive)
+			.orElseThrow(() -> new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"로그인 가능한 파트너 계정을 찾을 수 없습니다."
+			));
+
+		List<PartnerMembership> activeMemberships = membershipRepository
+			.findAllForPartnerForUpdate(id, PartnerMembershipStatus.ACTIVE);
+		if (activeMemberships.size() != 1) {
+			throw new InternalApplicationException("업체에는 활성 소유 계정이 정확히 하나 있어야 합니다. partnerId=" + id);
 		}
 
-		account.changeStatus(command.status());
-		AccountPartner saved = accountPartnerRepository.saveAndFlush(account);
-		if (saved.status() == AccountPartnerStatus.BLOCKED) {
-			authSessionService.revokeAll(AccountActorType.PARTNER, saved.id(), "PARTNER_ACCOUNT_BLOCKED");
+		PartnerMembership currentMembership = activeMemberships.getFirst();
+		AccountPartner currentAccount = currentMembership.accountPartner();
+		if (Objects.equals(currentAccount.id(), targetAccount.id())) {
+			return accountResponse(currentAccount);
 		}
+
+		PartnerMembership targetMembership = membershipRepository
+			.findForUpdate(targetAccount.id(), id)
+			.orElseGet(() -> PartnerMembership.owner(targetAccount, partner));
+		currentMembership.deactivate();
+		targetMembership.activateAsOwner();
+		membershipRepository.saveAndFlush(currentMembership);
+		membershipRepository.saveAndFlush(targetMembership);
 
 		OperationHistory history = new OperationHistory(
 			OperationHistory.TARGET_PARTNER,
 			id,
 			actor.actorType().name(),
 			actor.accountId(),
-			ACTION_ACCOUNT_STATUS_UPDATED,
-			trimToNull(command.reason()),
+			ACTION_OWNER_ACCOUNT_UPDATED,
+			null,
 			null
 		);
-		history.addChange("account_status", before.name(), saved.status().name());
+		history.addChange("owner_login_id", currentAccount.loginId(), targetAccount.loginId());
 		operationHistoryRepository.save(history);
 		summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.PARTNER);
-		return accountResponse(saved);
+		return accountResponse(targetAccount);
 	}
 
 	@Transactional
@@ -797,20 +728,11 @@ public class PartnerForStaffService {
 			);
 		}
 		partner.softDelete();
-		revokePartnerAccountSessions(partner, "PARTNER_DELETED");
 		mediaLifecycleService.softDeleteOwnedMedia(MediaOwnerType.PARTNER, partner.id());
 		Partner saved = partnerRepository.saveAndFlush(partner);
 		recordSimpleHistory(actor, saved, ACTION_DELETED, null);
 		summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.PARTNER);
 		return new PartnerDeletedResult(saved.id(), saved.deletedAt());
-	}
-
-	@Transactional(readOnly = true)
-	public DuplicateCheckResult checkBusinessNumber(AuthenticatedActor actor, String businessNumber) {
-		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_CREATE);
-		return new DuplicateCheckResult(
-			businessRegistrationRepository.existsByBusinessNumber(businessNumberPolicy.normalize(businessNumber))
-		);
 	}
 
 	private Specification<Partner> specification(SearchPartnersQuery condition) {
@@ -820,10 +742,16 @@ public class PartnerForStaffService {
 
 			String q = trimToNull(condition.q());
 			if (q != null) {
-				var accountJoin = root.join("accountPartner", JoinType.LEFT);
 				List<Predicate> searchPredicates = new ArrayList<>();
 				searchPredicates.add(criteriaBuilder.like(root.get("name"), "%" + q + "%"));
-				searchPredicates.add(criteriaBuilder.like(accountJoin.get("loginId"), "%" + q + "%"));
+				var accountSubquery = query.subquery(Long.class);
+				var membership = accountSubquery.from(PartnerMembership.class);
+				accountSubquery.select(membership.get("id")).where(
+					criteriaBuilder.equal(membership.get("partner").get("id"), root.get("id")),
+					criteriaBuilder.equal(membership.get("status"), PartnerMembershipStatus.ACTIVE),
+					criteriaBuilder.like(membership.get("accountPartner").get("loginId"), "%" + q + "%")
+				);
+				searchPredicates.add(criteriaBuilder.exists(accountSubquery));
 				parseLong(q).ifPresent(value -> searchPredicates.add(criteriaBuilder.equal(root.get("id"), value)));
 				predicates.add(criteriaBuilder.or(searchPredicates.toArray(Predicate[]::new)));
 			}
@@ -831,8 +759,14 @@ public class PartnerForStaffService {
 				predicates.add(root.get("status").in(condition.status()));
 			}
 			if (condition.accountStatus() != null && !condition.accountStatus().isEmpty()) {
-				var accountJoin = root.join("accountPartner", JoinType.INNER);
-				predicates.add(accountJoin.get("status").in(condition.accountStatus()));
+				var accountSubquery = query.subquery(Long.class);
+				var membership = accountSubquery.from(PartnerMembership.class);
+				accountSubquery.select(membership.get("id")).where(
+					criteriaBuilder.equal(membership.get("partner").get("id"), root.get("id")),
+					criteriaBuilder.equal(membership.get("status"), PartnerMembershipStatus.ACTIVE),
+					membership.get("accountPartner").get("status").in(condition.accountStatus())
+				);
+				predicates.add(criteriaBuilder.exists(accountSubquery));
 			}
 			if (condition.allowStatus() != null && !condition.allowStatus().isEmpty()) {
 				predicates.add(root.get("allowStatus").in(condition.allowStatus()));
@@ -852,18 +786,25 @@ public class PartnerForStaffService {
 				);
 				predicates.add(criteriaBuilder.exists(categorySubquery));
 			}
-			if (condition.registrationSources() != null && !condition.registrationSources().isEmpty()) {
-				predicates.add(root.get("registrationSource").in(condition.registrationSources()));
-			}
 			if (Boolean.TRUE.equals(condition.dormant())) {
-				var accountJoin = root.join("accountPartner", JoinType.INNER);
 				predicates.add(criteriaBuilder.notEqual(root.get("status"), PartnerStatus.WITHDRAWN));
-				predicates.add(criteriaBuilder.isNull(accountJoin.get("deletedAt")));
-				predicates.add(criteriaBuilder.equal(accountJoin.get("status"), AccountPartnerStatus.ACTIVE));
-				predicates.add(criteriaBuilder.or(
-					criteriaBuilder.isNull(accountJoin.get("lastLoginAt")),
-					criteriaBuilder.lessThan(accountJoin.<LocalDateTime>get("lastLoginAt"), LocalDateTime.now().minusDays(30))
-				));
+				var accountSubquery = query.subquery(Long.class);
+				var membership = accountSubquery.from(PartnerMembership.class);
+				var account = membership.get("accountPartner");
+				accountSubquery.select(membership.get("id")).where(
+					criteriaBuilder.equal(membership.get("partner").get("id"), root.get("id")),
+					criteriaBuilder.equal(membership.get("status"), PartnerMembershipStatus.ACTIVE),
+					criteriaBuilder.isNull(account.get("deletedAt")),
+					criteriaBuilder.equal(account.get("status"), AccountPartnerStatus.ACTIVE),
+					criteriaBuilder.or(
+						criteriaBuilder.isNull(account.get("lastLoginAt")),
+						criteriaBuilder.lessThan(
+							account.<LocalDateTime>get("lastLoginAt"),
+							LocalDateTime.now().minusDays(30)
+						)
+					)
+				);
+				predicates.add(criteriaBuilder.exists(accountSubquery));
 			}
 			applyDateRange(predicates, criteriaBuilder, root.<LocalDateTime>get("createdAt"), condition.startDate(), condition.endDate());
 			applyDateRange(predicates, criteriaBuilder, root.<LocalDateTime>get("updatedAt"), condition.updatedStartDate(), condition.updatedEndDate());
@@ -1018,10 +959,7 @@ public class PartnerForStaffService {
 			businessNumber,
 			trim(command.companyName()),
 			trim(command.ceoName()),
-			trim(command.businessType()),
-			trim(command.businessItem()),
-			trimToNull(command.businessAddress()),
-			trimToNull(command.businessAddressDetail()),
+			command.openingDate(),
 			trimToNull(command.settlementBankName()),
 			trimToNull(command.settlementAccountNumber()),
 			trimToNull(command.settlementAccountHolder())
@@ -1043,12 +981,7 @@ public class PartnerForStaffService {
 			businessNumber,
 			specifiedFields.contains("company_name") ? trim(command.companyName()) : current.companyName(),
 			specifiedFields.contains("ceo_name") ? trim(command.ceoName()) : current.ceoName(),
-			specifiedFields.contains("business_type") ? trim(command.businessType()) : current.businessType(),
-			specifiedFields.contains("business_item") ? trim(command.businessItem()) : current.businessItem(),
-			specifiedFields.contains("business_address") ? trimToNull(command.businessAddress()) : current.businessAddress(),
-			specifiedFields.contains("business_address_detail")
-				? trimToNull(command.businessAddressDetail())
-				: current.businessAddressDetail(),
+			specifiedFields.contains("opening_date") ? command.openingDate() : current.openingDate(),
 			specifiedFields.contains("settlement_bank_name")
 				? trimToNull(command.settlementBankName())
 				: current.settlementBankName(),
@@ -1087,10 +1020,9 @@ public class PartnerForStaffService {
 		MediaResult logo,
 		List<CategoryReferenceResult> categories,
 		long specialistCount,
-		long optionCount,
-		PartnerAccountInvitation invitation,
-		String representativeEmail
+		long optionCount
 	) {
+		AccountPartner ownerAccount = requireOwnerAccount(partner.id(), account);
 		return new PartnerListItemResult(
 			partner.id(),
 			partner.name(),
@@ -1101,31 +1033,13 @@ public class PartnerForStaffService {
 			partner.status().name(),
 			partner.createdAt(),
 			logo,
-			accountResponse(account),
+			accountResponse(ownerAccount),
 			assignedStaffResponse(partner.assignedStaff()),
 			categories,
 			partner.regionSortKey(),
 			specialistCount,
-			optionCount,
-			partner.registrationSource().name(),
-			accountLinkStatus(account, invitation).name(),
-			representativeEmail,
-			invitation == null ? null : invitation.email(),
-			invitation == null ? null : invitation.sentAt(),
-			invitation == null ? null : invitation.expiresAt()
+			optionCount
 		);
-	}
-
-	private Map<Long, String> representativeEmailsByPartnerIds(List<Long> partnerIds) {
-		if (partnerIds.isEmpty()) {
-			return Map.of();
-		}
-		return partnerRepository.findRepresentativeEmailsByPartnerIds(partnerIds).stream()
-			.collect(Collectors.toMap(
-				PartnerRepresentativeEmail::getPartnerId,
-				PartnerRepresentativeEmail::getEmail,
-				(existing, ignored) -> existing
-			));
 	}
 
 	private Map<Long, Long> resourceCounts(List<PartnerResourceCount> counts) {
@@ -1143,7 +1057,7 @@ public class PartnerForStaffService {
 		Partner partner,
 		Set<String> include
 	) {
-		PartnerAccountInvitation latestInvitation = latestInvitation(partner.id());
+		AccountPartner account = primaryAccount(partner.id());
 		return new PartnerDetailResult(
 			partner.id(),
 			partner.name(),
@@ -1186,7 +1100,7 @@ public class PartnerForStaffService {
 			),
 			featureResponses(partner.features()),
 			assignedStaffResponse(partner.assignedStaff()),
-			include.contains("account_partner") ? accountResponse(partner.accountPartner()) : null,
+			include.contains("account_partner") ? accountResponse(account) : null,
 			include.contains("specialists") ? specialistResponses(partner.id()) : null,
 			include.contains("business_registration")
 				? businessRegistrationResponse(partner.businessRegistration())
@@ -1198,12 +1112,21 @@ public class PartnerForStaffService {
 				.stream()
 				.map(link -> new PartnerLinkResult(link.id(), link.type().name(), link.url(), link.sortOrder()))
 				.toList(),
-			optionService.listByPartnerId(partner.id()),
-			partner.registrationSource().name(),
-			partner.createdByStaffId(),
-			accountLinkStatus(partner.accountPartner(), latestInvitation).name(),
-			latestInvitation == null ? null : invitationResponse(latestInvitation)
+			optionService.listByPartnerId(partner.id())
 		);
+	}
+
+	private AccountPartner primaryAccount(Long partnerId) {
+		List<PartnerMembership> memberships = membershipRepository
+			.findAllForPartnerIds(List.of(partnerId), PartnerMembershipStatus.ACTIVE)
+			.stream()
+			.toList();
+		if (memberships.size() != 1) {
+			throw new InternalApplicationException(
+				"업체의 활성 소유 계정은 정확히 1개여야 합니다. partnerId=" + partnerId
+			);
+		}
+		return memberships.getFirst().accountPartner();
 	}
 
 	private List<PartnerSpecialistForStaffResult> specialistResponses(Long partnerId) {
@@ -1268,6 +1191,7 @@ public class PartnerForStaffService {
 		}
 		return new PartnerAccountResult(
 			account.id(),
+			account.name(),
 			account.loginId(),
 			account.email(),
 			account.phone(),
@@ -1312,10 +1236,7 @@ public class PartnerForStaffService {
 			registration.businessNumber(),
 			registration.companyName(),
 			registration.ceoName(),
-			registration.businessType(),
-			registration.businessItem(),
-			registration.businessAddress(),
-			registration.businessAddressDetail(),
+			registration.openingDate(),
 			new PartnerSettlementAccountResult(
 				registration.settlementBankName(),
 				registration.settlementAccountNumber(),
@@ -1382,151 +1303,28 @@ public class PartnerForStaffService {
 		if (partnerIds.isEmpty()) {
 			return Map.of();
 		}
-		return accountPartnerRepository.findByPartner_IdInAndDeletedAtIsNull(partnerIds)
-			.stream()
-			.collect(Collectors.toMap(AccountPartner::partnerId, account -> account));
-	}
-
-	private Map<Long, PartnerAccountInvitation> latestInvitationsByPartnerIds(List<Partner> partners) {
-		List<Long> partnerIds = partners.stream().map(Partner::id).toList();
-		if (partnerIds.isEmpty()) {
-			return Map.of();
-		}
-		return invitationRepository.findLatestByPartnerIds(partnerIds)
+		return membershipRepository.findAllForPartnerIds(partnerIds, PartnerMembershipStatus.ACTIVE)
 			.stream()
 			.collect(Collectors.toMap(
-				PartnerAccountInvitation::partnerId,
-				invitation -> invitation,
-				(first, ignored) -> first,
+				PartnerMembership::partnerId,
+				PartnerMembership::accountPartner,
+				(first, ignored) -> {
+					throw new InternalApplicationException("업체에 활성 소유 계정이 중복 연결되어 있습니다.");
+				},
 				LinkedHashMap::new
 			));
 	}
 
-	private PartnerAccountInvitation latestInvitation(Long partnerId) {
-		return invitationRepository.findFirstByPartner_IdOrderByCreatedAtDescIdDesc(partnerId)
-			.orElse(null);
-	}
 
-	private PartnerAccountLinkStatus accountLinkStatus(
-		AccountPartner account,
-		PartnerAccountInvitation invitation
-	) {
-		if (account != null) {
-			return PartnerAccountLinkStatus.CONNECTED;
+	private AccountPartner requireOwnerAccount(Long partnerId, AccountPartner account) {
+		if (account == null) {
+			throw new InternalApplicationException("업체 소유 계정을 찾을 수 없습니다. partnerId=" + partnerId);
 		}
-		if (invitation == null) {
-			return PartnerAccountLinkStatus.NOT_INVITED;
-		}
-		return switch (invitation.status()) {
-			case PENDING -> PartnerAccountLinkStatus.INVITED;
-			case ACCEPTED -> PartnerAccountLinkStatus.CONNECTED;
-			case CANCELED -> PartnerAccountLinkStatus.NOT_INVITED;
-		};
-	}
-
-	private PartnerAccountInvitationResult invitationResponse(PartnerAccountInvitation invitation) {
-		return new PartnerAccountInvitationResult(
-			invitation.id(),
-			invitation.partnerId(),
-			invitation.email(),
-			invitation.status().name(),
-			invitation.deliveryStatus().name(),
-			invitation.expiresAt(),
-			invitation.sentAt(),
-			invitation.acceptedAt(),
-			invitation.canceledAt(),
-			invitation.createdByStaffId(),
-			invitation.createdAt(),
-			invitation.updatedAt()
-		);
+		return account;
 	}
 
 	private Map<String, String> capture(Partner partner) {
-		Map<String, String> values = new LinkedHashMap<>();
-		values.put("name", partner.name());
-		values.put("english_name", partner.englishName());
-		values.put("description", partner.description());
-		values.put("categories", writeInternalJson(
-			categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id())
-		));
-		values.put("road_address", partner.roadAddress());
-		values.put("detail_address", partner.detailAddress());
-		values.put("latitude", partner.latitude());
-		values.put("longitude", partner.longitude());
-		values.put("subway_stations", partner.subwayStations());
-		values.put("operating_hours_notice", partner.operatingHoursNotice());
-		values.put("operation_hours", partner.operationHours());
-		values.put("holiday_policy", partner.holidayPolicy());
-		values.put("direction", partner.direction());
-		values.put("allow_status", partner.allowStatus().name());
-		values.put("reviewer_staff_id", stringValue(staffId(partner.reviewerStaff())));
-		values.put(
-			"review_started_at",
-			partner.reviewStartedAt() == null ? null : partner.reviewStartedAt().toString()
-		);
-		values.put("status", partner.status().name());
-		values.put("contacts", writeInternalJson(contacts(partner)));
-		PartnerBusinessRegistration registration = partner.businessRegistration();
-		if (registration != null) {
-			Map<String, Object> business = new LinkedHashMap<>();
-			business.put("business_number", registration.businessNumber());
-			business.put("company_name", registration.companyName());
-			business.put("ceo_name", registration.ceoName());
-			business.put("business_type", registration.businessType());
-			business.put("business_item", registration.businessItem());
-			business.put("business_address", registration.businessAddress());
-			business.put("business_address_detail", registration.businessAddressDetail());
-			business.put("settlement_bank_name", registration.settlementBankName());
-			business.put("settlement_account_number", registration.settlementAccountNumber());
-			business.put("settlement_account_holder", registration.settlementAccountHolder());
-			values.put("business_registration", writeInternalJson(business));
-			values.put("business_registration_file", writeInternalJson(mediaSnapshot(mediaReadService.primary(
-				MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
-				registration.id(),
-				MediaCollectionPolicy.PARTNER_BUSINESS_REGISTRATION_FILE
-			))));
-		}
-		values.put("features", writeInternalJson(featureResponses(partner.features())));
-		values.put("logo", writeInternalJson(mediaSnapshot(mediaReadService.primary(
-			MediaOwnerType.PARTNER,
-			partner.id(),
-			MediaCollectionPolicy.PARTNER_LOGO
-		))));
-		values.put("main_image", writeInternalJson(mediaSnapshot(mediaReadService.primary(
-			MediaOwnerType.PARTNER,
-			partner.id(),
-			MediaCollectionPolicy.PARTNER_MAIN_IMAGE
-		))));
-		values.put("interior_images", writeInternalJson(mediaReadService.list(
-			MediaOwnerType.PARTNER,
-			partner.id(),
-			MediaCollectionPolicy.PARTNER_INTERIOR_IMAGE
-		).stream().map(this::mediaSnapshot).toList()));
-		values.put("options", writeInternalJson(optionService.listByPartnerId(partner.id())));
-		return values;
-	}
-
-	private Map<String, Object> mediaSnapshot(MediaResult media) {
-		if (media == null) {
-			return null;
-		}
-		Map<String, Object> value = new LinkedHashMap<>();
-		value.put("id", media.id());
-		value.put("name", media.originalName());
-		value.put("mime_type", media.mimeType());
-		value.put("size", media.size());
-		return value;
-	}
-
-	private String writeInternalJson(Object value) {
-		if (value == null) {
-			return null;
-		}
-		try {
-			return objectMapper.writeValueAsString(value);
-		} catch (JsonProcessingException exception) {
-			throw new InternalApplicationException("파트너 변경 이력 JSON을 만들 수 없습니다.", exception);
-		}
+		return historyService.capture(partner);
 	}
 
 	private void recordSimpleHistory(
@@ -1543,7 +1341,7 @@ public class PartnerForStaffService {
 			action,
 			trimToNull(reason),
 			null
-		));
+		).captureActor(actor.name(), actor.loginId()));
 	}
 
 	private void recordChangedHistory(
@@ -1554,24 +1352,7 @@ public class PartnerForStaffService {
 		Map<String, String> before,
 		Map<String, String> after
 	) {
-		OperationHistory history = new OperationHistory(
-			OperationHistory.TARGET_PARTNER,
-			partner.id(),
-			actor.actorType().name(),
-			actor.accountId(),
-			action,
-			trimToNull(reason),
-			null
-		);
-		before.forEach((key, beforeValue) -> {
-			String afterValue = after.get(key);
-			if (!Objects.equals(beforeValue, afterValue)) {
-				history.addChange(key, beforeValue, afterValue);
-			}
-		});
-		if (!history.changes().isEmpty()) {
-			operationHistoryRepository.save(history);
-		}
+		historyService.record(actor, partner, action, trimToNull(reason), before, after);
 	}
 
 	private Object fromJson(String json) {
@@ -1582,15 +1363,6 @@ public class PartnerForStaffService {
 			return objectMapper.readValue(json, Object.class);
 		} catch (JsonProcessingException exception) {
 			throw new InternalApplicationException("저장된 파트너 운영시간 JSON이 올바르지 않습니다.", exception);
-		}
-	}
-
-	private void revokePartnerAccountSessionsWhenWithdrawn(
-		Partner partner,
-		PartnerStatus previousStatus
-	) {
-		if (previousStatus != PartnerStatus.WITHDRAWN && partner.status() == PartnerStatus.WITHDRAWN) {
-			revokePartnerAccountSessions(partner, "PARTNER_WITHDRAWN");
 		}
 	}
 
@@ -1664,13 +1436,6 @@ public class PartnerForStaffService {
 	private void requireRejectionReason(PartnerAllowStatus status, String reason) {
 		if (status == PartnerAllowStatus.REJECTED && trimToNull(reason) == null) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "반려 사유를 입력해주세요.");
-		}
-	}
-
-	private void revokePartnerAccountSessions(Partner partner, String reason) {
-		AccountPartner account = partner.accountPartner();
-		if (account != null) {
-			authSessionService.revokeAll(AccountActorType.PARTNER, account.id(), reason);
 		}
 	}
 

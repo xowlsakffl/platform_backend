@@ -17,6 +17,7 @@ import java.util.List;
 public class OperationHistory extends BaseTimeEntity {
 
 	public static final String TARGET_PARTNER = "PARTNER";
+	public static final String TARGET_PARTNER_ACCOUNT = "PARTNER_ACCOUNT";
 	public static final String TARGET_CATEGORY = "CATEGORY";
 	public static final String TARGET_SPECIALIST = "SPECIALIST";
 
@@ -36,6 +37,12 @@ public class OperationHistory extends BaseTimeEntity {
 	@Column(name = "actor_id")
 	private Long actorId;
 
+	@Column(name = "actor_name_snapshot", length = 100)
+	private String actorNameSnapshot;
+
+	@Column(name = "actor_login_id_snapshot", length = 100)
+	private String actorLoginIdSnapshot;
+
 	@Column(nullable = false, length = 60)
 	private String action;
 
@@ -44,6 +51,12 @@ public class OperationHistory extends BaseTimeEntity {
 
 	@Column(length = 500)
 	private String memo;
+
+	@Column(name = "ip_address", length = 45)
+	private String ipAddress;
+
+	@Column(name = "user_agent", length = 500)
+	private String userAgent;
 
 	@OneToMany(mappedBy = "operationHistory", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<OperationHistoryChange> changes = new ArrayList<>();
@@ -78,12 +91,52 @@ public class OperationHistory extends BaseTimeEntity {
 		this.changes.add(change);
 	}
 
+	public OperationHistory captureActor(String actorName, String actorLoginId) {
+		this.actorNameSnapshot = actorName;
+		this.actorLoginIdSnapshot = actorLoginId;
+		return this;
+	}
+
+	public OperationHistory captureRequest(String ipAddress, String userAgent) {
+		this.ipAddress = ipAddress;
+		this.userAgent = userAgent;
+		return this;
+	}
+
 	public Long id() {
 		return id;
 	}
 
 	public String action() {
 		return action;
+	}
+
+	public String actorType() {
+		return actorType;
+	}
+
+	public Long actorId() {
+		return actorId;
+	}
+
+	public String actorNameSnapshot() {
+		return actorNameSnapshot;
+	}
+
+	public String actorLoginIdSnapshot() {
+		return actorLoginIdSnapshot;
+	}
+
+	public String memo() {
+		return memo;
+	}
+
+	public String ipAddress() {
+		return ipAddress;
+	}
+
+	public String userAgent() {
+		return userAgent;
 	}
 
 	public String reason() {

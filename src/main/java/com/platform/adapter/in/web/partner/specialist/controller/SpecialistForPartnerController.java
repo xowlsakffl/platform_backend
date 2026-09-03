@@ -2,6 +2,7 @@ package com.platform.adapter.in.web.partner.specialist.controller;
 
 import com.platform.adapter.in.web.partner.specialist.request.SpecialistListForPartnerRequest;
 import com.platform.adapter.in.web.partner.specialist.request.SpecialistCreateForPartnerRequest;
+import com.platform.adapter.in.web.partner.specialist.request.SpecialistOrderUpdateForPartnerRequest;
 import com.platform.adapter.in.web.partner.specialist.request.SpecialistStatusUpdateForPartnerRequest;
 import com.platform.adapter.in.web.partner.specialist.request.SpecialistUpdateForPartnerRequest;
 import com.platform.application.specialist.SpecialistForPartnerService;
@@ -36,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
-@RequestMapping("/api/v1/partner/specialists")
+@RequestMapping("/api/v1/partner/partners/{partnerId}/specialists")
 public class SpecialistForPartnerController {
 
 	private final SpecialistForPartnerService service;
@@ -53,29 +54,32 @@ public class SpecialistForPartnerController {
 	@GetMapping
 	public ApiResponse list(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@Valid @ModelAttribute SpecialistListForPartnerRequest query,
 		HttpServletRequest request
 	) {
-		PaginatedResponse<?> response = service.list(actor, query.toQuery());
+		PaginatedResponse<?> response = service.list(actor, partnerId, query.toQuery());
 		return ApiResponse.success(response.items(), response.meta(), RequestTrace.traceId(request));
 	}
 
 	@GetMapping("/{id}")
 	public ApiResponse get(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@PathVariable Long id,
 		HttpServletRequest request
 	) {
-		return ApiResponse.success(service.get(actor, id), RequestTrace.traceId(request));
+		return ApiResponse.success(service.get(actor, partnerId, id), RequestTrace.traceId(request));
 	}
 
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ApiResponse create(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@Valid @ModelAttribute SpecialistCreateForPartnerRequest body,
 		HttpServletRequest request
 	) {
-		return ApiResponse.success(service.create(actor, body.toCommand()), RequestTrace.traceId(request));
+		return ApiResponse.success(service.create(actor, partnerId, body.toCommand()), RequestTrace.traceId(request));
 	}
 
 	@RequestMapping(
@@ -85,12 +89,13 @@ public class SpecialistForPartnerController {
 	)
 	public ApiResponse update(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@PathVariable Long id,
 		@Valid @ModelAttribute SpecialistUpdateForPartnerRequest body,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(
-			service.update(actor, id, body.toCommand(request.getParameterMap().keySet())),
+			service.update(actor, partnerId, id, body.toCommand(request.getParameterMap().keySet())),
 			RequestTrace.traceId(request)
 		);
 	}
@@ -98,30 +103,46 @@ public class SpecialistForPartnerController {
 	@PatchMapping("/{id}/status")
 	public ApiResponse changeStatus(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@PathVariable Long id,
 		@Valid @RequestBody SpecialistStatusUpdateForPartnerRequest body,
 		HttpServletRequest request
 	) {
-		return ApiResponse.success(service.changeStatus(actor, id, body.status()), RequestTrace.traceId(request));
+		return ApiResponse.success(service.changeStatus(actor, partnerId, id, body.status()), RequestTrace.traceId(request));
+	}
+
+	@PatchMapping(value = "/order", consumes = MediaType.APPLICATION_JSON_VALUE)
+	public ApiResponse reorder(
+		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
+		@Valid @RequestBody SpecialistOrderUpdateForPartnerRequest body,
+		HttpServletRequest request
+	) {
+		return ApiResponse.success(
+			service.reorder(actor, partnerId, body.toCommand()),
+			RequestTrace.traceId(request)
+		);
 	}
 
 	@DeleteMapping("/{id}")
 	public ApiResponse delete(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@PathVariable Long id,
 		HttpServletRequest request
 	) {
-		SpecialistDeletedResult response = service.delete(actor, id);
+		SpecialistDeletedResult response = service.delete(actor, partnerId, id);
 		return ApiResponse.success(response, RequestTrace.traceId(request));
 	}
 
 	@GetMapping("/{specialistId}/media/{mediaId}/content")
 	public ResponseEntity<InputStreamResource> mediaContent(
 		@AuthenticationPrincipal AuthenticatedActor actor,
+		@PathVariable Long partnerId,
 		@PathVariable Long specialistId,
 		@PathVariable Long mediaId
 	) {
-		MediaContentResult result = mediaService.content(actor, specialistId, mediaId);
+		MediaContentResult result = mediaService.content(actor, partnerId, specialistId, mediaId);
 		ContentDisposition disposition = ContentDisposition.inline()
 			.filename(result.originalName(), StandardCharsets.UTF_8)
 			.build();

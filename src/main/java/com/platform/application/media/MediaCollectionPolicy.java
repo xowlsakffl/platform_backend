@@ -29,7 +29,6 @@ public class MediaCollectionPolicy {
 	private static final Set<String> DOCUMENT_TYPES = Set.of(
 		"image/jpeg",
 		"image/png",
-		"image/webp",
 		"application/pdf"
 	);
 	private static final Set<String> SPECIALIST_COLLECTIONS = Set.of(
@@ -57,10 +56,19 @@ public class MediaCollectionPolicy {
 				file,
 				DOCUMENT_TYPES,
 				PARTNER_DOCUMENT_MAX_SIZE,
-				"사업자등록증은 JPG, PNG, WebP, PDF 10MB 이하만 가능합니다."
+				"사업자등록증은 JPG, PNG, PDF 10MB 이하만 가능합니다."
 			);
 			case CATEGORY -> validateCategoryIcon(file);
 			case SPECIALIST -> validateSpecialistFile(collection, file);
+		}
+	}
+
+	public void validateBusinessRegistrationInput(String contentType, long size) {
+		if (!DOCUMENT_TYPES.contains(contentType) || size > PARTNER_DOCUMENT_MAX_SIZE) {
+			throw new ApiException(
+				ErrorCode.INVALID_REQUEST,
+				"사업자등록증은 JPG, PNG, PDF 10MB 이하만 가능합니다."
+			);
 		}
 	}
 

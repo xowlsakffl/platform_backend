@@ -1,17 +1,13 @@
 package com.platform.domain.account;
 
 import com.platform.domain.common.BaseTimeEntity;
-import com.platform.domain.partner.Partner;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -24,9 +20,8 @@ public class AccountPartner extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@OneToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "partner_id", nullable = false)
-	private Partner partner;
+	@Column(nullable = false, length = 50)
+	private String name;
 
 	@Column(name = "login_id", nullable = false, unique = true, length = 30)
 	private String loginId;
@@ -57,7 +52,7 @@ public class AccountPartner extends BaseTimeEntity {
 	}
 
 	public static AccountPartner create(
-		Partner partner,
+		String name,
 		String loginId,
 		String email,
 		String phone,
@@ -65,7 +60,7 @@ public class AccountPartner extends BaseTimeEntity {
 		AccountPartnerStatus status
 	) {
 		AccountPartner account = new AccountPartner();
-		account.partner = Objects.requireNonNull(partner);
+		account.name = Objects.requireNonNull(name);
 		account.loginId = Objects.requireNonNull(loginId);
 		account.email = Objects.requireNonNull(email);
 		account.phone = phone;
@@ -79,16 +74,12 @@ public class AccountPartner extends BaseTimeEntity {
 		return id;
 	}
 
-	public Long partnerId() {
-		return partner == null ? null : partner.id();
+	public String name() {
+		return name;
 	}
 
 	public String loginId() {
 		return loginId;
-	}
-
-	public String partnerName() {
-		return partner == null ? null : partner.name();
 	}
 
 	public String email() {
@@ -121,10 +112,7 @@ public class AccountPartner extends BaseTimeEntity {
 
 	public boolean isActive() {
 		return deletedAt == null
-			&& status == AccountPartnerStatus.ACTIVE
-			&& partner != null
-			&& partner.deletedAt() == null
-			&& partner.status() != com.platform.domain.partner.PartnerStatus.WITHDRAWN;
+			&& status == AccountPartnerStatus.ACTIVE;
 	}
 
 	public void markLoggedIn() {

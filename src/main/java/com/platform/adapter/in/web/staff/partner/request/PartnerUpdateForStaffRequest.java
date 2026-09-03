@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.web.bind.annotation.BindParam;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.LocalDate;
 
 public record PartnerUpdateForStaffRequest(
 	@Pattern(regexp = ".*\\S.*") @Size(max = 30) String name,
@@ -47,10 +48,7 @@ public record PartnerUpdateForStaffRequest(
 	@BindParam("business_number") @Size(max = 20) String businessNumber,
 	@BindParam("company_name") @Size(max = 255) String companyName,
 	@BindParam("ceo_name") @Size(max = 100) String ceoName,
-	@BindParam("business_type") @Size(max = 100) String businessType,
-	@BindParam("business_item") @Size(max = 100) String businessItem,
-	@BindParam("business_address") @Size(max = 255) String businessAddress,
-	@BindParam("business_address_detail") @Size(max = 255) String businessAddressDetail,
+	@BindParam("opening_date") LocalDate openingDate,
 	@BindParam("settlement_bank_name") @Size(max = 50) String settlementBankName,
 	@BindParam("settlement_account_number") @Size(max = 50)
 	@Pattern(regexp = "^(?:|[0-9\\-\\s]{2,50})$") String settlementAccountNumber,
@@ -135,10 +133,7 @@ public record PartnerUpdateForStaffRequest(
 			"business_number",
 			"company_name",
 			"ceo_name",
-			"business_type",
-			"business_item",
-			"business_address",
-			"business_address_detail",
+			"opening_date",
 			"settlement_bank_name",
 			"settlement_account_number",
 			"settlement_account_holder"
@@ -149,10 +144,7 @@ public record PartnerUpdateForStaffRequest(
 			businessNumber,
 			companyName,
 			ceoName,
-			businessType,
-			businessItem,
-			businessAddress,
-			businessAddressDetail,
+			openingDate,
 			settlementBankName,
 			settlementAccountNumber,
 			settlementAccountHolder

@@ -47,6 +47,7 @@ class PartnerOptionForPartnerServiceTests {
 		actor = mock(AuthenticatedActor.class);
 		service = new PartnerOptionForPartnerService(
 			mock(OwnershipPolicy.class),
+			mock(PartnerHistoryService.class),
 			mock(PermissionService.class),
 			categoryAssignmentService,
 			partnerRepository,

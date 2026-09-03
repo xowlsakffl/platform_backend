@@ -44,30 +44,30 @@ CREATE TABLE `staff_permissions` (
   UNIQUE KEY `staff_permissions_code_unique` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='내부 운영자 권한 테이블';
 
-CREATE TABLE `staff_role_permissions` (
+CREATE TABLE `staff_role_permission_assignments` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `staff_role_id` bigint NOT NULL,
   `staff_permission_id` bigint NOT NULL,
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `staff_role_permissions_role_permission_unique` (`staff_role_id`,`staff_permission_id`),
-  KEY `staff_role_permissions_permission_id_index` (`staff_permission_id`),
-  CONSTRAINT `fk_staff_role_permissions_permission` FOREIGN KEY (`staff_permission_id`) REFERENCES `staff_permissions` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_staff_role_permissions_role` FOREIGN KEY (`staff_role_id`) REFERENCES `staff_roles` (`id`) ON DELETE CASCADE
+  UNIQUE KEY `staff_role_permission_assignments_role_permission_unique` (`staff_role_id`,`staff_permission_id`),
+  KEY `staff_role_permission_assignments_permission_id_index` (`staff_permission_id`),
+  CONSTRAINT `fk_staff_role_permission_assignments_permission` FOREIGN KEY (`staff_permission_id`) REFERENCES `staff_permissions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_staff_role_permission_assignments_role` FOREIGN KEY (`staff_role_id`) REFERENCES `staff_roles` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='내부 운영자 역할 권한 연결 테이블';
 
-CREATE TABLE `account_staff_roles` (
+CREATE TABLE `staff_role_assignments` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `account_staff_id` bigint NOT NULL,
   `staff_role_id` bigint NOT NULL,
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `account_staff_roles_staff_role_unique` (`account_staff_id`,`staff_role_id`),
-  KEY `account_staff_roles_role_id_index` (`staff_role_id`),
-  CONSTRAINT `fk_account_staff_roles_role` FOREIGN KEY (`staff_role_id`) REFERENCES `staff_roles` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_account_staff_roles_staff` FOREIGN KEY (`account_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE CASCADE
+  UNIQUE KEY `staff_role_assignments_staff_role_unique` (`account_staff_id`,`staff_role_id`),
+  KEY `staff_role_assignments_role_id_index` (`staff_role_id`),
+  CONSTRAINT `fk_staff_role_assignments_role` FOREIGN KEY (`staff_role_id`) REFERENCES `staff_roles` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_staff_role_assignments_staff` FOREIGN KEY (`account_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='내부 운영자 계정 역할 연결 테이블';
 
 CREATE TABLE `account_users` (
@@ -193,8 +193,6 @@ CREATE TABLE `partners` (
   `evaluation_average_rating` decimal(2,1) NOT NULL DEFAULT '0.0',
   `allow_status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'REVIEW_REQUESTED',
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
-  `registration_source` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'STAFF_CREATED',
-  `created_by_staff_id` bigint DEFAULT NULL,
   `assigned_staff_id` bigint DEFAULT NULL,
   `reviewer_staff_id` bigint DEFAULT NULL,
   `review_started_at` timestamp(6) NULL DEFAULT NULL,
@@ -217,17 +215,14 @@ CREATE TABLE `partners` (
   KEY `partners_deleted_status_created_id_idx` (`deleted_at`,`status`,`created_at`,`id`),
   KEY `partners_assigned_staff_id_index` (`assigned_staff_id`),
   KEY `partners_reviewer_staff_id_index` (`reviewer_staff_id`),
-  KEY `partners_registration_source_index` (`registration_source`),
-  KEY `partners_created_by_staff_index` (`created_by_staff_id`),
   KEY `partners_region_sort_key_index` (`region_sort_key`),
   CONSTRAINT `fk_partners_assigned_staff` FOREIGN KEY (`assigned_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_partners_reviewer_staff` FOREIGN KEY (`reviewer_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_partners_created_by_staff` FOREIGN KEY (`created_by_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_partners_reviewer_staff` FOREIGN KEY (`reviewer_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='파트너 테이블';
 
 CREATE TABLE `account_partners` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `partner_id` bigint NOT NULL,
+  `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `login_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `phone` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -239,14 +234,27 @@ CREATE TABLE `account_partners` (
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `deleted_at` timestamp(6) NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `account_partners_partner_id_unique` (`partner_id`),
   UNIQUE KEY `account_partners_email_unique` (`email`),
   UNIQUE KEY `account_partners_login_id_unique` (`login_id`),
   KEY `account_partners_status_index` (`status`),
-  KEY `account_partners_login_status_partner_idx` (`last_login_at`,`status`,`partner_id`),
-  KEY `account_partners_status_partner_idx` (`status`,`partner_id`),
-  CONSTRAINT `fk_account_partners_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE
+  KEY `account_partners_login_status_idx` (`last_login_at`,`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='파트너 관리자 계정 테이블';
+
+CREATE TABLE `partner_memberships` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `account_partner_id` bigint NOT NULL,
+  `partner_id` bigint NOT NULL,
+  `role` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'OWNER',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
+  `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `partner_memberships_account_partner_unique` (`account_partner_id`,`partner_id`),
+  KEY `partner_memberships_partner_status_index` (`partner_id`,`status`,`id`),
+  KEY `partner_memberships_account_status_index` (`account_partner_id`,`status`,`id`),
+  CONSTRAINT `fk_partner_memberships_account` FOREIGN KEY (`account_partner_id`) REFERENCES `account_partners` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_partner_memberships_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='파트너 계정과 업체 연결 테이블';
 
 CREATE TABLE `partner_contacts` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -272,10 +280,7 @@ CREATE TABLE `partner_business_registrations` (
   `business_number` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `company_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ceo_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `business_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `business_item` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `business_address` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `business_address_detail` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `opening_date` date DEFAULT NULL,
   `settlement_bank_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `settlement_account_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `settlement_account_holder` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -389,28 +394,6 @@ CREATE TABLE `specialist_options` (
   CONSTRAINT `fk_specialist_options_specialist` FOREIGN KEY (`specialist_id`) REFERENCES `partner_specialists` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `partner_account_invitations` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `partner_id` bigint NOT NULL,
-  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `token_hash` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PENDING',
-  `expires_at` timestamp(6) NOT NULL,
-  `sent_at` timestamp(6) NULL DEFAULT NULL,
-  `accepted_at` timestamp(6) NULL DEFAULT NULL,
-  `canceled_at` timestamp(6) NULL DEFAULT NULL,
-  `created_by_staff_id` bigint DEFAULT NULL,
-  `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `partner_account_invitations_token_hash_unique` (`token_hash`),
-  KEY `partner_account_invitations_partner_created_index` (`partner_id`,`created_at`,`id`),
-  KEY `partner_account_invitations_email_status_index` (`email`,`status`,`expires_at`),
-  KEY `partner_account_invitations_staff_index` (`created_by_staff_id`),
-  CONSTRAINT `fk_partner_account_invitations_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_partner_account_invitations_staff` FOREIGN KEY (`created_by_staff_id`) REFERENCES `account_staffs` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE `hashtags` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `name` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -469,13 +452,18 @@ CREATE TABLE `operation_histories` (
   `target_id` bigint NOT NULL,
   `actor_type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'STAFF',
   `actor_id` bigint DEFAULT NULL,
+  `actor_name_snapshot` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `actor_login_id_snapshot` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `action` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
   `reason` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `memo` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  KEY `operation_histories_target_index` (`target_type`,`target_id`,`created_at`)
+  KEY `operation_histories_target_index` (`target_type`,`target_id`,`created_at`,`id`),
+  KEY `operation_histories_actor_index` (`actor_type`,`actor_id`,`created_at`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='운영 처리 이력 테이블';
 
 CREATE TABLE `operation_history_changes` (
@@ -513,6 +501,21 @@ CREATE TABLE `auth_sessions` (
   KEY `auth_sessions_expires_at_idx` (`expires_at`),
   KEY `auth_sessions_revoked_at_idx` (`revoked_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='인증 리프레시 세션 테이블';
+
+CREATE TABLE `authentication_events` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `actor_type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `account_id` bigint DEFAULT NULL,
+  `result` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `failure_code` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  KEY `authentication_events_account_created_idx` (`actor_type`,`account_id`,`created_at`,`id`),
+  KEY `authentication_events_created_idx` (`created_at`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='로그인 접속 이력 테이블';
 
 CREATE TABLE `password_reset_tokens` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -575,10 +578,11 @@ INSERT INTO staff_permissions (code, display_name) VALUES
     ('platform.partner_event.update', '파트너 이벤트 수정'),
     ('platform.partner_review.show', '파트너 후기 조회'),
     ('platform.partner_review.update', '파트너 후기 수정'),
+    ('platform.partner.account_password_reset', '파트너 계정 비밀번호 재설정 링크 발송'),
+    ('platform.partner.account_security.update', '파트너 계정 접속 보안 관리'),
     ('platform.partner.account_status.update', '파트너 관리자 로그인 상태 변경'),
     ('platform.partner.allow_status.update', '파트너 승인상태 변경'),
     ('platform.partner.assign_staff', '파트너 담당 직원 지정'),
-    ('platform.partner.create', '파트너 등록'),
     ('platform.partner.delete', '파트너 삭제'),
     ('platform.partner.show', '파트너 조회'),
     ('platform.partner.status.update', '파트너 운영상태 변경'),
@@ -612,13 +616,13 @@ INSERT INTO staff_permissions (code, display_name) VALUES
     ('platform.video.show', '동영상 조회'),
     ('platform.video.update', '동영상 수정');
 
-INSERT INTO staff_role_permissions (staff_role_id, staff_permission_id)
+INSERT INTO staff_role_permission_assignments (staff_role_id, staff_permission_id)
 SELECT role.id, permission.id
 FROM staff_roles role
 CROSS JOIN staff_permissions permission
 WHERE role.name = 'platform.super_admin';
 
-INSERT INTO staff_role_permissions (staff_role_id, staff_permission_id)
+INSERT INTO staff_role_permission_assignments (staff_role_id, staff_permission_id)
 SELECT role.id, permission.id
 FROM staff_roles role
 CROSS JOIN staff_permissions permission
@@ -630,7 +634,7 @@ WHERE role.name = 'platform.admin'
     'platform.partner.status.update'
   );
 
-INSERT INTO staff_role_permissions (staff_role_id, staff_permission_id)
+INSERT INTO staff_role_permission_assignments (staff_role_id, staff_permission_id)
 SELECT role.id, permission.id
 FROM staff_roles role
 CROSS JOIN staff_permissions permission

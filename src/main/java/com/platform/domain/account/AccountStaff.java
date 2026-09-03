@@ -65,7 +65,7 @@ public class AccountStaff extends BaseTimeEntity {
 
 	@ManyToMany(fetch = FetchType.LAZY)
 	@JoinTable(
-		name = "account_staff_roles",
+		name = "staff_role_assignments",
 		joinColumns = @JoinColumn(name = "account_staff_id"),
 		inverseJoinColumns = @JoinColumn(name = "staff_role_id")
 	)

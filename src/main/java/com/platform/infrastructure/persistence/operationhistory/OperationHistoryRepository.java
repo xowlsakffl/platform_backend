@@ -15,6 +15,19 @@ public interface OperationHistoryRepository extends JpaRepository<OperationHisto
 
 	Page<OperationHistory> findByTargetTypeAndTargetId(String targetType, Long targetId, Pageable pageable);
 
+	@Query("""
+		select history
+		from OperationHistory history
+		where (history.targetType = :accountTargetType and history.targetId = :accountId)
+		   or (history.actorType = :partnerActorType and history.actorId = :accountId)
+		""")
+	Page<OperationHistory> findAllForPartnerAccountHistory(
+		String accountTargetType,
+		Long accountId,
+		String partnerActorType,
+		Pageable pageable
+	);
+
 	@EntityGraph(attributePaths = "changes")
 	@Query("select distinct history from OperationHistory history where history.id in :ids")
 	List<OperationHistory> findWithChangesByIdIn(List<Long> ids);

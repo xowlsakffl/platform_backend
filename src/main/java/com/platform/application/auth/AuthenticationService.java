@@ -19,6 +19,7 @@ import com.platform.domain.account.AccountActorType;
 import com.platform.domain.account.AccountPartner;
 import com.platform.domain.account.AccountStaff;
 import com.platform.domain.account.AccountUser;
+import com.platform.domain.auth.AuthenticationEventResult;
 import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.account.AccountStaffRepository;
 import com.platform.infrastructure.persistence.account.AccountUserRepository;
@@ -38,6 +39,7 @@ public class AuthenticationService {
 	private final JwtTokenService jwtTokenService;
 	private final AuthSessionService authSessionService;
 	private final LoginAttemptPolicy loginAttemptPolicy;
+	private final AuthenticationEventService authenticationEventService;
 	private final StaffSummaryCacheInvalidator summaryCacheInvalidator;
 
 	public AuthenticationService(
@@ -48,6 +50,7 @@ public class AuthenticationService {
 		JwtTokenService jwtTokenService,
 		AuthSessionService authSessionService,
 		LoginAttemptPolicy loginAttemptPolicy,
+		AuthenticationEventService authenticationEventService,
 		StaffSummaryCacheInvalidator summaryCacheInvalidator
 	) {
 		this.staffRepository = staffRepository;
@@ -57,6 +60,7 @@ public class AuthenticationService {
 		this.jwtTokenService = jwtTokenService;
 		this.authSessionService = authSessionService;
 		this.loginAttemptPolicy = loginAttemptPolicy;
+		this.authenticationEventService = authenticationEventService;
 		this.summaryCacheInvalidator = summaryCacheInvalidator;
 	}
 
@@ -64,7 +68,19 @@ public class AuthenticationService {
 	public AuthSessionTokenResult login(AccountActorType actorType, AuthLoginCommand command) {
 		String identifier = normalizeIdentifier(actorType, command.identifier());
 		String ipAddress = command.client().ipAddress();
-		loginAttemptPolicy.assertAllowed(actorType, identifier, ipAddress);
+		Long eventAccountId = accountIdForEvent(actorType, identifier);
+		try {
+			loginAttemptPolicy.assertAllowed(actorType, identifier, ipAddress);
+		} catch (ApiException exception) {
+			authenticationEventService.record(
+				actorType,
+				eventAccountId,
+				AuthenticationEventResult.BLOCKED,
+				exception.errorCode().name(),
+				command.client()
+			);
+			throw exception;
+		}
 
 		AuthenticatedActor actor;
 		try {
@@ -75,6 +91,13 @@ public class AuthenticationService {
 			};
 		} catch (ApiException exception) {
 			loginAttemptPolicy.recordFailure(actorType, identifier, ipAddress);
+			authenticationEventService.record(
+				actorType,
+				eventAccountId,
+				AuthenticationEventResult.FAILURE,
+				exception.errorCode().name(),
+				command.client()
+			);
 			throw exception;
 		}
 
@@ -85,8 +108,29 @@ public class AuthenticationService {
 			command.keepLoggedIn(),
 			command.client()
 		);
+		authenticationEventService.record(
+			actorType,
+			actor.accountId(),
+			AuthenticationEventResult.SUCCESS,
+			null,
+			command.client()
+		);
 		AuthenticatedActor sessionActor = actor.withSessionId(session.sessionId());
 		return sessionToken(sessionActor, session);
+	}
+
+	private Long accountIdForEvent(AccountActorType actorType, String identifier) {
+		return switch (actorType) {
+			case STAFF -> staffRepository.findByLoginIdAndDeletedAtIsNull(identifier)
+				.map(AccountStaff::id)
+				.orElse(null);
+			case PARTNER -> partnerRepository.findByLoginIdAndDeletedAtIsNull(identifier)
+				.map(AccountPartner::id)
+				.orElse(null);
+			case USER -> userRepository.findByEmailAndDeletedAtIsNull(identifier)
+				.map(AccountUser::id)
+				.orElse(null);
+		};
 	}
 
 	@Transactional(noRollbackFor = RefreshTokenReuseException.class)
@@ -208,11 +252,11 @@ public class AuthenticationService {
 		return new AuthenticatedActor(
 			AccountActorType.PARTNER,
 			partner.id(),
-			partner.partnerId(),
+			null,
 			sessionId,
 			partner.email(),
 			partner.loginId(),
-			partner.partnerName(),
+			partner.name(),
 			null,
 			Set.of()
 		);

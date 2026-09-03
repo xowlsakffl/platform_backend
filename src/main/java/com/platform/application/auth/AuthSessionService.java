@@ -2,6 +2,7 @@ package com.platform.application.auth;
 
 import com.platform.application.auth.command.AuthClientContext;
 import com.platform.application.auth.result.RotatedAuthSessionResult;
+import com.platform.application.auth.result.ActiveAuthSessionResult;
 import com.platform.common.error.ApiException;
 import com.platform.common.error.ErrorCode;
 import com.platform.common.error.RefreshTokenReuseException;
@@ -18,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -137,6 +139,39 @@ public class AuthSessionService {
 	@Transactional
 	public void revokeAll(AccountActorType actorType, Long accountId, String reason) {
 		sessionRepository.revokeAll(actorType, accountId, LocalDateTime.now(), reason);
+	}
+
+	@Transactional(readOnly = true)
+	public List<ActiveAuthSessionResult> activeSessions(AccountActorType actorType, Long accountId) {
+		return sessionRepository
+			.findByActorTypeAndAccountIdAndRevokedAtIsNullAndExpiresAtAfterOrderByLastUsedAtDesc(
+				actorType,
+				accountId,
+				LocalDateTime.now()
+			)
+			.stream()
+			.map(session -> new ActiveAuthSessionResult(
+				session.id(),
+				session.persistent(),
+				session.createdAt(),
+				session.lastUsedAt(),
+				session.expiresAt(),
+				session.ipAddress(),
+				session.userAgent()
+			))
+			.toList();
+	}
+
+	@Transactional
+	public boolean revokeForStaff(String sessionId, AccountActorType actorType, Long accountId, String reason) {
+		return sessionRepository.findByIdForUpdate(sessionId)
+			.filter(session -> session.actorType() == actorType && session.accountId().equals(accountId))
+			.filter(session -> session.isActive(LocalDateTime.now()))
+			.map(session -> {
+				session.revoke(reason);
+				return true;
+			})
+			.orElse(false);
 	}
 
 	@Transactional

@@ -13,6 +13,7 @@ public record UpdatePartnerOnboardingCommand(
 	String detailAddress,
 	String latitude,
 	String longitude,
+	String subwayStations,
 	String operatingHoursNotice,
 	String operationHours,
 	String holidayPolicy,

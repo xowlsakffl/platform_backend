@@ -1,6 +1,8 @@
 spring:
   application:
     name: platform_backend
+  config:
+    import: optional:file:.env[.properties]
   profiles:
     default: local
   data:
@@ -50,12 +52,18 @@ management:
         include: health,info
 
 app:
+  ocr:
+    business-registration:
+      enabled: ${BUSINESS_REGISTRATION_OCR_ENABLED:false}
+      invoke-url: ${BUSINESS_REGISTRATION_OCR_INVOKE_URL:}
+      secret: ${BUSINESS_REGISTRATION_OCR_SECRET:}
+      confirmation-confidence: ${BUSINESS_REGISTRATION_OCR_CONFIRMATION_CONFIDENCE:0.8}
   category-definitions:
     sync-enabled: ${CATEGORY_DEFINITION_SYNC_ENABLED:true}
   partner-feature-definitions:
     sync-enabled: ${PARTNER_FEATURE_DEFINITION_SYNC_ENABLED:true}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4001,http://localhost:4002,http://localhost:4003,http://localhost:4004,http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003,http://127.0.0.1:4004}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4000,http://localhost:4001,http://localhost:4002,http://127.0.0.1:4000,http://127.0.0.1:4001,http://127.0.0.1:4002}
   auth:
     jwt:
       issuer: ${AUTH_JWT_ISSUER:platform_backend}
@@ -97,13 +105,6 @@ app:
       user-url: ${PASSWORD_RESET_USER_URL}
   cache:
     staff-summary-ttl-seconds: ${STAFF_SUMMARY_CACHE_TTL_SECONDS:300}
-  partner-account-invitation:
-    token-ttl-seconds: ${PARTNER_ACCOUNT_INVITATION_TOKEN_TTL_SECONDS:259200}
-    frontend-url: ${PARTNER_ACCOUNT_INVITATION_URL:http://localhost:4003/account/setup}
-    mail-mode: ${PARTNER_ACCOUNT_INVITATION_MAIL_MODE:${PASSWORD_RESET_MAIL_MODE:smtp}}
-    mail-from-address: ${MAIL_FROM_ADDRESS:no-reply@platform.local}
-    mail-from-name: ${MAIL_FROM_NAME:Platform}
-    service-name: ${SERVICE_NAME:Platform}
   bootstrap:
     staff:
       enabled: ${STAFF_BOOTSTRAP_ENABLED:false}

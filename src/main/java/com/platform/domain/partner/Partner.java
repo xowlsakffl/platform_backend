@@ -1,6 +1,5 @@
 package com.platform.domain.partner;
 
-import com.platform.domain.account.AccountPartner;
 import com.platform.domain.account.AccountStaff;
 import com.platform.domain.common.BaseTimeEntity;
 import jakarta.persistence.CascadeType;
@@ -87,13 +86,6 @@ public class Partner extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private PartnerStatus status = PartnerStatus.ACTIVE;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "registration_source", nullable = false, length = 30)
-	private PartnerRegistrationSource registrationSource = PartnerRegistrationSource.STAFF_CREATED;
-
-	@Column(name = "created_by_staff_id")
-	private Long createdByStaffId;
-
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
@@ -113,9 +105,6 @@ public class Partner extends BaseTimeEntity {
 
 	@OneToOne(mappedBy = "partner", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 	private PartnerBusinessRegistration businessRegistration;
-
-	@OneToOne(mappedBy = "partner", fetch = FetchType.LAZY)
-	private AccountPartner accountPartner;
 
 	@ManyToMany
 	@JoinTable(
@@ -141,7 +130,6 @@ public class Partner extends BaseTimeEntity {
 			PartnerAllowStatus.DRAFT,
 			PartnerStatus.ACTIVE
 		);
-		partner.registrationSource = PartnerRegistrationSource.SELF_ONBOARDING;
 		return partner;
 	}
 
@@ -232,6 +220,15 @@ public class Partner extends BaseTimeEntity {
 		this.reviewStartedAt = null;
 	}
 
+	public boolean restartReviewAfterCriticalInformationChange() {
+		if (allowStatus != PartnerAllowStatus.IN_REVIEW
+			&& allowStatus != PartnerAllowStatus.APPROVED) {
+			return false;
+		}
+		requestReview();
+		return true;
+	}
+
 	public void startReview(AccountStaff reviewerStaff) {
 		this.allowStatus = PartnerAllowStatus.IN_REVIEW;
 		this.reviewerStaff = Objects.requireNonNull(reviewerStaff);
@@ -311,11 +308,6 @@ public class Partner extends BaseTimeEntity {
 
 	public void assignStaff(AccountStaff assignedStaff) {
 		this.assignedStaff = assignedStaff;
-	}
-
-	public void markStaffCreated(Long staffId) {
-		this.registrationSource = PartnerRegistrationSource.STAFF_CREATED;
-		this.createdByStaffId = staffId;
 	}
 
 	public void softDelete() {
@@ -398,14 +390,6 @@ public class Partner extends BaseTimeEntity {
 		return status;
 	}
 
-	public PartnerRegistrationSource registrationSource() {
-		return registrationSource;
-	}
-
-	public Long createdByStaffId() {
-		return createdByStaffId;
-	}
-
 	public LocalDateTime deletedAt() {
 		return deletedAt;
 	}
@@ -428,10 +412,6 @@ public class Partner extends BaseTimeEntity {
 
 	public PartnerBusinessRegistration businessRegistration() {
 		return businessRegistration;
-	}
-
-	public AccountPartner accountPartner() {
-		return accountPartner;
 	}
 
 	public Set<PartnerFeature> features() {

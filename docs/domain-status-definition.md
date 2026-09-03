@@ -64,6 +64,8 @@ Staff는 `REVIEW_REQUESTED -> IN_REVIEW -> APPROVED/REJECTED` 순서로만 검�
 
 Partner API 삭제는 soft delete다. 연결된 Specialist도 soft delete하고, Partner·Specialist·사업자등록증 미디어와 카테고리 할당을 함께 정리한다. DB 외래 키는 실제 hard delete 상황에서 Specialist를 `ON DELETE CASCADE`한다.
 
+파트너 관리 화면의 업체 이미지와 사업자등록증은 `GET /api/v1/partner/partners/{partnerId}/media/{mediaId}/content`로 조회한다. 활성 업체 멤버십과 파일의 실제 소유 업체를 모두 확인하며, 사업자등록증은 공개 미디어 경로로 제공하지 않는다. 인증 파일 응답은 `Cache-Control: no-store`를 적용한다.
+
 ## Specialist
 
 ### 상태

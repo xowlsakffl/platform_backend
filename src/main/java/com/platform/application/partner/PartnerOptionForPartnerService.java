@@ -16,7 +16,6 @@ import com.platform.common.security.AccessPermissions;
 import com.platform.domain.partner.Partner;
 import com.platform.domain.category.Category;
 import com.platform.domain.category.CategoryAssignmentTarget;
-import com.platform.domain.partner.PartnerAllowStatus;
 import com.platform.domain.partner.PartnerOption;
 import com.platform.domain.partner.PartnerStatus;
 import com.platform.domain.specialist.Specialist;
@@ -32,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerOptionForPartnerService {
 
 	private final OwnershipPolicy ownershipPolicy;
+	private final PartnerHistoryService historyService;
 	private final PermissionService permissionService;
 	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
@@ -49,6 +50,7 @@ public class PartnerOptionForPartnerService {
 
 	public PartnerOptionForPartnerService(
 		OwnershipPolicy ownershipPolicy,
+		PartnerHistoryService historyService,
 		PermissionService permissionService,
 		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
@@ -57,6 +59,7 @@ public class PartnerOptionForPartnerService {
 		SpecialistOptionRepository specialistOptionRepository
 	) {
 		this.ownershipPolicy = ownershipPolicy;
+		this.historyService = historyService;
 		this.permissionService = permissionService;
 		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
@@ -66,8 +69,8 @@ public class PartnerOptionForPartnerService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<PartnerOptionResult> list(AuthenticatedActor actor) {
-		Partner partner = ownedPartner(actor);
+	public List<PartnerOptionResult> list(AuthenticatedActor actor, Long partnerId) {
+		Partner partner = ownedPartner(actor, partnerId);
 		return listByPartnerId(partner.id());
 	}
 
@@ -107,9 +110,9 @@ public class PartnerOptionForPartnerService {
 	}
 
 	@Transactional
-	public PartnerOptionResult create(AuthenticatedActor actor, SavePartnerOptionCommand command) {
-		Partner partner = editablePartner(actor);
-		return createForPartner(partner, command);
+	public PartnerOptionResult create(AuthenticatedActor actor, Long partnerId, SavePartnerOptionCommand command) {
+		Partner partner = editablePartner(actor, partnerId);
+		return mutateOptions(actor, partner, () -> createForPartner(partner, command));
 	}
 
 	PartnerOptionResult createForPartner(Partner partner, SavePartnerOptionCommand command) {
@@ -141,7 +144,8 @@ public class PartnerOptionForPartnerService {
 		SavePartnerOptionCommand command
 	) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
-		return createForPartner(staffPartner(partnerId, true), command);
+		Partner partner = staffPartnerForUpdate(partnerId);
+		return mutateOptions(actor, partner, () -> createForPartner(partner, command));
 	}
 
 	@Transactional
@@ -152,6 +156,19 @@ public class PartnerOptionForPartnerService {
 	) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
 		Partner partner = staffPartnerForUpdate(partnerId);
+		return mutateOptions(actor, partner, () -> replace(partner, command));
+	}
+
+	@Transactional
+	public List<PartnerOptionResult> replaceForPartner(
+		AuthenticatedActor actor, Long partnerId, ReplacePartnerOptionsCommand command
+	) {
+		Partner partner = editablePartner(actor, partnerId);
+		return mutateOptions(actor, partner, () -> replace(partner, command));
+	}
+
+	private List<PartnerOptionResult> replace(Partner partner, ReplacePartnerOptionsCommand command) {
+		Long partnerId = partner.id();
 		List<PartnerOption> existing = optionRepository
 			.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partnerId);
 		Map<Long, PartnerOption> existingById = existing.stream()
@@ -187,11 +204,12 @@ public class PartnerOptionForPartnerService {
 	@Transactional
 	public PartnerOptionResult update(
 		AuthenticatedActor actor,
+		Long partnerId,
 		Long optionId,
 		SavePartnerOptionCommand command
 	) {
-		Partner partner = editablePartner(actor);
-		return updateForPartner(partner, optionId, command);
+		Partner partner = editablePartner(actor, partnerId);
+		return mutateOptions(actor, partner, () -> updateForPartner(partner, optionId, command));
 	}
 
 	private PartnerOptionResult updateForPartner(
@@ -231,13 +249,14 @@ public class PartnerOptionForPartnerService {
 		SavePartnerOptionCommand command
 	) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
-		return updateForPartner(staffPartner(partnerId, true), optionId, command);
+		Partner partner = staffPartnerForUpdate(partnerId);
+		return mutateOptions(actor, partner, () -> updateForPartner(partner, optionId, command));
 	}
 
 	@Transactional
-	public Long delete(AuthenticatedActor actor, Long optionId) {
-		Partner partner = editablePartner(actor);
-		return deleteForPartner(partner, optionId);
+	public Long delete(AuthenticatedActor actor, Long partnerId, Long optionId) {
+		Partner partner = editablePartner(actor, partnerId);
+		return mutateOptions(actor, partner, () -> deleteForPartner(partner, optionId));
 	}
 
 	private Long deleteForPartner(Partner partner, Long optionId) {
@@ -254,23 +273,31 @@ public class PartnerOptionForPartnerService {
 	@Transactional
 	public Long deleteForStaff(AuthenticatedActor actor, Long partnerId, Long optionId) {
 		permissionService.requireStaffPermission(actor, AccessPermissions.PARTNER_UPDATE);
-		return deleteForPartner(staffPartner(partnerId, true), optionId);
+		Partner partner = staffPartnerForUpdate(partnerId);
+		return mutateOptions(actor, partner, () -> deleteForPartner(partner, optionId));
 	}
 
-	private Partner ownedPartner(AuthenticatedActor actor) {
-		ownershipPolicy.requirePartnerOwner(actor, actor.partnerId());
-		return partnerRepository.findByIdAndDeletedAtIsNull(actor.partnerId())
+	private <T> T mutateOptions(AuthenticatedActor actor, Partner partner, Supplier<T> mutation) {
+		var before = historyService.options(listByPartnerId(partner.id()));
+		T result = mutation.get();
+		optionRepository.flush();
+		historyService.record(actor, partner, "PARTNER_OPTIONS_UPDATED", null, before,
+			historyService.options(listByPartnerId(partner.id())));
+		return result;
+	}
+
+	private Partner ownedPartner(AuthenticatedActor actor, Long partnerId) {
+		ownershipPolicy.requirePartnerOwner(actor, partnerId);
+		return partnerRepository.findByIdAndDeletedAtIsNull(partnerId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner not found."));
 	}
 
-	private Partner editablePartner(AuthenticatedActor actor) {
-		Partner partner = ownedPartner(actor);
+	private Partner editablePartner(AuthenticatedActor actor, Long partnerId) {
+		ownershipPolicy.requirePartnerOwner(actor, partnerId);
+		Partner partner = partnerRepository.findForUpdateByIdAndDeletedAtIsNull(partnerId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "업체를 찾을 수 없습니다."));
 		if (partner.status() == PartnerStatus.WITHDRAWN) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "A withdrawn partner cannot edit options.");
-		}
-		if (partner.allowStatus() == PartnerAllowStatus.REVIEW_REQUESTED
-			|| partner.allowStatus() == PartnerAllowStatus.IN_REVIEW) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Options cannot be changed while review is pending.");
 		}
 		return partner;
 	}

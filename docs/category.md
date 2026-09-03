@@ -79,11 +79,11 @@ GET /api/v1/staff/categories/selector?domain=PARTNER&usage=PARTNER_CATEGORY
 GET /api/v1/staff/categories/selector?domain=PARTNER&usage=PARTNER_OPTION_CATEGORY&parent_id={categoryId}
 ```
 
-Partner는 로그인한 업체의 분류를 기준으로 옵션 카테고리를 제한한다.
+Partner는 URL로 선택한 업체의 분류를 기준으로 옵션 카테고리를 제한한다. 인증 계정이 해당 업체의 활성 멤버십을 보유해야 한다.
 
 ```text
-GET /api/v1/partner/categories?usage=PARTNER_CATEGORY
-GET /api/v1/partner/categories?usage=PARTNER_OPTION_CATEGORY
+GET /api/v1/partner/partners/{partnerId}/categories?usage=PARTNER_CATEGORY
+GET /api/v1/partner/partners/{partnerId}/categories?usage=PARTNER_OPTION_CATEGORY
 ```
 
 ## 연결 규칙

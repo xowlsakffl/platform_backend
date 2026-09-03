@@ -1,6 +1,7 @@
 package com.platform.application.category;
 
 import com.platform.application.auth.PermissionService;
+import com.platform.application.auth.OwnershipPolicy;
 import com.platform.application.category.result.CategoryReferenceResult;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.domain.account.AccountActorType;
@@ -20,28 +21,55 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryForPartnerService {
 
 	private final PermissionService permissionService;
+	private final OwnershipPolicy ownershipPolicy;
 	private final CategoryAssignmentService categoryAssignmentService;
 	private final CategoryUsageRepository categoryUsageRepository;
 
 	public CategoryForPartnerService(
 		PermissionService permissionService,
+		OwnershipPolicy ownershipPolicy,
 		CategoryAssignmentService categoryAssignmentService,
 		CategoryUsageRepository categoryUsageRepository
 	) {
 		this.permissionService = permissionService;
+		this.ownershipPolicy = ownershipPolicy;
 		this.categoryAssignmentService = categoryAssignmentService;
 		this.categoryUsageRepository = categoryUsageRepository;
 	}
 
 	@Transactional(readOnly = true)
+	public List<CategoryReferenceResult> registrationCategories(AuthenticatedActor actor) {
+		permissionService.requireActor(actor, AccountActorType.PARTNER);
+		return categoryUsageRepository
+			.findByUsageAndStatusOrderBySortOrderAscIdAsc(
+				CategoryUsageType.PARTNER_CATEGORY,
+				CategoryStatus.ACTIVE
+			)
+			.stream()
+			.map(categoryUsage -> categoryUsage.category())
+			.map(category -> new CategoryReferenceResult(
+				category.id(),
+				category.name(),
+				category.code(),
+				category.fullPath(),
+				category.parentId(),
+				category.depth(),
+				false
+			))
+			.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public List<CategoryReferenceResult> selector(
 		AuthenticatedActor actor,
+		Long partnerId,
 		CategoryUsageType usage,
 		Long parentId,
 		String query
 	) {
 		permissionService.requireActor(actor, AccountActorType.PARTNER);
-		Set<Long> allowedParentIds = allowedParentIds(actor, usage);
+		ownershipPolicy.requirePartnerOwner(actor, partnerId);
+		Set<Long> allowedParentIds = allowedParentIds(partnerId, usage);
 		String keyword = normalize(query);
 
 		return categoryUsageRepository
@@ -64,12 +92,12 @@ public class CategoryForPartnerService {
 			.toList();
 	}
 
-	private Set<Long> allowedParentIds(AuthenticatedActor actor, CategoryUsageType usage) {
+	private Set<Long> allowedParentIds(Long partnerId, CategoryUsageType usage) {
 		if (usage != CategoryUsageType.PARTNER_OPTION_CATEGORY) {
 			return Set.of();
 		}
 		return new HashSet<>(categoryAssignmentService
-			.references(CategoryAssignmentTarget.PARTNER, actor.partnerId())
+			.references(CategoryAssignmentTarget.PARTNER, partnerId)
 			.stream()
 			.map(CategoryReferenceResult::id)
 			.toList());

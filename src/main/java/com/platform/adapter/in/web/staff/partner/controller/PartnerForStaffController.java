@@ -2,13 +2,10 @@ package com.platform.adapter.in.web.staff.partner.controller;
 
 import com.platform.adapter.in.web.staff.partner.request.PartnerAllowStatusUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerAllowStatusReviewForStaffRequest;
-import com.platform.adapter.in.web.staff.partner.request.PartnerAccountStatusUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerAssignedStaffUpdateForStaffRequest;
-import com.platform.adapter.in.web.staff.partner.request.PartnerCheckBusinessNumberForStaffRequest;
-import com.platform.adapter.in.web.staff.partner.request.PartnerCreateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerGetForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerListForStaffRequest;
-import com.platform.adapter.in.web.staff.partner.request.PartnerOptionCreateForStaffRequest;
+import com.platform.adapter.in.web.staff.partner.request.PartnerOwnerAccountUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerStatusUpdateForStaffRequest;
 import com.platform.adapter.in.web.staff.partner.request.PartnerUpdateForStaffRequest;
 import com.platform.application.partner.PartnerForStaffService;
@@ -19,8 +16,6 @@ import com.platform.common.web.PaginatedResponse;
 import com.platform.common.web.RequestTrace;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Size;
-import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -29,11 +24,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 
 @Validated
@@ -72,6 +65,15 @@ public class PartnerForStaffController {
 		return ApiResponse.success(service.assignedStaffOptions(actor, q), RequestTrace.traceId(request));
 	}
 
+	@GetMapping("/owner-account-options")
+	public ApiResponse ownerAccountOptions(
+		@AuthenticationPrincipal AuthenticatedActor actor,
+		@RequestParam(required = false) String q,
+		HttpServletRequest request
+	) {
+		return ApiResponse.success(service.ownerAccountOptions(actor, q), RequestTrace.traceId(request));
+	}
+
 	@GetMapping("/{id}")
 	public ApiResponse get(
 		@AuthenticationPrincipal AuthenticatedActor actor,
@@ -91,26 +93,6 @@ public class PartnerForStaffController {
 	) {
 		PaginatedResponse<?> response = service.histories(actor, id, query.toHistoryQuery());
 		return ApiResponse.success(response.items(), response.meta(), RequestTrace.traceId(request));
-	}
-
-	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ApiResponse create(
-		@AuthenticationPrincipal AuthenticatedActor actor,
-		@Valid @ModelAttribute PartnerCreateForStaffRequest body,
-		@RequestPart(name = "options", required = false) @Size(max = 100)
-		List<@Valid PartnerOptionCreateForStaffRequest> options,
-		HttpServletRequest request
-	) {
-		return ApiResponse.success(service.create(actor, body.toCommand(options)), RequestTrace.traceId(request));
-	}
-
-	@PostMapping("/check-business-number")
-	public ApiResponse checkBusinessNumber(
-		@AuthenticationPrincipal AuthenticatedActor actor,
-		@Valid @RequestBody PartnerCheckBusinessNumberForStaffRequest body,
-		HttpServletRequest request
-	) {
-		return ApiResponse.success(service.checkBusinessNumber(actor, body.businessNumber()), RequestTrace.traceId(request));
 	}
 
 	@PatchMapping(value = "/{id}/fields", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -136,15 +118,15 @@ public class PartnerForStaffController {
 		return ApiResponse.success(service.changeStatus(actor, id, body.toCommand()), RequestTrace.traceId(request));
 	}
 
-	@PatchMapping("/{id}/account-status")
-	public ApiResponse updateAccountStatus(
+	@PatchMapping("/{id}/owner-account")
+	public ApiResponse updateOwnerAccount(
 		@AuthenticationPrincipal AuthenticatedActor actor,
 		@PathVariable Long id,
-		@Valid @RequestBody PartnerAccountStatusUpdateForStaffRequest body,
+		@Valid @RequestBody PartnerOwnerAccountUpdateForStaffRequest body,
 		HttpServletRequest request
 	) {
 		return ApiResponse.success(
-			service.changeAccountStatus(actor, id, body.toCommand()),
+			service.changeOwnerAccount(actor, id, body.loginId()),
 			RequestTrace.traceId(request)
 		);
 	}

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.web.bind.annotation.BindParam;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.LocalDate;
 
 public record PartnerOnboardingUpdateRequest(
 	@Size(max = 30) String name,
@@ -26,6 +27,7 @@ public record PartnerOnboardingUpdateRequest(
 	@BindParam("detail_address") @Size(max = 255) String detailAddress,
 	@DecimalMin("-90") @DecimalMax("90") String latitude,
 	@DecimalMin("-180") @DecimalMax("180") String longitude,
+	@BindParam("subway_stations") @Size(max = 12000) String subwayStations,
 	@BindParam("operating_hours_notice") @Size(max = 500) String operatingHoursNotice,
 	@BindParam("operation_hours") String operationHours,
 	@BindParam("holiday_policy") String holidayPolicy,
@@ -48,10 +50,7 @@ public record PartnerOnboardingUpdateRequest(
 	@Pattern(regexp = PartnerRequestSupport.BUSINESS_NUMBER_PATTERN) String businessNumber,
 	@BindParam("company_name") @Size(max = 255) String companyName,
 	@BindParam("ceo_name") @Size(max = 100) String ceoName,
-	@BindParam("business_type") @Size(max = 100) String businessType,
-	@BindParam("business_item") @Size(max = 100) String businessItem,
-	@BindParam("business_address") @Size(max = 255) String businessAddress,
-	@BindParam("business_address_detail") @Size(max = 255) String businessAddressDetail,
+	@BindParam("opening_date") LocalDate openingDate,
 	@BindParam("feature_ids[]") @Size(max = 100) Set<@Positive Long> featureIds,
 	@BindParam("hashtags[]") @Size(max = 10) List<@Size(max = 30) String> hashtags,
 	@Size(max = 12000) String links,
@@ -78,6 +77,7 @@ public record PartnerOnboardingUpdateRequest(
 			detailAddress,
 			latitude,
 			longitude,
+			subwayStations,
 			operatingHoursNotice,
 			operationHours,
 			holidayPolicy,
@@ -130,10 +130,7 @@ public record PartnerOnboardingUpdateRequest(
 			"business_number",
 			"company_name",
 			"ceo_name",
-			"business_type",
-			"business_item",
-			"business_address",
-			"business_address_detail"
+			"opening_date"
 		).stream().noneMatch(fields::contains)) {
 			return null;
 		}
@@ -141,10 +138,7 @@ public record PartnerOnboardingUpdateRequest(
 			businessNumber,
 			companyName,
 			ceoName,
-			businessType,
-			businessItem,
-			businessAddress,
-			businessAddressDetail,
+			openingDate,
 			null,
 			null,
 			null

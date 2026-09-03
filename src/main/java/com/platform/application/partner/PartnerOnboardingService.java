@@ -10,23 +10,20 @@ import com.platform.application.hashtag.HashtagAssignmentService;
 import com.platform.application.media.MediaCollectionPolicy;
 import com.platform.application.media.MediaCommandService;
 import com.platform.application.media.MediaReadService;
+import com.platform.application.media.result.MediaResult;
 import com.platform.application.partner.command.PartnerBusinessRegistrationCommand;
 import com.platform.application.partner.command.PartnerContactSetCommand;
-import com.platform.application.partner.command.SignupPartnerOnboardingCommand;
 import com.platform.application.partner.command.UpdatePartnerOnboardingCommand;
 import com.platform.application.partner.result.PartnerBusinessRegistrationResult;
 import com.platform.application.partner.result.PartnerContactResult;
 import com.platform.application.partner.result.PartnerFeatureResult;
 import com.platform.application.partner.result.PartnerLinkResult;
 import com.platform.application.partner.result.PartnerOnboardingResult;
-import com.platform.application.partner.result.PartnerOnboardingSignupResult;
 import com.platform.application.partner.result.PartnerSettlementAccountResult;
 import com.platform.common.error.ApiException;
 import com.platform.common.error.ErrorCode;
 import com.platform.common.error.InternalApplicationException;
 import com.platform.common.security.AuthenticatedActor;
-import com.platform.domain.account.AccountPartner;
-import com.platform.domain.account.AccountPartnerStatus;
 import com.platform.domain.category.CategoryAssignmentTarget;
 import com.platform.domain.media.MediaOwnerType;
 import com.platform.domain.operationhistory.OperationHistory;
@@ -39,12 +36,10 @@ import com.platform.domain.partner.PartnerFeature;
 import com.platform.domain.partner.PartnerFeatureStatus;
 import com.platform.domain.hashtag.HashtagTargetType;
 import com.platform.domain.partner.PartnerStatus;
-import com.platform.infrastructure.persistence.account.AccountPartnerRepository;
 import com.platform.infrastructure.persistence.operationhistory.OperationHistoryRepository;
 import com.platform.infrastructure.persistence.partner.PartnerBusinessRegistrationRepository;
 import com.platform.infrastructure.persistence.partner.PartnerFeatureRepository;
 import com.platform.infrastructure.persistence.partner.PartnerLinkRepository;
-import com.platform.infrastructure.persistence.partner.PartnerOptionRepository;
 import com.platform.infrastructure.persistence.partner.PartnerRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -52,11 +47,10 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -64,137 +58,111 @@ import org.springframework.util.StringUtils;
 @Service
 public class PartnerOnboardingService {
 
-	private static final String ACTION_SIGNED_UP = "ONBOARDING_SIGNED_UP";
+	private final PartnerHistoryService historyService;
+	private final PartnerScheduleChangePolicy scheduleChangePolicy;
+
 	private static final String ACTION_SUBMITTED = "ONBOARDING_SUBMITTED";
+	private static final String ACTION_REVIEW_RESTARTED = "REVIEW_RESTARTED_AFTER_INFORMATION_CHANGE";
+	private static final Set<String> REVIEW_CRITICAL_FIELDS = Set.of(
+		"name",
+		"category_id",
+		"road_address",
+		"detail_address",
+		"latitude",
+		"longitude",
+		"representative_phone",
+		"representative_email",
+		"business_number",
+		"company_name",
+		"ceo_name",
+		"business_registration_file",
+		"existing_business_registration_file_id"
+	);
 	private final OwnershipPolicy ownershipPolicy;
 	private final CategoryAssignmentService categoryAssignmentService;
 	private final PartnerRepository partnerRepository;
-	private final AccountPartnerRepository accountPartnerRepository;
 	private final PartnerBusinessRegistrationRepository businessRegistrationRepository;
 	private final PartnerFeatureRepository featureRepository;
 	private final HashtagAssignmentService hashtagAssignmentService;
 	private final PartnerLinkRepository linkRepository;
 	private final PartnerLinkAssignmentService linkAssignmentService;
-	private final PartnerOptionRepository optionRepository;
 	private final OperationHistoryRepository operationHistoryRepository;
 	private final PartnerOptionForPartnerService optionService;
 	private final PartnerSchedulePolicyValidator schedulePolicyValidator;
+	private final PartnerAccessInformationValidator accessInformationValidator;
 	private final PartnerBusinessNumberPolicy businessNumberPolicy;
 	private final MediaCommandService mediaCommandService;
 	private final MediaReadService mediaReadService;
 	private final StaffSummaryCacheInvalidator summaryCacheInvalidator;
-	private final PasswordEncoder passwordEncoder;
 	private final ObjectMapper objectMapper;
 
 	public PartnerOnboardingService(
+		PartnerHistoryService historyService,
+		PartnerScheduleChangePolicy scheduleChangePolicy,
 		OwnershipPolicy ownershipPolicy,
 		CategoryAssignmentService categoryAssignmentService,
 		PartnerRepository partnerRepository,
-		AccountPartnerRepository accountPartnerRepository,
 		PartnerBusinessRegistrationRepository businessRegistrationRepository,
 		PartnerFeatureRepository featureRepository,
 		HashtagAssignmentService hashtagAssignmentService,
 		PartnerLinkRepository linkRepository,
 		PartnerLinkAssignmentService linkAssignmentService,
-		PartnerOptionRepository optionRepository,
 		OperationHistoryRepository operationHistoryRepository,
 		PartnerOptionForPartnerService optionService,
 		PartnerSchedulePolicyValidator schedulePolicyValidator,
+		PartnerAccessInformationValidator accessInformationValidator,
 		PartnerBusinessNumberPolicy businessNumberPolicy,
 		MediaCommandService mediaCommandService,
 		MediaReadService mediaReadService,
 		StaffSummaryCacheInvalidator summaryCacheInvalidator,
-		PasswordEncoder passwordEncoder,
 		ObjectMapper objectMapper
 	) {
 		this.ownershipPolicy = ownershipPolicy;
 		this.categoryAssignmentService = categoryAssignmentService;
 		this.partnerRepository = partnerRepository;
-		this.accountPartnerRepository = accountPartnerRepository;
 		this.businessRegistrationRepository = businessRegistrationRepository;
 		this.featureRepository = featureRepository;
 		this.hashtagAssignmentService = hashtagAssignmentService;
 		this.linkRepository = linkRepository;
 		this.linkAssignmentService = linkAssignmentService;
-		this.optionRepository = optionRepository;
 		this.operationHistoryRepository = operationHistoryRepository;
 		this.optionService = optionService;
 		this.schedulePolicyValidator = schedulePolicyValidator;
+		this.historyService = historyService;
+		this.scheduleChangePolicy = scheduleChangePolicy;
+		this.accessInformationValidator = accessInformationValidator;
 		this.businessNumberPolicy = businessNumberPolicy;
 		this.mediaCommandService = mediaCommandService;
 		this.mediaReadService = mediaReadService;
 		this.summaryCacheInvalidator = summaryCacheInvalidator;
-		this.passwordEncoder = passwordEncoder;
 		this.objectMapper = objectMapper;
 	}
 
-	@Transactional
-	public PartnerOnboardingSignupResult signup(SignupPartnerOnboardingCommand command) {
-		String partnerName = requireText(command.partnerName(), "Partner name is required.");
-		String loginId = normalizeLoginId(command.loginId());
-		String email = requireText(command.email(), "Email is required.").toLowerCase(Locale.ROOT);
-		if (accountPartnerRepository.existsByEmail(email)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Email is already in use.");
-		}
-		if (accountPartnerRepository.existsByLoginId(loginId)) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Login ID is already in use.");
-		}
-
-		Partner partner = Partner.createDraft(partnerName);
-		partner = partnerRepository.saveAndFlush(partner);
-		AccountPartner account = accountPartnerRepository.saveAndFlush(AccountPartner.create(
-			partner,
-			loginId,
-			email,
-			trimToNull(command.phone()),
-			passwordEncoder.encode(command.password()),
-			AccountPartnerStatus.ACTIVE
-		));
-		operationHistoryRepository.save(new OperationHistory(
-			OperationHistory.TARGET_PARTNER,
-			partner.id(),
-			"PARTNER",
-			account.id(),
-			ACTION_SIGNED_UP,
-			null,
-			null
-		));
-
-		return new PartnerOnboardingSignupResult(
-			partner.id(),
-			account.id(),
-			account.loginId(),
-			account.email(),
-			partner.allowStatus().name()
-		);
-	}
-
-	private String normalizeLoginId(String value) {
-		String loginId = requireText(value, "Login ID is required.").toLowerCase(Locale.ROOT);
-		if (!loginId.matches("^[a-z0-9][a-z0-9._-]{3,29}$")) {
-			throw new ApiException(ErrorCode.INVALID_REQUEST, "Login ID format is invalid.");
-		}
-		return loginId;
-	}
-
 	@Transactional(readOnly = true)
-	public PartnerOnboardingResult get(AuthenticatedActor actor) {
-		Partner partner = ownedPartner(actor);
+	public PartnerOnboardingResult get(AuthenticatedActor actor, Long partnerId) {
+		Partner partner = ownedPartner(actor, partnerId);
 		return result(actor, partner);
 	}
 
 	@Transactional
 	public PartnerOnboardingResult update(
 		AuthenticatedActor actor,
+		Long partnerId,
 		UpdatePartnerOnboardingCommand command
 	) {
-		Partner partner = editablePartner(actor);
+		Partner partner = editablePartner(actor, partnerId);
+		var before = historyService.capture(partner);
+		if (command.specified("operation_hours")) {
+			scheduleChangePolicy.assertCompatible(partner.id(),
+				schedulePolicyValidator.normalizeOperationHours(command.operationHours(), true));
+		}
 		String name = command.specified("name")
 			? requireText(command.name(), "Partner name cannot be empty.")
 			: partner.name();
 		String englishName = command.specified("english_name")
 			? trimToNull(command.englishName())
 			: partner.englishName();
+		boolean reviewCriticalInformationChanged = reviewCriticalInformationChanged(partner, command, name);
 		partner.updateOnboardingProfile(
 			name,
 			englishName,
@@ -211,6 +179,11 @@ public class PartnerOnboardingService {
 				: partner.operationHours(),
 			command.specified("direction") ? trimToNull(command.direction()) : partner.direction()
 		);
+		if (command.specified("subway_stations")) {
+			partner.changeSubwayStations(
+				accessInformationValidator.normalizeSubwayStations(command.subwayStations())
+			);
+		}
 		if (command.specified("holiday_policy")) {
 			partner.changeHolidayPolicy(
 				schedulePolicyValidator.normalizeHolidayPolicy(command.holidayPolicy(), true)
@@ -243,13 +216,100 @@ public class PartnerOnboardingService {
 			linkAssignmentService.replace(partner, command.linksJson());
 		}
 		synchronizeMedia(partner, command);
+		boolean reviewRestarted = reviewCriticalInformationChanged
+			&& partner.restartReviewAfterCriticalInformationChange();
+		if (reviewRestarted) {
+			partnerRepository.saveAndFlush(partner);
+			summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.PARTNER);
+		}
 
-		return result(actor, ownedPartner(actor));
+		historyService.record(actor, partner, reviewRestarted ? ACTION_REVIEW_RESTARTED : "UPDATED",
+			null, before, historyService.capture(partner));
+		return result(actor, ownedPartner(actor, partnerId));
+	}
+
+	private boolean reviewCriticalInformationChanged(
+		Partner partner,
+		UpdatePartnerOnboardingCommand command,
+		String normalizedName
+	) {
+		if (command.specifiedFields().stream().noneMatch(REVIEW_CRITICAL_FIELDS::contains)) {
+			return false;
+		}
+		if (command.specified("name") && !Objects.equals(partner.name(), normalizedName)) {
+			return true;
+		}
+		if (command.specified("category_id") && !categoryAssignmentService.isAssigned(
+			CategoryAssignmentTarget.PARTNER,
+			partner.id(),
+			command.categoryId()
+		)) {
+			return true;
+		}
+		if (changed(command, "road_address", partner.roadAddress(), command.roadAddress())
+			|| changed(command, "detail_address", partner.detailAddress(), command.detailAddress())
+			|| changed(command, "latitude", partner.latitude(), command.latitude())
+			|| changed(command, "longitude", partner.longitude(), command.longitude())) {
+			return true;
+		}
+		if (command.contacts() != null) {
+			if (changed(
+				command,
+				"representative_phone",
+				contactValue(partner, PartnerContactType.REPRESENTATIVE_PHONE),
+				command.contacts().representativePhone()
+			) || changed(
+				command,
+				"representative_email",
+				contactValue(partner, PartnerContactType.REPRESENTATIVE_EMAIL),
+				command.contacts().representativeEmail()
+			)) {
+				return true;
+			}
+		}
+		if (command.businessRegistration() != null
+			&& businessRegistrationChanged(partner.businessRegistration(), command)) {
+			return true;
+		}
+		return command.businessRegistrationFile() != null;
+	}
+
+	private boolean businessRegistrationChanged(
+		PartnerBusinessRegistration current,
+		UpdatePartnerOnboardingCommand command
+	) {
+		PartnerBusinessRegistrationCommand registration = command.businessRegistration();
+		String currentBusinessNumber = current == null ? null : current.businessNumber();
+		String nextBusinessNumber = command.specified("business_number")
+			? businessNumberPolicy.normalize(registration.businessNumber())
+			: currentBusinessNumber;
+		return !Objects.equals(currentBusinessNumber, nextBusinessNumber)
+			|| changed(command, "company_name", current == null ? null : current.companyName(), registration.companyName())
+			|| changed(command, "ceo_name", current == null ? null : current.ceoName(), registration.ceoName());
+	}
+
+	private boolean changed(
+		UpdatePartnerOnboardingCommand command,
+		String field,
+		String current,
+		String requested
+	) {
+		return command.specified(field) && !Objects.equals(trimToNull(current), trimToNull(requested));
+	}
+
+	private String contactValue(Partner partner, PartnerContactType type) {
+		return partner.contacts().stream()
+			.filter(PartnerContact::active)
+			.filter(contact -> contact.contactType() == type)
+			.sorted(Comparator.comparing(PartnerContact::sortOrder))
+			.map(PartnerContact::value)
+			.findFirst()
+			.orElse(null);
 	}
 
 	@Transactional
-	public PartnerOnboardingResult submit(AuthenticatedActor actor) {
-		Partner partner = editablePartner(actor);
+	public PartnerOnboardingResult submit(AuthenticatedActor actor, Long partnerId) {
+		Partner partner = editablePartner(actor, partnerId);
 		validateSubmission(partner);
 		PartnerAllowStatus before = partner.allowStatus();
 		partner.requestReview();
@@ -263,34 +323,43 @@ public class PartnerOnboardingService {
 			ACTION_SUBMITTED,
 			null,
 			null
-		);
+		).captureActor(actor.name(), actor.loginId());
 		history.addChange("allow_status", before.name(), PartnerAllowStatus.REVIEW_REQUESTED.name());
 		operationHistoryRepository.save(history);
 		summaryCacheInvalidator.forgetAfterCommit(StaffSummaryCache.PARTNER);
 		return result(actor, partner);
 	}
 
-	private Partner ownedPartner(AuthenticatedActor actor) {
-		ownershipPolicy.requirePartnerOwner(actor, actor.partnerId());
-		return partnerRepository.findByIdAndDeletedAtIsNull(actor.partnerId())
+	private Partner ownedPartner(AuthenticatedActor actor, Long partnerId) {
+		ownershipPolicy.requirePartnerOwner(actor, partnerId);
+		return partnerRepository.findByIdAndDeletedAtIsNull(partnerId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner not found."));
 	}
 
-	private Partner editablePartner(AuthenticatedActor actor) {
-		ownershipPolicy.requirePartnerOwner(actor, actor.partnerId());
-		Partner partner = partnerRepository.findForUpdateByIdAndDeletedAtIsNull(actor.partnerId())
+	private Partner editablePartner(AuthenticatedActor actor, Long partnerId) {
+		ownershipPolicy.requirePartnerOwner(actor, partnerId);
+		Partner partner = partnerRepository.findForUpdateByIdAndDeletedAtIsNull(partnerId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Partner not found."));
 		if (partner.status() == PartnerStatus.WITHDRAWN) {
 			throw new ApiException(ErrorCode.INVALID_REQUEST, "A withdrawn partner cannot edit onboarding information.");
 		}
-		if (partner.allowStatus() != PartnerAllowStatus.DRAFT
-			&& partner.allowStatus() != PartnerAllowStatus.REJECTED) {
-			throw new ApiException(
-				ErrorCode.INVALID_REQUEST,
-				"Onboarding information can be changed only in DRAFT or REJECTED status."
-			);
-		}
 		return partner;
+	}
+
+	@Transactional(readOnly = true)
+	public List<PartnerFeatureResult> availableFeatures(AuthenticatedActor actor, Long partnerId) {
+		ownedPartner(actor, partnerId);
+		return featureRepository
+			.findByStatusOrderBySortOrderAscIdAsc(PartnerFeatureStatus.ACTIVE)
+			.stream()
+			.map(feature -> new PartnerFeatureResult(
+				feature.id(),
+				feature.code(),
+				feature.name(),
+				feature.sortOrder(),
+				feature.status().name()
+			))
+			.toList();
 	}
 
 	private void validateSubmission(Partner partner) {
@@ -298,23 +367,11 @@ public class PartnerOnboardingService {
 		if (!StringUtils.hasText(partner.name())) {
 			missing.add("name");
 		}
-		if (!StringUtils.hasText(partner.description())) {
-			missing.add("description");
-		}
 		if (categoryAssignmentService.references(CategoryAssignmentTarget.PARTNER, partner.id()).isEmpty()) {
 			missing.add("category_id");
 		}
 		if (!StringUtils.hasText(partner.roadAddress())) {
 			missing.add("road_address");
-		}
-		if (!StringUtils.hasText(partner.latitude()) || !StringUtils.hasText(partner.longitude())) {
-			missing.add("address_coordinates");
-		}
-		if (!StringUtils.hasText(partner.operationHours())) {
-			missing.add("operation_hours");
-		}
-		if (!StringUtils.hasText(partner.holidayPolicy())) {
-			missing.add("holiday_policy");
 		}
 		boolean hasRepresentativePhone = partner.contacts().stream().anyMatch(contact ->
 			contact.active()
@@ -330,34 +387,15 @@ public class PartnerOnboardingService {
 		if (!hasRepresentativeEmail) {
 			missing.add("representative_email");
 		}
-		if (partner.features().isEmpty()) {
-			missing.add("feature_ids");
-		}
 		PartnerBusinessRegistration registration = partner.businessRegistration();
 		if (registration == null
 			|| !StringUtils.hasText(registration.businessNumber())
 			|| !StringUtils.hasText(registration.companyName())
-			|| !StringUtils.hasText(registration.ceoName())
-			|| !StringUtils.hasText(registration.businessType())
-			|| !StringUtils.hasText(registration.businessItem())) {
+			|| !StringUtils.hasText(registration.ceoName())) {
 			missing.add("business_registration");
 		}
 		if (registration != null && StringUtils.hasText(registration.businessNumber())) {
 			businessNumberPolicy.normalize(registration.businessNumber());
-		}
-		if (mediaReadService.primary(
-			MediaOwnerType.PARTNER,
-			partner.id(),
-			MediaCollectionPolicy.PARTNER_LOGO
-		) == null) {
-			missing.add("logo");
-		}
-		if (mediaReadService.primary(
-			MediaOwnerType.PARTNER,
-			partner.id(),
-			MediaCollectionPolicy.PARTNER_MAIN_IMAGE
-		) == null) {
-			missing.add("main_image");
 		}
 		if (registration == null || mediaReadService.primary(
 			MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
@@ -365,13 +403,6 @@ public class PartnerOnboardingService {
 			MediaCollectionPolicy.PARTNER_BUSINESS_REGISTRATION_FILE
 		) == null) {
 			missing.add("business_registration_file");
-		}
-		var options = optionRepository.findByPartner_IdAndDeletedAtIsNullOrderBySortOrderAscIdAsc(partner.id());
-		if (options.isEmpty()) {
-			missing.add("price_option");
-		} else if (options.stream().anyMatch(option -> categoryAssignmentService
-			.references(CategoryAssignmentTarget.PARTNER_OPTION, option.id()).isEmpty())) {
-			missing.add("price_option_category");
 		}
 		if (!missing.isEmpty()) {
 			throw new ApiException(
@@ -515,20 +546,16 @@ public class PartnerOnboardingService {
 		}
 		String companyName = fieldValue(fields, "company_name", command.companyName(), current == null ? null : current.companyName());
 		String ceoName = fieldValue(fields, "ceo_name", command.ceoName(), current == null ? null : current.ceoName());
-		String businessType = fieldValue(fields, "business_type", command.businessType(), current == null ? null : current.businessType());
-		String businessItem = fieldValue(fields, "business_item", command.businessItem(), current == null ? null : current.businessItem());
-		String businessAddress = fieldValue(fields, "business_address", command.businessAddress(), current == null ? null : current.businessAddress());
-		String businessAddressDetail = fieldValue(fields, "business_address_detail", command.businessAddressDetail(), current == null ? null : current.businessAddressDetail());
+		var openingDate = fields.contains("opening_date")
+			? command.openingDate()
+			: current == null ? null : current.openingDate();
 
 		if (current == null) {
 			current = new PartnerBusinessRegistration(
 				businessNumber,
 				companyName,
 				ceoName,
-				businessType,
-				businessItem,
-				businessAddress,
-				businessAddressDetail,
+				openingDate,
 				null,
 				null,
 				null
@@ -539,10 +566,7 @@ public class PartnerOnboardingService {
 				businessNumber,
 				companyName,
 				ceoName,
-				businessType,
-				businessItem,
-				businessAddress,
-				businessAddressDetail,
+				openingDate,
 				current.settlementBankName(),
 				current.settlementAccountNumber(),
 				current.settlementAccountHolder()
@@ -553,7 +577,7 @@ public class PartnerOnboardingService {
 	private PartnerBusinessRegistration ensureBusinessRegistration(Partner partner) {
 		if (partner.businessRegistration() == null) {
 			partner.replaceBusinessRegistration(new PartnerBusinessRegistration(
-				null, null, null, null, null, null, null, null, null, null
+				null, null, null, null, null, null, null
 			));
 			partnerRepository.saveAndFlush(partner);
 		}
@@ -590,15 +614,17 @@ public class PartnerOnboardingService {
 				partner.detailAddress(),
 				partner.latitude(),
 				partner.longitude(),
+				fromJson(partner.subwayStations()),
 				partner.operatingHoursNotice(),
 				fromJson(partner.operationHours()),
 				fromJson(partner.holidayPolicy()),
 				partner.direction(),
 				hashtagAssignmentService.values(HashtagTargetType.PARTNER, partner.id()),
 				contactResults(partner.contacts()),
-				mediaReadService.primary(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_LOGO),
-				mediaReadService.primary(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_MAIN_IMAGE),
+				partnerMedia(partner.id(), mediaReadService.primary(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_LOGO)),
+				partnerMedia(partner.id(), mediaReadService.primary(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_MAIN_IMAGE)),
 				mediaReadService.list(MediaOwnerType.PARTNER, partner.id(), MediaCollectionPolicy.PARTNER_INTERIOR_IMAGE)
+					.stream().map(media -> partnerMedia(partner.id(), media)).toList()
 			),
 			new PartnerOnboardingResult.AdditionalInformation(
 				featureResults(partner.features()),
@@ -607,8 +633,8 @@ public class PartnerOnboardingService {
 					.map(link -> new PartnerLinkResult(link.id(), link.type().name(), link.url(), link.sortOrder()))
 					.toList()
 			),
-			new PartnerOnboardingResult.PriceInformation(optionService.list(actor)),
-			new PartnerOnboardingResult.VerificationInformation(businessRegistrationResult(partner.businessRegistration()))
+			new PartnerOnboardingResult.PriceInformation(optionService.listByPartnerId(partner.id())),
+			new PartnerOnboardingResult.VerificationInformation(businessRegistrationResult(partner.id(), partner.businessRegistration()))
 		);
 	}
 
@@ -655,7 +681,7 @@ public class PartnerOnboardingService {
 			.toList();
 	}
 
-	private PartnerBusinessRegistrationResult businessRegistrationResult(PartnerBusinessRegistration registration) {
+	private PartnerBusinessRegistrationResult businessRegistrationResult(Long partnerId, PartnerBusinessRegistration registration) {
 		if (registration == null) {
 			return null;
 		}
@@ -664,17 +690,20 @@ public class PartnerOnboardingService {
 			registration.businessNumber(),
 			registration.companyName(),
 			registration.ceoName(),
-			registration.businessType(),
-			registration.businessItem(),
-			registration.businessAddress(),
-			registration.businessAddressDetail(),
+			registration.openingDate(),
 			new PartnerSettlementAccountResult(null, null, null),
 			registration.status().name(),
-			mediaReadService.primary(
+			partnerMedia(partnerId, mediaReadService.primary(
 				MediaOwnerType.PARTNER_BUSINESS_REGISTRATION,
 				registration.id(),
 				MediaCollectionPolicy.PARTNER_BUSINESS_REGISTRATION_FILE
-			)
+			))
+		);
+	}
+
+	private MediaResult partnerMedia(Long partnerId, MediaResult media) {
+		return media == null ? null : media.withContentUrl(
+			"/api/v1/partner/partners/%d/media/%d/content".formatted(partnerId, media.id())
 		);
 	}
 

@@ -45,10 +45,6 @@ public record PartnerDetailResult(
 	@JsonProperty("detail_address") String detailAddress,
 	List<String> hashtags,
 	List<PartnerLinkResult> links,
-	List<PartnerOptionResult> options,
-	@JsonProperty("registration_source") String registrationSource,
-	@JsonProperty("created_by_staff_id") Long createdByStaffId,
-	@JsonProperty("account_link_status") String accountLinkStatus,
-	@JsonProperty("latest_account_invitation") PartnerAccountInvitationResult latestAccountInvitation
+	List<PartnerOptionResult> options
 ) {
 }

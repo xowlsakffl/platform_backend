@@ -44,8 +44,12 @@ public class SpecialistMediaForPartnerService {
 	}
 
 	@Transactional(readOnly = true)
-	public MediaContentResult content(AuthenticatedActor actor, Long specialistId, Long mediaId) {
-		Long partnerId = actor == null ? null : actor.partnerId();
+	public MediaContentResult content(
+		AuthenticatedActor actor,
+		Long partnerId,
+		Long specialistId,
+		Long mediaId
+	) {
 		ownershipPolicy.requirePartnerOwner(actor, partnerId);
 		if (partnerId == null) {
 			throw new ApiException(ErrorCode.FORBIDDEN);

@@ -24,4 +24,10 @@ public record MediaResult(
 	@JsonProperty("created_at") LocalDateTime createdAt,
 	@JsonProperty("updated_at") LocalDateTime updatedAt
 ) {
+	public MediaResult withContentUrl(String url) {
+		return new MediaResult(
+			id, ownerType, ownerId, collection, disk, originalName, mimeType, size,
+			width, height, sortOrder, primary, metadata, url, createdAt, updatedAt
+		);
+	}
 }

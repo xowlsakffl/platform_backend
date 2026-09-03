@@ -2,6 +2,8 @@ package com.platform.adapter.in.web.partner.auth.controller;
 
 import com.platform.adapter.in.web.partner.auth.request.PartnerLoginRequest;
 import com.platform.adapter.in.web.partner.auth.request.PartnerLoginIdCheckRequest;
+import com.platform.adapter.in.web.partner.auth.request.PartnerSignupRequest;
+import com.platform.application.auth.PartnerAccountRegistrationService;
 import com.platform.common.security.AuthenticatedActor;
 import com.platform.common.web.ApiResponse;
 import com.platform.common.web.RequestTrace;
@@ -27,9 +29,31 @@ public class PartnerAuthController {
 
 	private static final AccountActorType ACTOR_TYPE = AccountActorType.PARTNER;
 	private final AuthWebService authWebService;
+	private final PartnerAccountRegistrationService registrationService;
 
-	public PartnerAuthController(AuthWebService authWebService) {
+	public PartnerAuthController(
+		AuthWebService authWebService,
+		PartnerAccountRegistrationService registrationService
+	) {
 		this.authWebService = authWebService;
+		this.registrationService = registrationService;
+	}
+
+	@PostMapping("/signup")
+	public ApiResponse signup(
+		@Valid @RequestBody PartnerSignupRequest body,
+		HttpServletRequest request,
+		HttpServletResponse response
+	) {
+		registrationService.register(body.toRegistrationCommand());
+		return ApiResponse.success(
+			authWebService.login(
+				ACTOR_TYPE,
+				body.toLoginCommand(AuthRequestSupport.clientContext(request)),
+				response
+			),
+			RequestTrace.traceId(request)
+		);
 	}
 
 	@PostMapping("/login")

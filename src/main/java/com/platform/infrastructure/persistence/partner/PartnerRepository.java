@@ -25,7 +25,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long>, JpaSpec
 	@EntityGraph(attributePaths = {
 		"contacts",
 		"businessRegistration",
-		"accountPartner",
 		"assignedStaff",
 		"reviewerStaff",
 		"features"
